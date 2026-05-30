@@ -34,12 +34,14 @@ function applySecurity(app) {
   app.use(
     cors({
       origin: function (origin, callback) {
+        const normalizedOrigin = origin ? origin.replace(/\/$/, '') : '';
+        const allowed = env.ALLOWED_ORIGINS.map(url => url.replace(/\/$/, ''));
         if (
           !origin ||
           env.isDev() ||
-          env.ALLOWED_ORIGINS.includes(origin) ||
-          origin.includes('ngrok-free.app') ||
-          origin.includes('ngrok.io')
+          allowed.includes(normalizedOrigin) ||
+          normalizedOrigin.includes('ngrok-free.app') ||
+          normalizedOrigin.includes('ngrok.io')
         ) {
           callback(null, true);
         } else {
