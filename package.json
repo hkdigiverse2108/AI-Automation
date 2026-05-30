@@ -1,0 +1,19 @@
+{
+  "name": "whatsapp-platform-root",
+  "version": "1.0.0",
+  "description": "WhatsApp Marketing Platform - Root Workspace Runner",
+  "main": "run.js",
+  "scripts": {
+    "dev": "node run.js",
+    "start": "node run.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "marketing",
+    "platform",
+    "concurrent",
+    "runner"
+  ],
+  "author": "Antigravity",
+  "license": "ISC"
+}

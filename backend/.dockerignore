@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+.env.example
+*.log
+docker-compose*
+Dockerfile
+README.md
+DEPLOYMENT_GUIDE.md
+IMPLEMENTATION_SUMMARY.md
+QUICK_REFERENCE.md
+RBAC_TESTING_GUIDE.md
+verify-frontend.sh
+run.js

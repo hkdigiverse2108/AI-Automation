@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # Redis Broker
+  redis:
+    image: redis:7-alpine
+    container_name: wa-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+
+  # Backend Express API Gateway (API-only mode)
+  backend-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wa-backend-api
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - RUN_QUEUE_PROCESSORS=false  # Disables queue processors on API nodes
+      - REDIS_URL=redis://redis:6379
+      - MONGODB_URI=$MONGODB_URI
+    depends_on:
+      - redis
+    restart: always
+
+  # Background Queue Worker (Worker-only mode)
+  backend-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wa-backend-worker
+    environment:
+      - NODE_ENV=production
+      - RUN_QUEUE_PROCESSORS=true   # Mandates queue processing on background nodes
+      - REDIS_URL=redis://redis:6379
+      - MONGODB_URI=$MONGODB_URI
+    depends_on:
+      - redis
+    restart: always
+
+  # Frontend Next.js Web App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: wa-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NEXT_PUBLIC_API_URL=/api
+      - BACKEND_INTERNAL_URL=http://backend-api:5000
+    depends_on:
+      - backend-api
+    restart: always
+
+volumes:
+  redis_data:
