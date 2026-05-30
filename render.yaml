@@ -18,9 +18,9 @@ services:
       - key: REDIS_URL
         sync: false
       - key: JWT_SECRET
-        generate: true
+        generateValue: true
       - key: REFRESH_TOKEN_SECRET
-        generate: true
+        generateValue: true
       - key: ENCRYPTION_KEY
         sync: false
       - key: ALLOWED_ORIGINS
