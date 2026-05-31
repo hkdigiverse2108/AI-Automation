@@ -289,6 +289,21 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
       return;
     }
 
+    // Run Water Park sandbox or user account princegajera0506@gmail.com checks
+    const isWaterParkUser = adminUser && (adminUser.email === 'princegajera0506@gmail.com' || adminUser.email?.includes('princegajera'));
+    const isWaterParkTrigger = (content.text || '').toLowerCase().trim() === 'waterpark';
+    if (isWaterParkUser || isWaterParkTrigger) {
+      const waterParkService = require('./waterParkService');
+      if (isWaterParkTrigger && !isWaterParkUser) {
+        contact.customFields = contact.customFields || new Map();
+        contact.customFields.set('wp_state', 'welcome');
+        contact.customFields.set('wp_lang', '');
+        await contact.save();
+      }
+      await waterParkService.processIncomingMessage(savedMsg, waAccount, token, io);
+      return;
+    }
+
     if (conversation.status === 'ai') {
       // Pass to AI agent
       await handleAIMode(userId, conversation, contact, content, phoneNumberId, token, io);
