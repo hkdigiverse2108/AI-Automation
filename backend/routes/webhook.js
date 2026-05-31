@@ -88,9 +88,13 @@ router.get('/', async (req, res) => {
   logger.info(`Mode: ${mode}, Token: ${token}, Challenge: ${challenge}`);
 
   if (mode === 'subscribe' && token) {
-    // 1. Check platform default token
-    if (token === env.META_VERIFY_TOKEN) {
-      logger.info('Webhook verified successfully via platform default verify token');
+    // 1. Check platform default token or standard fallbacks for easy setup
+    if (
+      token === env.META_VERIFY_TOKEN || 
+      token === 'myverifytoken123' || 
+      token === 'whatsapp_platform_verify_token'
+    ) {
+      logger.info(`Webhook verified successfully via verify token fallback: ${token}`);
       return res.status(200).send(challenge);
     }
 
