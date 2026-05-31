@@ -289,13 +289,6 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
       return;
     }
 
-    // Route princegajera0506@gmail.com's WhatsApp messages to the water park service (AI Image generation enabled)
-    if (adminUser && adminUser.email === 'princegajera0506@gmail.com') {
-      const waterParkService = require('./waterParkService');
-      await waterParkService.processIncomingMessage(savedMsg, waAccount, token, io);
-      return;
-    }
-
     if (conversation.status === 'ai') {
       // Pass to AI agent
       await handleAIMode(userId, conversation, contact, content, phoneNumberId, token, io);
