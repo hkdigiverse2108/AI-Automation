@@ -388,7 +388,7 @@ router.post('/meta/test', async (req, res) => {
         return res.json({ success: true, status: 'connected', details: org.metaConfig.whatsapp.statusDetails });
 
       } catch (err) {
-        logger.error('WhatsApp real validation failed:', err.message);
+        logger.error(`WhatsApp real validation failed: ${err.message}`, { details: err.response?.data?.error });
         
         // Handle developer Sandbox/Dev mode where API access is blocked but webhook works!
         const isApiBlocked = err.response?.data?.error?.message?.includes('API access blocked') || err.message?.includes('API access blocked');
@@ -477,7 +477,7 @@ router.post('/meta/test', async (req, res) => {
 
         return res.json({ success: true, status: 'connected', details: org.metaConfig.facebook.statusDetails });
       } catch (err) {
-        logger.error('Facebook real validation failed:', err.message);
+        logger.error(`Facebook real validation failed: ${err.message}`, { details: err.response?.data?.error });
         const errorReason = err.response?.status === 401 ? 'Page Access Token is invalid or expired.' : 'Facebook Page ID is invalid or inaccessible.';
 
         org.metaConfig.facebook.status = 'error';
@@ -513,7 +513,7 @@ router.post('/meta/test', async (req, res) => {
 
         return res.json({ success: true, status: 'connected', details: org.metaConfig.instagram.statusDetails });
       } catch (err) {
-        logger.error('Instagram real validation failed:', err.message);
+        logger.error(`Instagram real validation failed: ${err.message}`, { details: err.response?.data?.error });
         const errorReason = err.response?.status === 401 ? 'Instagram Access Token is invalid or expired.' : 'Instagram Account Access denied or ID invalid.';
 
         org.metaConfig.instagram.status = 'error';
