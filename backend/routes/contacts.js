@@ -16,11 +16,22 @@ router.get('/', async (req, res) => {
     const query = { userId: req.userId, isDeleted: { $ne: true } };
 
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-      ];
+      const { getOekForUser, generateHMAC } = require('../services/oekService');
+      const rawOek = await getOekForUser(req.userId);
+      if (rawOek) {
+        const hmacSearch = generateHMAC(search, rawOek);
+        query.$or = [
+          { nameHash: hmacSearch },
+          { phoneHash: hmacSearch },
+          { emailHash: hmacSearch },
+        ];
+      } else {
+        query.$or = [
+          { name: { $regex: search, $options: 'i' } },
+          { phone: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+        ];
+      }
     }
     if (tags) query.tags = { $in: tags.split(',') };
     if (source) query.source = source;
@@ -44,7 +55,16 @@ router.post('/', contactValidation, async (req, res) => {
     let { phone, name, email, source, tags } = req.body;
     if (phone) phone = phone.replace(/\D/g, '');
 
-    const existing = await Contact.findOne({ userId: req.userId, phone, isDeleted: { $ne: true } });
+    const { getOekForUser, generateHMAC } = require('../services/oekService');
+    const rawOek = await getOekForUser(req.userId);
+    let existing;
+    if (rawOek) {
+      const phoneHash = generateHMAC(phone, rawOek);
+      existing = await Contact.findOne({ userId: req.userId, $or: [{ phone }, { phoneHash }], isDeleted: { $ne: true } });
+    } else {
+      existing = await Contact.findOne({ userId: req.userId, phone, isDeleted: { $ne: true } });
+    }
+
     if (existing) return res.status(409).json({ success: false, error: 'Contact already exists', code: 'DUPLICATE' });
 
     const contact = await Contact.create({ userId: req.userId, phone, name, email, source: source || 'manual', tags: tags || [] });
@@ -72,6 +92,9 @@ router.post('/import', upload.single('file'), async (req, res) => {
 
     if (phoneIdx === -1) return res.status(400).json({ success: false, error: 'CSV must have phone column', code: 'MISSING_PHONE' });
 
+    const { getOekForUser, generateHMAC, encryptAES } = require('../services/oekService');
+    const rawOek = await getOekForUser(req.userId);
+
     let imported = 0, skipped = 0, errors = 0;
     const ops = [];
 
@@ -81,18 +104,44 @@ router.post('/import', upload.single('file'), async (req, res) => {
       if (!rawPhone || !/^\+?[1-9]\d{6,14}$/.test(rawPhone)) { errors++; continue; }
       const phone = rawPhone.replace(/\D/g, '');
 
+      let updatePayload = {
+        userId: req.userId,
+        phone,
+        name: nameIdx >= 0 ? cols[nameIdx] || '' : '',
+        email: emailIdx >= 0 ? cols[emailIdx] || '' : '',
+        tags: tagsIdx >= 0 ? (cols[tagsIdx] || '').split(';').filter(Boolean) : [],
+        source: 'import',
+      };
+
+      let filterCondition = { userId: req.userId, phone };
+
+      if (rawOek) {
+        const encryptedPhone = encryptAES(phone, rawOek);
+        const phoneHash = generateHMAC(phone, rawOek);
+        const nameVal = nameIdx >= 0 ? cols[nameIdx] || '' : '';
+        const emailVal = emailIdx >= 0 ? cols[emailIdx] || '' : '';
+        
+        updatePayload = {
+          userId: req.userId,
+          phone: encryptedPhone,
+          phoneHash,
+          name: encryptAES(nameVal, rawOek),
+          nameHash: generateHMAC(nameVal, rawOek),
+          email: encryptAES(emailVal, rawOek),
+          emailHash: generateHMAC(emailVal, rawOek),
+          tags: tagsIdx >= 0 ? (cols[tagsIdx] || '').split(';').filter(Boolean) : [],
+          source: 'import',
+          isEncrypted: true
+        };
+
+        filterCondition = { userId: req.userId, $or: [{ phone }, { phoneHash }] };
+      }
+
       ops.push({
         updateOne: {
-          filter: { userId: req.userId, phone },
+          filter: filterCondition,
           update: {
-            $setOnInsert: {
-              userId: req.userId,
-              phone,
-              name: nameIdx >= 0 ? cols[nameIdx] || '' : '',
-              email: emailIdx >= 0 ? cols[emailIdx] || '' : '',
-              tags: tagsIdx >= 0 ? (cols[tagsIdx] || '').split(';').filter(Boolean) : [],
-              source: 'import',
-            },
+            $setOnInsert: updatePayload,
           },
           upsert: true,
         },

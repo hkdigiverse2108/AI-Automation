@@ -82,7 +82,15 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     const referral = messageData.referral;
 
     // 2. Find or create Contact
-    let contact = await Contact.findOne({ userId, phone: from });
+    const { getOekForUser, generateHMAC } = require('./oekService');
+    const rawOek = await getOekForUser(userId);
+    let contact;
+    if (rawOek) {
+      const phoneHash = generateHMAC(from, rawOek);
+      contact = await Contact.findOne({ userId, $or: [{ phone: from }, { phoneHash }] });
+    } else {
+      contact = await Contact.findOne({ userId, phone: from });
+    }
     const isNewContact = !contact;
     if (!contact) {
       let source = msgType === 'text' ? detectSource(messageData.text?.body) : 'direct';
@@ -180,6 +188,34 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     conversation.isRead = false;
     conversation.unreadCount = (conversation.unreadCount || 0) + 1;
     await conversation.save();
+
+    // 5b. Real-time sentiment analysis
+    try {
+      const sentimentEngine = require('./sentimentEngine');
+      const analysisText = content.text || content.caption || '';
+      if (analysisText && adminUser && adminUser.organizationId) {
+        sentimentEngine.analyzeMessage(conversation._id, adminUser.organizationId, analysisText).then((analysis) => {
+          if (analysis && io) {
+            const ownerId = adminUser.ownerId || adminUser._id;
+            io.to(`user_${ownerId}`).emit('conversation_ai_updated', {
+              conversationId: conversation._id,
+              sentiment: analysis.sentiment,
+              urgency: analysis.urgency,
+              risk: analysis.risk,
+              isComplaint: analysis.isComplaint,
+              isRefundRequested: analysis.isRefundRequested,
+              isLegalThreat: analysis.isLegalThreat,
+              isVipCustomer: analysis.isVipCustomer,
+              confidence: analysis.confidence
+            });
+          }
+        }).catch((err) => {
+          logger.error('Background sentiment analysis promise failed:', err.message);
+        });
+      }
+    } catch (err) {
+      logger.error('Failed to trigger sentiment analysis:', err.message);
+    }
 
     // Mark as read on WhatsApp
     if (messageData.id) {

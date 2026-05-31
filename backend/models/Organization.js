@@ -66,6 +66,15 @@ const organizationSchema = new mongoose.Schema(
     aiConfig: {
       openaiApiKey: { type: String, default: '' },
       grokApiKey: { type: String, default: '' }
+    },
+    encryptionConfig: {
+      enabled: { type: Boolean, default: false },
+      oekEncrypted: { type: String, default: '' },
+      keyRotationHistory: [{
+        rotatedAt: { type: Date, default: Date.now },
+        oldOekEncrypted: { type: String }
+      }],
+      lastRotatedAt: { type: Date }
     }
   },
   { timestamps: true }

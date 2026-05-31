@@ -6,7 +6,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Bot, FileText,
   Settings, LogOut, Sun, Moon, MessageCircle, Shield,
   Users2, Clock, Zap, Terminal, PanelLeftClose, PanelLeft, ClipboardList,
-  Building, Activity, Globe, Lock
+  Building, Activity, Globe, Lock, Brain
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
@@ -32,6 +32,7 @@ const navSections = [
     title: 'Automation',
     items: [
       { href: '/dashboard/bot-builder', label: 'Bot Builder', icon: Bot },
+      { href: '/dashboard/ai-intelligence', label: 'AI Intelligence', icon: Brain },
     ]
   },
   {
@@ -39,6 +40,7 @@ const navSections = [
     items: [
       { href: '/dashboard/chat-logs', label: 'Chat Logs', icon: Terminal },
       { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+      { href: '/dashboard/settings/ai', label: 'AI Settings', icon: Shield },
     ]
   }
 ];
@@ -78,6 +80,8 @@ export default function Sidebar() {
             { href: '/dashboard/settings?tab=integrations', label: 'Integrations', icon: Globe },
             { href: '/dashboard/bot-builder', label: 'AI Management', icon: Bot },
             { href: '/dashboard/admin?tab=security', label: 'Security Center', icon: Lock },
+            { href: '/dashboard/ai-intelligence', label: 'AI Intelligence', icon: Brain },
+            { href: '/dashboard/settings/ai', label: 'AI Settings', icon: Shield },
             { href: '/dashboard/chat-logs', label: 'Audit Logs', icon: Terminal },
             { href: '/dashboard/admin?tab=reports', label: 'Reports', icon: FileText },
             { href: '/dashboard/settings', label: 'System Settings', icon: Settings },

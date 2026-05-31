@@ -114,13 +114,22 @@ router.get('/conversations', async (req, res) => {
 
     let contactIds = null;
     if (search) {
+      const { getOekForUser, generateHMAC } = require('../services/oekService');
+      const rawOek = await getOekForUser(userId);
+      const searchCriteria = [];
+      if (rawOek) {
+        const hmacSearch = generateHMAC(search, rawOek);
+        searchCriteria.push({ nameHash: hmacSearch });
+        searchCriteria.push({ phoneHash: hmacSearch });
+      } else {
+        searchCriteria.push({ name: { $regex: search, $options: 'i' } });
+        searchCriteria.push({ phone: { $regex: search, $options: 'i' } });
+      }
+
       const contacts = await Contact.find({
         userId,
         isDeleted: { $ne: true },
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } },
-        ],
+        $or: searchCriteria,
       }).select('_id').lean();
       contactIds = contacts.map((c) => c._id);
       query.contactId = { $in: contactIds };

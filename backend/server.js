@@ -96,6 +96,7 @@ const sequencesRoute = require('./routes/sequences');
 const triggersRoute = require('./routes/triggers');
 const chatLogsRoute = require('./routes/chat-logs');
 const leadsRoute = require('./routes/leads');
+const aiRoute = require('./routes/ai');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
@@ -113,6 +114,7 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/triggers`, triggersRoute);
   app.use(`${prefix}/chat-logs`, chatLogsRoute);
   app.use(`${prefix}/leads`, leadsRoute);
+  app.use(`${prefix}/ai`, aiRoute);
 };
 
 // Mount versioned API routes

@@ -99,10 +99,30 @@ export default function InboxPage() {
       }
     });
 
+    socket.on('conversation_ai_updated', (data) => {
+      useConversationStore.setState((state) => ({
+        conversations: state.conversations.map(c => 
+          c._id === data.conversationId 
+            ? { 
+                ...c, 
+                sentiment: data.sentiment, 
+                urgency: data.urgency, 
+                risk: data.risk,
+                isComplaint: data.isComplaint,
+                isRefundRequested: data.isRefundRequested,
+                isLegalThreat: data.isLegalThreat,
+                isVipCustomer: data.isVipCustomer
+              } 
+            : c
+        )
+      }));
+    });
+
     return () => {
       socket.off('new_message');
       socket.off('message_status');
       socket.off('conversation_assigned');
+      socket.off('conversation_ai_updated');
     };
   }, [debouncedSearch, filter, user]);
 
@@ -258,13 +278,21 @@ export default function InboxPage() {
 
         {/* Conversation List */}
         <div className="flex-1 overflow-y-auto">
-          {conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-wa-text-light px-8">
-              <MessageSquare className="w-16 h-16 mb-4 opacity-20" />
-              <p className="text-sm font-medium">No conversations yet</p>
-              <p className="text-xs mt-1 text-center opacity-70">Start a new chat to begin messaging</p>
-            </div>
-          ) : conversations.map((conv) => {
+          {(() => {
+            const sortedConversations = [...conversations].sort((a, b) => {
+              const aPriority = (a.urgency === 'critical' || a.sentiment === 'angry') ? 2 : (a.urgency === 'high' || a.sentiment === 'frustrated') ? 1 : 0;
+              const bPriority = (b.urgency === 'critical' || b.sentiment === 'angry') ? 2 : (b.urgency === 'high' || b.sentiment === 'frustrated') ? 1 : 0;
+              if (aPriority !== bPriority) return bPriority - aPriority;
+              return new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0);
+            });
+
+            return sortedConversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-wa-text-light px-8">
+                <MessageSquare className="w-16 h-16 mb-4 opacity-20" />
+                <p className="text-sm font-medium">No conversations yet</p>
+                <p className="text-xs mt-1 text-center opacity-70">Start a new chat to begin messaging</p>
+              </div>
+            ) : sortedConversations.map((conv) => {
             const contact = conv.contactId || {};
             const badge = STATUS_BADGES[conv.status] || {};
             const BadgeIcon = badge.icon;
@@ -309,6 +337,30 @@ export default function InboxPage() {
                             'bg-slate-400'
                           }`} />
                           <span>{conv.status}</span>
+                        </span>
+                      )}
+
+                      {/* Sentiment Badge */}
+                      {conv.sentiment && conv.sentiment !== 'neutral' && (
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
+                          conv.sentiment === 'positive' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900/30' :
+                          conv.sentiment === 'frustrated' ? 'bg-orange-50 text-orange-705 border-orange-100 dark:bg-orange-950/20 dark:text-orange-450 dark:border-orange-900/30' :
+                          conv.sentiment === 'angry' ? 'bg-red-50 text-red-705 border-red-100 dark:bg-red-950/20 dark:text-red-450 dark:border-red-900/30 animate-pulse' :
+                          'bg-slate-50 text-slate-655 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-850'
+                        }`}>
+                          <span>{conv.sentiment}</span>
+                        </span>
+                      )}
+
+                      {/* Urgency Badge */}
+                      {conv.urgency && conv.urgency !== 'low' && (
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
+                          conv.urgency === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100 dark:bg-yellow-950/20 dark:text-yellow-450 dark:border-yellow-900/30' :
+                          conv.urgency === 'high' ? 'bg-orange-50 text-orange-705 border-orange-100 dark:bg-orange-950/20 dark:text-orange-450 dark:border-orange-900/30 animate-pulse' :
+                          conv.urgency === 'critical' ? 'bg-red-50 text-red-705 border-red-100 dark:bg-red-950/20 dark:text-red-450 dark:border-red-900/30 animate-pulse' :
+                          'bg-slate-50 text-slate-655 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-850'
+                        }`}>
+                          <span>{conv.urgency}</span>
                         </span>
                       )}
                     </div>

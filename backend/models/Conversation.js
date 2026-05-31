@@ -28,7 +28,27 @@ const conversationSchema = new mongoose.Schema(
     assigned_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     ai_enabled: { type: Boolean, default: true },
     current_owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    last_activity: { type: Date, default: Date.now }
+    last_activity: { type: Date, default: Date.now },
+    sentiment: { 
+      type: String, 
+      enum: ['positive', 'neutral', 'frustrated', 'angry'], 
+      default: 'neutral' 
+    },
+    urgency: { 
+      type: String, 
+      enum: ['low', 'medium', 'high', 'critical'], 
+      default: 'low' 
+    },
+    risk: { 
+      type: String, 
+      enum: ['normal', 'escalation', 'churn'], 
+      default: 'normal' 
+    },
+    aiConfidence: { type: Number, default: 1.0 },
+    isComplaint: { type: Boolean, default: false },
+    isRefundRequested: { type: Boolean, default: false },
+    isLegalThreat: { type: Boolean, default: false },
+    isVipCustomer: { type: Boolean, default: false }
   },
   { timestamps: true, strict: true }
 );
