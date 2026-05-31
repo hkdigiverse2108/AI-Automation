@@ -998,50 +998,18 @@ export default function ChatWindow({ conversation, messages }) {
                 ref={imageInputRef} 
                 onChange={(e) => handleFileUpload(e, 'image')}
                 className="hidden"
-                accept="image/*,video/*"
-              />
-              <input 
-                type="file" 
-                ref={cameraInputRef} 
-                onChange={(e) => handleFileUpload(e, 'image')}
-                className="hidden"
                 accept="image/*"
-                capture="user"
               />
 
               {showAttach && (
                 <div className="absolute bottom-14 left-0 bg-white dark:bg-wa-dark-panel rounded-xl shadow-wa-lg border border-wa-border dark:border-wa-dark-border py-2 animate-slide-up z-20 min-w-[180px]">
-                  <button 
-                    onClick={() => docInputRef.current?.click()}
-                    disabled={uploadingFile}
-                    className="wa-dropdown-item w-full disabled:opacity-50"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white"><FileText className="w-4 h-4" /></div>
-                    Document
-                  </button>
                   <button 
                     onClick={() => imageInputRef.current?.click()}
                     disabled={uploadingFile}
                     className="wa-dropdown-item w-full disabled:opacity-50"
                   >
                     <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white"><Image className="w-4 h-4" /></div>
-                    Photos & Videos
-                  </button>
-                  <button 
-                    onClick={() => cameraInputRef.current?.click()}
-                    disabled={uploadingFile}
-                    className="wa-dropdown-item w-full disabled:opacity-50"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center text-white"><Camera className="w-4 h-4" /></div>
-                    Camera
-                  </button>
-                  <button 
-                    onClick={() => setIsContactModalOpen(true)}
-                    disabled={uploadingFile}
-                    className="wa-dropdown-item w-full disabled:opacity-50"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-blue-400 flex items-center justify-center text-white"><UserCircle className="w-4 h-4" /></div>
-                    Contact
+                    Photos
                   </button>
                 </div>
               )}
