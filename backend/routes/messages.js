@@ -310,7 +310,7 @@ router.post('/conversations', async (req, res) => {
 // POST /messages/send — send a message
 router.post('/send', async (req, res) => {
   try {
-    const { contactId, text, type = 'text', mediaUrl, caption } = req.body;
+    const { contactId, text, type = 'text', mediaUrl, caption, filename } = req.body;
     const userId = req.userId;
 
     if (!contactId || !mongoose.Types.ObjectId.isValid(contactId)) {
@@ -429,6 +429,7 @@ router.post('/send', async (req, res) => {
         text: type === 'contact' ? `${req.body.contactName} (${req.body.contactPhone})` : text,
         mediaUrl: finalMediaUrl,
         caption,
+        filename: filename || originalFilename,
         contactName: req.body.contactName,
         contactPhone: req.body.contactPhone
       },

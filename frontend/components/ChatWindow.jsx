@@ -133,6 +133,7 @@ export default function ChatWindow({ conversation, messages }) {
           contactId: contact._id,
           mediaUrl: data.data.url,
           type: type,
+          filename: file.name,
           caption: (type === 'image' || type === 'video') ? file.name : undefined
         });
 
@@ -777,7 +778,7 @@ export default function ChatWindow({ conversation, messages }) {
                           <FileText className="w-5 h-5 text-purple-500 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <span className="block text-xs font-semibold text-wa-text-primary dark:text-white truncate">
-                              {msg.content.caption || msg.content.text || "Document File"}
+                              {msg.content.filename || msg.content.caption || msg.content.text || "Document File"}
                             </span>
                           </div>
                           <a 
