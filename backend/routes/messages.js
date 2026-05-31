@@ -369,6 +369,15 @@ router.post('/send', async (req, res) => {
           '.webp': 'image/webp',
           '.mp4': 'video/mp4',
           '.3gp': 'video/3gpp',
+          '.mov': 'video/quicktime',
+          '.avi': 'video/x-msvideo',
+          '.mpeg': 'video/mpeg',
+          '.mp3': 'audio/mpeg',
+          '.wav': 'audio/wav',
+          '.ogg': 'audio/ogg',
+          '.aac': 'audio/aac',
+          '.m4a': 'audio/mp4',
+          '.amr': 'audio/amr',
         };
         const mimeType = mimeMap[ext] || 'application/octet-stream';
 
@@ -388,6 +397,10 @@ router.post('/send', async (req, res) => {
 
     if (type === 'image' && (metaMediaId || finalMediaUrl)) {
       result = await whatsapp.sendImageMessage(waAccount.phoneNumberId, token, contact.phone, finalMediaUrl, caption, metaMediaId);
+    } else if (type === 'video' && (metaMediaId || finalMediaUrl)) {
+      result = await whatsapp.sendVideoMessage(waAccount.phoneNumberId, token, contact.phone, finalMediaUrl, caption, metaMediaId);
+    } else if (type === 'audio' && (metaMediaId || finalMediaUrl)) {
+      result = await whatsapp.sendAudioMessage(waAccount.phoneNumberId, token, contact.phone, finalMediaUrl, metaMediaId);
     } else if (type === 'document' && (metaMediaId || finalMediaUrl)) {
       result = await whatsapp.sendDocumentMessage(waAccount.phoneNumberId, token, contact.phone, finalMediaUrl, originalFilename, metaMediaId);
     } else if (type === 'contact') {

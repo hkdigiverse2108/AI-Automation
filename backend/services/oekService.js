@@ -287,6 +287,9 @@ function encryptMessage(message, rawOek) {
     if (encrypted.content.filename && !isEncryptedFormat(encrypted.content.filename)) {
       encrypted.content.filename = encryptAES(encrypted.content.filename, rawOek);
     }
+    if (encrypted.content.mediaUrl && !isEncryptedFormat(encrypted.content.mediaUrl)) {
+      encrypted.content.mediaUrl = encryptAES(encrypted.content.mediaUrl, rawOek);
+    }
   }
 
   encrypted.isEncrypted = true;
@@ -305,6 +308,7 @@ function decryptMessage(message, rawOek) {
     if (doc.content.text) doc.content.text = decryptAES(doc.content.text, rawOek);
     if (doc.content.caption) doc.content.caption = decryptAES(doc.content.caption, rawOek);
     if (doc.content.filename) doc.content.filename = decryptAES(doc.content.filename, rawOek);
+    if (doc.content.mediaUrl) doc.content.mediaUrl = decryptAES(doc.content.mediaUrl, rawOek);
   }
 
   return doc;

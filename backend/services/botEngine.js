@@ -165,6 +165,35 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     // 4. Extract content from message
     const content = extractContent(messageData, msgType);
 
+    // Dynamic Media Downloader for Inbound Media assets
+    if (content.mediaId) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const uploadDir = path.join(__dirname, '../uploads');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        
+        const extMap = {
+          'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif',
+          'video/mp4': '.mp4', 'audio/mp4': '.m4a', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg',
+          'application/pdf': '.pdf', 'text/plain': '.txt'
+        };
+        const mimeType = messageData[msgType]?.mime_type || 'application/octet-stream';
+        const ext = extMap[mimeType] || '.bin';
+        const filename = `incoming-${messageData.id || Date.now()}${ext}`;
+        const destPath = path.join(uploadDir, filename);
+
+        const dlResult = await whatsapp.downloadMedia(content.mediaId, token, destPath);
+        if (dlResult.success) {
+          content.mediaUrl = `/uploads/${filename}`;
+        }
+      } catch (err) {
+        logger.error('Failed to execute inbound media download:', err.message);
+      }
+    }
+
     // 5. Save inbound message
     const savedMsg = await Message.create({
       userId,

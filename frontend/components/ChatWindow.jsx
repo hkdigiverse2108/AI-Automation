@@ -95,8 +95,12 @@ export default function ChatWindow({ conversation, messages }) {
 
     let type = forcedType;
     if (!type) {
-      if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+      if (file.type.startsWith('image/')) {
         type = 'image';
+      } else if (file.type.startsWith('video/')) {
+        type = 'video';
+      } else if (file.type.startsWith('audio/')) {
+        type = 'audio';
       } else {
         type = 'document';
       }
@@ -119,7 +123,7 @@ export default function ChatWindow({ conversation, messages }) {
           contactId: contact._id,
           mediaUrl: data.data.url,
           type: type,
-          caption: type === 'image' ? file.name : undefined
+          caption: (type === 'image' || type === 'video') ? file.name : undefined
         });
 
         if (sendRes.data.success) {
@@ -724,6 +728,36 @@ export default function ChatWindow({ conversation, messages }) {
                             alt={msg.content.caption || "Image"} 
                             className="max-h-60 w-full object-cover hover:scale-[1.01] transition-transform duration-200 cursor-pointer"
                             onClick={() => window.open(msg.content.mediaUrl, '_blank')}
+                          />
+                        </div>
+                      )}
+
+                      {msg.type === 'video' && msg.content?.mediaUrl && (
+                        <div className="mb-1.5 max-w-sm rounded-lg overflow-hidden border border-wa-border dark:border-wa-dark-border shadow-sm bg-black">
+                          <video 
+                            src={msg.content.mediaUrl} 
+                            controls 
+                            className="max-h-60 w-full object-contain"
+                          />
+                        </div>
+                      )}
+
+                      {msg.type === 'audio' && msg.content?.mediaUrl && (
+                        <div className="mb-1.5 p-2 rounded-xl bg-wa-panel-header/50 dark:bg-wa-dark-panel-header/35 border border-wa-border dark:border-wa-dark-border flex items-center gap-2 min-w-[260px] max-w-sm shadow-sm">
+                          <audio 
+                            src={msg.content.mediaUrl} 
+                            controls 
+                            className="w-full h-8"
+                          />
+                        </div>
+                      )}
+
+                      {msg.type === 'sticker' && msg.content?.mediaUrl && (
+                        <div className="mb-1.5 max-w-[120px] overflow-hidden rounded-lg">
+                          <img 
+                            src={msg.content.mediaUrl} 
+                            alt="Sticker" 
+                            className="w-full h-auto object-contain"
                           />
                         </div>
                       )}

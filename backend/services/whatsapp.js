@@ -145,6 +145,27 @@ async function sendDocumentMessage(phoneNumberId, token, to, docUrl, filename = 
   }, token);
 }
 
+async function sendVideoMessage(phoneNumberId, token, to, videoUrl, caption = '', mediaId = null) {
+  const videoPayload = mediaId ? { id: mediaId, caption } : { link: videoUrl, caption };
+  return metaApiCall('post', `${META_API_URL}/${phoneNumberId}/messages`, {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'video',
+    video: videoPayload,
+  }, token);
+}
+
+async function sendAudioMessage(phoneNumberId, token, to, audioUrl, mediaId = null) {
+  const audioPayload = mediaId ? { id: mediaId } : { link: audioUrl };
+  return metaApiCall('post', `${META_API_URL}/${phoneNumberId}/messages`, {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'audio',
+    audio: audioPayload,
+  }, token);
+}
+
+
 async function sendButtonMessage(phoneNumberId, token, to, bodyText, buttons) {
   const actionButtons = buttons.slice(0, 3).map((btn, i) => ({
     type: 'reply',
@@ -236,6 +257,42 @@ async function getMediaUrl(mediaId, token) {
   return metaApiCall('get', `${META_API_URL}/${mediaId}`, null, token);
 }
 
+async function downloadMedia(mediaId, token, destPath) {
+  if (token === 'demo' || token === 'mock' || token?.startsWith('mock_')) {
+    logger.info(`[MOCK SANDBOX] Intercepted downloadMedia for ID ${mediaId}`);
+    return { success: true };
+  }
+  try {
+    const metaRes = await getMediaUrl(mediaId, token);
+    if (!metaRes.success || !metaRes.data?.url) {
+      throw new Error(metaRes.error || 'Failed to resolve media URL from Meta');
+    }
+    
+    const mediaUrl = metaRes.data.url;
+    
+    const response = await axios({
+      method: 'get',
+      url: mediaUrl,
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: 'stream'
+    });
+
+    const fs = require('fs');
+    const writer = fs.createWriteStream(destPath);
+    response.data.pipe(writer);
+
+    await new Promise((resolve, reject) => {
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+    });
+
+    return { success: true };
+  } catch (error) {
+    logger.error(`Download media binary error for ID ${mediaId}:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 async function getTemplates(wabaId, token) {
   return metaApiCall('get', `${META_API_URL}/${wabaId}/message_templates`, null, token);
 }
@@ -281,6 +338,8 @@ module.exports = {
   sendTextMessage,
   sendImageMessage,
   sendDocumentMessage,
+  sendVideoMessage,
+  sendAudioMessage,
   sendButtonMessage,
   sendListMessage,
   sendTemplateMessage,
@@ -288,6 +347,7 @@ module.exports = {
   markAsRead,
   uploadMedia,
   getMediaUrl,
+  downloadMedia,
   getTemplates,
   createTemplate,
   sendContactMessage,
