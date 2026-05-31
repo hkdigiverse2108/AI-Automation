@@ -130,8 +130,10 @@ router.post('/meta', async (req, res) => {
       const displayName = org.metaConfig.whatsapp.statusDetails?.displayName || 'WhatsApp Account';
       const phoneNumber = org.metaConfig.whatsapp.statusDetails?.phoneNumber || 'Unknown';
 
-      // Find or create WhatsAppAccount associated with the admin's userId
-      let waAccount = await WhatsAppAccount.findOne({ userId: req.userId });
+      // Find or create WhatsAppAccount associated with the admin's userId or phoneNumberId
+      let waAccount = await WhatsAppAccount.findOne({
+        $or: [{ userId: req.userId }, { phoneNumberId }]
+      });
       if (waAccount) {
         waAccount.phoneNumber = phoneNumber;
         waAccount.phoneNumberId = phoneNumberId;
@@ -166,7 +168,7 @@ router.post('/meta', async (req, res) => {
 
     res.json({ success: true, message: 'Meta credentials updated successfully' });
   } catch (error) {
-    logger.error('Failed to update integrations meta:', error.message);
+    logger.error('Failed to update integrations meta:', error);
     res.status(500).json({ success: false, error: 'Failed to save Meta configurations', code: 'SAVE_ERROR' });
   }
 });
@@ -268,7 +270,9 @@ router.post('/meta/test', async (req, res) => {
 
       // Sync WhatsAppAccount model if successful
       if (type === 'whatsapp' && org.metaConfig.whatsapp.status === 'connected') {
-        let waAccount = await WhatsAppAccount.findOne({ userId: req.userId });
+        let waAccount = await WhatsAppAccount.findOne({
+          $or: [{ userId: req.userId }, { phoneNumberId: org.metaConfig.whatsapp.phoneNumberId }]
+        });
         if (waAccount) {
           waAccount.phoneNumber = org.metaConfig.whatsapp.statusDetails.phoneNumber;
           waAccount.phoneNumberId = org.metaConfig.whatsapp.phoneNumberId;
@@ -359,7 +363,9 @@ router.post('/meta/test', async (req, res) => {
         await org.save();
 
         // Sync with WhatsAppAccount model
-        let waAccount = await WhatsAppAccount.findOne({ userId: req.userId });
+        let waAccount = await WhatsAppAccount.findOne({
+          $or: [{ userId: req.userId }, { phoneNumberId }]
+        });
         if (waAccount) {
           waAccount.phoneNumber = phoneNumber;
           waAccount.phoneNumberId = phoneNumberId;
@@ -399,7 +405,9 @@ router.post('/meta/test', async (req, res) => {
           await org.save();
 
           // Sync with WhatsAppAccount model
-          let waAccount = await WhatsAppAccount.findOne({ userId: req.userId });
+          let waAccount = await WhatsAppAccount.findOne({
+            $or: [{ userId: req.userId }, { phoneNumberId }]
+          });
           if (waAccount) {
             waAccount.phoneNumber = org.metaConfig.whatsapp.statusDetails.phoneNumber;
             waAccount.phoneNumberId = phoneNumberId;
@@ -554,7 +562,9 @@ router.post('/meta/disconnect', async (req, res) => {
 
     // Deactivate WhatsAppAccount if type is whatsapp
     if (type === 'whatsapp') {
-      const waAccount = await WhatsAppAccount.findOne({ userId: req.userId });
+      const waAccount = await WhatsAppAccount.findOne({
+        $or: [{ userId: req.userId }, { phoneNumberId: org.metaConfig?.whatsapp?.phoneNumberId }]
+      });
       if (waAccount) {
         waAccount.isActive = false;
         await waAccount.save();
