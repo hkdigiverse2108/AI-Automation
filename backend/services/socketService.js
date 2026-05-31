@@ -9,9 +9,13 @@ const logger = winston.createLogger({
   transports: [new winston.transports.Console()],
 });
 
-const connectedUsers = new Map(); // userId -> Set of socket ids
+const { getRedisClient } = require('../config/redis');
+const redis = getRedisClient();
 
 function initSocketService(io) {
+  // Clear online users status on startup to avoid stale session counts
+  redis.del('online_users').catch(err => logger.error('Failed to clear online_users on startup:', err.message));
+
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token || socket.handshake.query?.token;
@@ -41,12 +45,14 @@ function initSocketService(io) {
       logger.info(`Socket ${userId} joined tenant room: user_${socket.ownerId}`);
     }
 
-    // Track online users
-    if (!connectedUsers.has(userId)) connectedUsers.set(userId, new Set());
-    connectedUsers.get(userId).add(socket.id);
-
-    // Broadcast online status
-    io.emit('user_online', { userId, name: socket.userName });
+    // Track online users using Redis Hash to support multi-instance scaling
+    redis.hincrby('online_users', userId, 1)
+      .then((newVal) => {
+        if (newVal === 1) {
+          io.emit('user_online', { userId, name: socket.userName });
+        }
+      })
+      .catch((err) => logger.error(`Failed to increment online users in Redis: ${err.message}`));
 
     // Handle typing indicator
     socket.on('typing', (data) => {
@@ -67,22 +73,28 @@ function initSocketService(io) {
 
     socket.on('disconnect', () => {
       logger.info(`Socket disconnected: ${userId}`);
-      const userSockets = connectedUsers.get(userId);
-      if (userSockets) {
-        userSockets.delete(socket.id);
-        if (userSockets.size === 0) {
-          connectedUsers.delete(userId);
-          io.emit('user_offline', { userId });
-        }
-      }
+      redis.hincrby('online_users', userId, -1)
+        .then(async (newVal) => {
+          if (newVal <= 0) {
+            await redis.hdel('online_users', userId);
+            io.emit('user_offline', { userId });
+          }
+        })
+        .catch((err) => logger.error(`Failed to decrement online users in Redis: ${err.message}`));
     });
   });
 
   logger.info('Socket.io service initialized');
 }
 
-function getOnlineUsers() {
-  return Array.from(connectedUsers.keys());
+async function getOnlineUsers() {
+  try {
+    const keys = await redis.hkeys('online_users');
+    return keys;
+  } catch (err) {
+    logger.error(`Failed to get online users from Redis: ${err.message}`);
+    return [];
+  }
 }
 
 module.exports = { initSocketService, getOnlineUsers };

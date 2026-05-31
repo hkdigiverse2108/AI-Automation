@@ -3,6 +3,8 @@ const http = require('http');
 const path = require('path');
 const compression = require('compression');
 const { Server } = require('socket.io');
+const { createAdapter } = require('@socket.io/redis-adapter');
+const { getRedisClient } = require('./config/redis');
 const env = require('./config/env');
 const { connectDB, disconnectDB } = require('./config/db');
 const { applySecurity } = require('./middleware/security');
@@ -30,6 +32,18 @@ const io = new Server(server, {
   cors: { origin: env.ALLOWED_ORIGINS, credentials: true },
   pingTimeout: 60000,
 });
+
+if (process.env.USE_REDIS_SOCKETS !== 'false') {
+  try {
+    const pubClient = getRedisClient();
+    const subClient = pubClient.duplicate();
+    io.adapter(createAdapter(pubClient, subClient));
+    logger.info('Socket.io Redis adapter configured successfully');
+  } catch (err) {
+    logger.error('Failed to configure Socket.io Redis adapter:', err.message);
+  }
+}
+
 app.set('io', io);
 
 // Raw body for webhook signature verification (MUST be before JSON parser)

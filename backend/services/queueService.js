@@ -15,14 +15,17 @@ const logger = winston.createLogger({
   transports: [new winston.transports.Console()],
 });
 
-let campaignQueue = null;
+const campaignQueues = new Map();
 let scheduleQueue = null;
 let ioInstance = null;
 
-function initQueues(io) {
-  ioInstance = io;
+function getCampaignQueue(userId) {
+  const queueName = `campaign-messages-${userId}`;
+  if (campaignQueues.has(queueName)) {
+    return campaignQueues.get(queueName);
+  }
 
-  campaignQueue = new Queue('campaign-messages', env.REDIS_URL, {
+  const queue = new Queue(queueName, env.REDIS_URL, {
     defaultJobOptions: {
       attempts: 3,
       backoff: { type: 'exponential', delay: 2000 },
@@ -30,22 +33,17 @@ function initQueues(io) {
       removeOnFail: 50,
     },
     limiter: {
-      max: 10,       // 10 messages per second (Meta limit)
+      max: parseInt(process.env.TENANT_CAMPAIGN_LIMIT_MAX, 10) || 10,
       duration: 1000,
     },
   });
 
-  scheduleQueue = new Queue('scheduled-campaigns', env.REDIS_URL);
-
-  if (process.env.RUN_QUEUE_PROCESSORS !== 'false') {
-    logger.info('Registering background queue processors in this instance');
-
-    // Process campaign messages
-    campaignQueue.process(async (job) => {
-    const { campaignId, contactId, userId, templateName, variables, phoneNumberId, accessToken, headerMediaId } = job.data;
+  // Process campaign messages
+  queue.process(async (job) => {
+    const { campaignId, contactId, userId: jobUserId, templateName, variables, phoneNumberId, accessToken, headerMediaId } = job.data;
 
     try {
-      const contact = await Contact.findOne({ _id: contactId, userId, optedOut: { $ne: true }, isDeleted: { $ne: true } });
+      const contact = await Contact.findOne({ _id: contactId, userId: jobUserId, optedOut: { $ne: true }, isDeleted: { $ne: true } });
       if (!contact) {
         await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.failed': 1 } });
         return { skipped: true, reason: 'Contact not found or opted out' };
@@ -81,14 +79,14 @@ function initQueues(io) {
         await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.sent': 1 } });
 
         // Save outbound message
-        let conversation = await Conversation.findOne({ userId, contactId: contact._id });
+        let conversation = await Conversation.findOne({ userId: jobUserId, contactId: contact._id });
         const isNewConversation = !conversation;
         if (!conversation) {
-          conversation = await Conversation.create({ userId, contactId: contact._id, status: 'bot', source: 'campaign', campaignId });
+          conversation = await Conversation.create({ userId: jobUserId, contactId: contact._id, status: 'bot', source: 'campaign', campaignId });
         }
 
         const message = await Message.create({
-          userId,
+          userId: jobUserId,
           conversationId: conversation._id,
           contactId: contact._id,
           direction: 'outbound',
@@ -105,7 +103,7 @@ function initQueues(io) {
 
         // Emit new message socket event to frontend
         if (ioInstance) {
-          ioInstance.to(`user_${userId}`).emit('new_message', {
+          ioInstance.to(`user_${jobUserId}`).emit('new_message', {
             message: message.toObject(),
             contact: contact.toObject(),
             conversationId: conversation._id,
@@ -120,7 +118,7 @@ function initQueues(io) {
       if (ioInstance) {
         const campaign = await Campaign.findById(campaignId).lean();
         if (campaign) {
-          ioInstance.to(`user_${userId}`).emit('campaign_progress', {
+          ioInstance.to(`user_${jobUserId}`).emit('campaign_progress', {
             campaignId,
             stats: campaign.stats,
             totalCount: campaign.audience?.totalCount || 0,
@@ -137,11 +135,11 @@ function initQueues(io) {
   });
 
   // On campaign queue completion
-  campaignQueue.on('completed', async (job) => {
+  queue.on('completed', async (job) => {
     try {
       const { campaignId } = job.data;
-      const waiting = await campaignQueue.getWaitingCount();
-      const active = await campaignQueue.getActiveCount();
+      const waiting = await queue.getWaitingCount();
+      const active = await queue.getActiveCount();
       if (waiting === 0 && active === 0) {
         await Campaign.updateOne({ _id: campaignId }, { status: 'completed', completedAt: new Date() });
         logger.info(`Campaign ${campaignId} completed`);
@@ -151,31 +149,57 @@ function initQueues(io) {
     }
   });
 
-  campaignQueue.on('failed', (job, err) => {
+  queue.on('failed', (job, err) => {
     logger.error(`Campaign job failed: ${err.message}`, { jobId: job.id });
   });
 
-  // Schedule queue — check for due campaigns and sequences every minute
-  scheduleQueue.process(async () => {
-    // 1. Process due campaigns
-    const due = await Campaign.find({
-      status: 'scheduled',
-      scheduledAt: { $lte: new Date() },
-    });
-    for (const campaign of due) {
-      logger.info(`Starting scheduled campaign: ${campaign._id}`);
-      await startCampaign(campaign._id, campaign.userId);
+  campaignQueues.set(queueName, queue);
+  return queue;
+}
+
+async function initQueues(io) {
+  ioInstance = io;
+
+  scheduleQueue = new Queue('scheduled-campaigns', env.REDIS_URL);
+
+  if (process.env.RUN_QUEUE_PROCESSORS !== 'false') {
+    logger.info('Registering background queue processors in this instance');
+
+    // Startup check: Find and initialize queues for any currently running campaigns
+    try {
+      const activeCampaigns = await Campaign.find({ status: 'running' }).select('userId').lean();
+      const activeUserIds = [...new Set(activeCampaigns.map(c => c.userId.toString()))];
+      for (const uId of activeUserIds) {
+        getCampaignQueue(uId);
+      }
+      if (activeUserIds.length > 0) {
+        logger.info(`Initialized campaign queues for active user IDs on startup: ${activeUserIds.join(', ')}`);
+      }
+    } catch (err) {
+      logger.error('Error initializing active campaign queues on startup:', err.message);
     }
 
-    // 2. Process due sequences
-    await processDueSequences();
+    // Schedule queue — check for due campaigns and sequences every minute
+    scheduleQueue.process(async () => {
+      // 1. Process due campaigns
+      const due = await Campaign.find({
+        status: 'scheduled',
+        scheduledAt: { $lte: new Date() },
+      });
+      for (const campaign of due) {
+        logger.info(`Starting scheduled campaign: ${campaign._id}`);
+        await startCampaign(campaign._id, campaign.userId);
+      }
 
-    // 3. Process automatic health monitoring for Meta integrations
-    await checkMetaIntegrationsHealth();
-  });
+      // 2. Process due sequences
+      await processDueSequences();
 
-  // Add recurring check
-  scheduleQueue.add({}, { repeat: { every: 60000 } });
+      // 3. Process automatic health monitoring for Meta integrations
+      await checkMetaIntegrationsHealth();
+    });
+
+    // Add recurring check
+    scheduleQueue.add({}, { repeat: { every: 60000 } });
   } else {
     logger.info('Background queue processors are disabled (API-only mode)');
   }
@@ -224,7 +248,8 @@ async function startCampaign(campaignId, userId) {
   }));
 
   if (jobs.length > 0) {
-    await campaignQueue.addBulk(jobs);
+    const queue = getCampaignQueue(userId);
+    await queue.addBulk(jobs);
   }
 
   logger.info(`Campaign ${campaignId} started with ${contacts.length} contacts`);
@@ -232,32 +257,55 @@ async function startCampaign(campaignId, userId) {
 }
 
 async function pauseCampaign(campaignId) {
-  if (campaignQueue) await campaignQueue.pause();
+  const campaign = await Campaign.findById(campaignId).select('userId').lean();
+  if (campaign) {
+    const queue = getCampaignQueue(campaign.userId.toString());
+    await queue.pause();
+  }
   await Campaign.updateOne({ _id: campaignId }, { status: 'paused' });
 }
 
 async function resumeCampaign(campaignId) {
-  if (campaignQueue) await campaignQueue.resume();
+  const campaign = await Campaign.findById(campaignId).select('userId').lean();
+  if (campaign) {
+    const queue = getCampaignQueue(campaign.userId.toString());
+    await queue.resume();
+  }
   await Campaign.updateOne({ _id: campaignId }, { status: 'running' });
 }
 
 async function getQueueStatus() {
-  if (!campaignQueue || !scheduleQueue) {
+  let cActive = 0, cWaiting = 0, cCompleted = 0, cFailed = 0, cDelayed = 0, cPaused = false;
+  
+  for (const [name, queue] of campaignQueues.entries()) {
+    try {
+      const [act, wait, comp, fail, del, paused] = await Promise.all([
+        queue.getActiveCount(),
+        queue.getWaitingCount(),
+        queue.getCompletedCount(),
+        queue.getFailedCount(),
+        queue.getDelayedCount(),
+        queue.isPaused(),
+      ]);
+      cActive += act;
+      cWaiting += wait;
+      cCompleted += comp;
+      cFailed += fail;
+      cDelayed += del;
+      if (paused) cPaused = true;
+    } catch (err) {
+      logger.error(`Error getting status for queue ${name}:`, err.message);
+    }
+  }
+
+  if (!scheduleQueue) {
     return {
-      campaign: { active: 0, waiting: 0, completed: 0, failed: 0, delayed: 0, paused: false, status: 'uninitialized' },
+      campaign: { active: cActive, waiting: cWaiting, completed: cCompleted, failed: cFailed, delayed: cDelayed, paused: cPaused, status: 'ready' },
       schedule: { active: 0, waiting: 0, completed: 0, failed: 0, delayed: 0, paused: false, status: 'uninitialized' }
     };
   }
-  const [
-    cActive, cWaiting, cCompleted, cFailed, cDelayed, cPaused,
-    sActive, sWaiting, sCompleted, sFailed, sDelayed, sPaused
-  ] = await Promise.all([
-    campaignQueue.getActiveCount(),
-    campaignQueue.getWaitingCount(),
-    campaignQueue.getCompletedCount(),
-    campaignQueue.getFailedCount(),
-    campaignQueue.getDelayedCount(),
-    campaignQueue.isPaused(),
+
+  const [sActive, sWaiting, sCompleted, sFailed, sDelayed, sPaused] = await Promise.all([
     scheduleQueue.getActiveCount(),
     scheduleQueue.getWaitingCount(),
     scheduleQueue.getCompletedCount(),
@@ -273,31 +321,47 @@ async function getQueueStatus() {
 }
 
 async function cleanQueue(queueName, type) {
-  const queue = queueName === 'campaign-messages' ? campaignQueue : scheduleQueue;
-  if (!queue) throw new Error('Queue not initialized');
-  await queue.clean(0, type);
+  if (queueName === 'campaign-messages') {
+    for (const queue of campaignQueues.values()) {
+      await queue.clean(0, type);
+    }
+  } else {
+    if (!scheduleQueue) throw new Error('Queue not initialized');
+    await scheduleQueue.clean(0, type);
+  }
 }
 
 async function pauseQueue(queueName) {
-  const queue = queueName === 'campaign-messages' ? campaignQueue : scheduleQueue;
-  if (!queue) throw new Error('Queue not initialized');
-  await queue.pause();
+  if (queueName === 'campaign-messages') {
+    for (const queue of campaignQueues.values()) {
+      await queue.pause();
+    }
+  } else {
+    if (!scheduleQueue) throw new Error('Queue not initialized');
+    await scheduleQueue.pause();
+  }
 }
 
 async function resumeQueue(queueName) {
-  const queue = queueName === 'campaign-messages' ? campaignQueue : scheduleQueue;
-  if (!queue) throw new Error('Queue not initialized');
-  await queue.resume();
+  if (queueName === 'campaign-messages') {
+    for (const queue of campaignQueues.values()) {
+      await queue.resume();
+    }
+  } else {
+    if (!scheduleQueue) throw new Error('Queue not initialized');
+    await scheduleQueue.resume();
+  }
 }
 
 async function getRedisStatus() {
-  if (!campaignQueue || !campaignQueue.client) {
+  const checkQueue = scheduleQueue || (campaignQueues.size > 0 ? campaignQueues.values().next().value : null);
+  if (!checkQueue || !checkQueue.client) {
     return { status: 'disconnected', error: 'Redis client not initialized' };
   }
   try {
-    const pingResult = await campaignQueue.client.ping();
+    const pingResult = await checkQueue.client.ping();
     return {
-      status: campaignQueue.client.status,
+      status: checkQueue.client.status,
       ping: pingResult,
     };
   } catch (err) {

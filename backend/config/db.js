@@ -14,7 +14,7 @@ const RETRY_DELAY = 5000;
 async function connectDB(retryCount = 0) {
   try {
     const options = {
-      maxPoolSize: 10,
+      maxPoolSize: parseInt(process.env.MONGODB_MAX_POOL_SIZE, 10) || 100,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       family: 4,

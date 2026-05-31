@@ -14,8 +14,8 @@ const logger = winston.createLogger({
   transports: [new winston.transports.Console()],
 });
 
-// Memory cache for deduplicating concurrent webhook events
-const processedMessageIds = new Set();
+const { getRedisClient } = require('../config/redis');
+const redis = getRedisClient();
 
 /**
  * Detect source from message text.
@@ -42,23 +42,22 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     }
     const userId = waAccount.userId;
 
-    // Deduplicate incoming messages from Meta webhook using message ID
+    // Deduplicate incoming messages from Meta webhook using message ID stored in Redis (multi-instance safe)
     if (messageData.id) {
-      if (processedMessageIds.has(messageData.id)) {
-        logger.info(`Duplicate message received via webhook (in-memory), skipping: ${messageData.id}`);
-        return;
-      }
-      processedMessageIds.add(messageData.id);
-      // Clean up after 2 minutes to keep memory usage low
-      setTimeout(() => {
-        processedMessageIds.delete(messageData.id);
-      }, 120000);
-
-      // Check database as fallback
-      const existingMsg = await Message.findOne({ userId, metaMessageId: messageData.id });
-      if (existingMsg) {
-        logger.info(`Duplicate message found in database, skipping: ${messageData.id}`);
-        return;
+      try {
+        const redisKey = `webhook:msg:${userId}:${messageData.id}`;
+        const isNew = await redis.set(redisKey, '1', 'NX', 'EX', 120);
+        if (!isNew) {
+          logger.info(`Duplicate message received via webhook (Redis), skipping: ${messageData.id}`);
+          return;
+        }
+      } catch (err) {
+        logger.error(`Redis deduplication error: ${err.message}. Falling back to database check.`);
+        const existingMsg = await Message.findOne({ userId, metaMessageId: messageData.id });
+        if (existingMsg) {
+          logger.info(`Duplicate message found in database, skipping: ${messageData.id}`);
+          return;
+        }
       }
     }
 
@@ -328,7 +327,13 @@ async function handleAIMode(userId, conversation, contact, content, phoneNumberI
       .lean();
     history.reverse();
 
-    const aiResponse = await aiAgent.processWithAI(history, contact, content.text || '');
+    // Fetch user and organization to retrieve custom AI keys
+    const User = require('../models/User');
+    const Organization = require('../models/Organization');
+    const user = await User.findById(userId);
+    const org = user ? await Organization.findById(user.organizationId).lean() : null;
+
+    const aiResponse = await aiAgent.processWithAI(history, contact, content.text || '', '', org);
 
     if (aiResponse.handoff) {
       conversation.status = 'human';
@@ -474,7 +479,14 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
         const history = await Message.find({ userId, conversationId: conversation._id })
           .sort({ timestamp: -1 }).limit(10).lean();
         history.reverse();
-        const aiResp = await aiAgent.processWithAI(history, contact, content.text || '', prompt);
+
+        // Fetch user and organization to retrieve custom AI keys
+        const User = require('../models/User');
+        const Organization = require('../models/Organization');
+        const user = await User.findById(userId);
+        const org = user ? await Organization.findById(user.organizationId).lean() : null;
+
+        const aiResp = await aiAgent.processWithAI(history, contact, content.text || '', prompt, org);
         
         replyText = aiResp.text || '';
         if (replyText.toUpperCase().startsWith('FINISHED')) {
@@ -674,7 +686,14 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
       const history = await Message.find({ userId, conversationId: conversation._id })
         .sort({ timestamp: -1 }).limit(10).lean();
       history.reverse();
-      const aiResp = await aiAgent.processWithAI(history, contact, content.text || '', prompt);
+
+      // Fetch user and organization to retrieve custom AI keys
+      const User = require('../models/User');
+      const Organization = require('../models/Organization');
+      const user = await User.findById(userId);
+      const org = user ? await Organization.findById(user.organizationId).lean() : null;
+
+      const aiResp = await aiAgent.processWithAI(history, contact, content.text || '', prompt, org);
       
       let isFinished = false;
       let replyText = aiResp.text || '';

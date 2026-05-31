@@ -62,6 +62,10 @@ const organizationSchema = new mongoose.Schema(
           lastVerified: { type: Date },
         }
       }
+    },
+    aiConfig: {
+      openaiApiKey: { type: String, default: '' },
+      grokApiKey: { type: String, default: '' }
     }
   },
   { timestamps: true }

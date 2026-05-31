@@ -583,4 +583,75 @@ router.post('/meta/disconnect', async (req, res) => {
   }
 });
 
+// GET /api/settings/integrations/ai - Retrieve organization's AI config (masked)
+router.get('/ai', async (req, res) => {
+  try {
+    const org = await Organization.findById(req.organizationId);
+    if (!org) {
+      return res.status(404).json({ success: false, error: 'Organization not found', code: 'ORG_NOT_FOUND' });
+    }
+
+    const config = org.aiConfig ? org.aiConfig.toObject() : { openaiApiKey: '', grokApiKey: '' };
+
+    // Mask sensitive fields
+    if (config.openaiApiKey) config.openaiApiKey = maskToken(decryptField(config.openaiApiKey));
+    if (config.grokApiKey) config.grokApiKey = maskToken(decryptField(config.grokApiKey));
+
+    res.json({ success: true, data: config });
+  } catch (error) {
+    logger.error('Failed to fetch integrations AI:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch AI configurations', code: 'FETCH_ERROR' });
+  }
+});
+
+// POST /api/settings/integrations/ai - Update organization's AI credentials
+router.post('/ai', async (req, res) => {
+  try {
+    const org = await Organization.findById(req.organizationId);
+    if (!org) {
+      return res.status(404).json({ success: false, error: 'Organization not found', code: 'ORG_NOT_FOUND' });
+    }
+
+    const { openaiApiKey, grokApiKey } = req.body;
+
+    if (!org.aiConfig) {
+      org.aiConfig = {};
+    }
+
+    if (openaiApiKey !== undefined) {
+      if (openaiApiKey === '') {
+        org.aiConfig.openaiApiKey = '';
+      } else if (!openaiApiKey.includes('••••')) {
+        org.aiConfig.openaiApiKey = encryptField(openaiApiKey);
+      }
+    }
+
+    if (grokApiKey !== undefined) {
+      if (grokApiKey === '') {
+        org.aiConfig.grokApiKey = '';
+      } else if (!grokApiKey.includes('••••')) {
+        org.aiConfig.grokApiKey = encryptField(grokApiKey);
+      }
+    }
+
+    await org.save();
+
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user._id,
+      actorName: req.user.name,
+      action: 'UPDATE_AI_INTEGRATION',
+      resource: 'Organization',
+      resourceId: org._id.toString(),
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: 'AI configurations updated successfully' });
+  } catch (error) {
+    logger.error('Failed to update integrations AI:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to save AI configurations', code: 'SAVE_ERROR' });
+  }
+});
+
 module.exports = router;

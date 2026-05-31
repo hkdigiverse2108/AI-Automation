@@ -15,32 +15,42 @@ const logger = winston.createLogger({
  * @param {string} customPrompt - optional custom system prompt
  * @returns {{ text: string, handoff: boolean }}
  */
-async function processWithAI(messageHistory, contact, userMessage, customPrompt = '') {
+async function processWithAI(messageHistory, contact, userMessage, customPrompt = '', org = null) {
   try {
     let clientOptions = {};
     let modelName = 'gpt-4';
 
-    const hasGrok = env.GROK_API_KEY && env.GROK_API_KEY !== 'your_grok_api_key' && env.GROK_API_KEY.trim() !== '';
-    const hasOpenAI = env.OPENAI_API_KEY && env.OPENAI_API_KEY !== 'your_openai_api_key' && env.OPENAI_API_KEY.trim() !== '';
+    // Resolve custom dynamic keys or fall back to system defaults
+    const { decryptField } = require('./encryption');
+    
+    // Decrypt keys if present
+    const customOpenAIKey = org?.aiConfig?.openaiApiKey ? decryptField(org.aiConfig.openaiApiKey) : null;
+    const customGrokKey = org?.aiConfig?.grokApiKey ? decryptField(org.aiConfig.grokApiKey) : null;
+
+    const finalOpenAIKey = (customOpenAIKey && customOpenAIKey.trim() !== '') ? customOpenAIKey.trim() : env.OPENAI_API_KEY;
+    const finalGrokKey = (customGrokKey && customGrokKey.trim() !== '') ? customGrokKey.trim() : env.GROK_API_KEY;
+
+    const hasGrok = finalGrokKey && finalGrokKey !== 'your_grok_api_key' && finalGrokKey.trim() !== '';
+    const hasOpenAI = finalOpenAIKey && finalOpenAIKey !== 'your_openai_api_key' && finalOpenAIKey.trim() !== '';
 
     if (hasGrok) {
-      const isGroq = env.GROK_API_KEY.trim().startsWith('gsk_');
+      const isGroq = finalGrokKey.trim().startsWith('gsk_');
       if (isGroq) {
         clientOptions = {
-          apiKey: env.GROK_API_KEY.trim(),
+          apiKey: finalGrokKey.trim(),
           baseURL: 'https://api.groq.com/openai/v1'
         };
         modelName = 'llama-3.1-8b-instant';
       } else {
         clientOptions = {
-          apiKey: env.GROK_API_KEY.trim(),
+          apiKey: finalGrokKey.trim(),
           baseURL: 'https://api.x.ai/v1'
         };
         modelName = 'grok-2';
       }
     } else if (hasOpenAI) {
       clientOptions = {
-        apiKey: env.OPENAI_API_KEY
+        apiKey: finalOpenAIKey
       };
       modelName = 'gpt-4';
     } else {
