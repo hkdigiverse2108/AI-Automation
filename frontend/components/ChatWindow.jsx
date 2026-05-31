@@ -50,6 +50,16 @@ const getTagColorClass = (tag) => {
   return { dot: dotColors[index], badge: textColors[index] };
 };
 
+const resolveMediaUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('/uploads')) {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const baseUrl = apiBase.replace(/\/api\/?$/, ''); // Remove trailing /api
+    return `${baseUrl}${url}`;
+  }
+  return url;
+};
+
 export default function ChatWindow({ conversation, messages }) {
   // Guard: If no conversation is loaded, show empty state
   if (!conversation?._id) {
@@ -724,10 +734,10 @@ export default function ChatWindow({ conversation, messages }) {
                       {msg.type === 'image' && msg.content?.mediaUrl && (
                         <div className="mb-1.5 max-w-sm rounded-lg overflow-hidden border border-wa-border dark:border-wa-dark-border shadow-sm">
                           <img 
-                            src={msg.content.mediaUrl} 
+                            src={resolveMediaUrl(msg.content.mediaUrl)} 
                             alt={msg.content.caption || "Image"} 
                             className="max-h-60 w-full object-cover hover:scale-[1.01] transition-transform duration-200 cursor-pointer"
-                            onClick={() => window.open(msg.content.mediaUrl, '_blank')}
+                            onClick={() => window.open(resolveMediaUrl(msg.content.mediaUrl), '_blank')}
                           />
                         </div>
                       )}
@@ -735,7 +745,7 @@ export default function ChatWindow({ conversation, messages }) {
                       {msg.type === 'video' && msg.content?.mediaUrl && (
                         <div className="mb-1.5 max-w-sm rounded-lg overflow-hidden border border-wa-border dark:border-wa-dark-border shadow-sm bg-black">
                           <video 
-                            src={msg.content.mediaUrl} 
+                            src={resolveMediaUrl(msg.content.mediaUrl)} 
                             controls 
                             className="max-h-60 w-full object-contain"
                           />
@@ -745,7 +755,7 @@ export default function ChatWindow({ conversation, messages }) {
                       {msg.type === 'audio' && msg.content?.mediaUrl && (
                         <div className="mb-1.5 p-2 rounded-xl bg-wa-panel-header/50 dark:bg-wa-dark-panel-header/35 border border-wa-border dark:border-wa-dark-border flex items-center gap-2 min-w-[260px] max-w-sm shadow-sm">
                           <audio 
-                            src={msg.content.mediaUrl} 
+                            src={resolveMediaUrl(msg.content.mediaUrl)} 
                             controls 
                             className="w-full h-8"
                           />
@@ -755,7 +765,7 @@ export default function ChatWindow({ conversation, messages }) {
                       {msg.type === 'sticker' && msg.content?.mediaUrl && (
                         <div className="mb-1.5 max-w-[120px] overflow-hidden rounded-lg">
                           <img 
-                            src={msg.content.mediaUrl} 
+                            src={resolveMediaUrl(msg.content.mediaUrl)} 
                             alt="Sticker" 
                             className="w-full h-auto object-contain"
                           />
@@ -771,7 +781,7 @@ export default function ChatWindow({ conversation, messages }) {
                             </span>
                           </div>
                           <a 
-                            href={msg.content.mediaUrl} 
+                            href={resolveMediaUrl(msg.content.mediaUrl)} 
                             target="_blank" 
                             rel="noopener noreferrer" 
                             className="px-2.5 py-1 text-[10px] font-bold text-wa-green bg-wa-green/10 border border-wa-green/20 rounded-lg hover:bg-wa-green hover:text-white transition-colors shrink-0"
