@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+const baseURL = process.env.NEXT_PUBLIC_API_URL || '/api';
+if (typeof window !== 'undefined') {
+  console.log('[API Base URL Diagnostics] baseURL resolved to:', baseURL);
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
+  baseURL,
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });

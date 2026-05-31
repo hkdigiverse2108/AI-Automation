@@ -15,6 +15,7 @@ export function getSocket() {
   if (!socketUrl) {
     socketUrl = 'http://localhost:5000';
   }
+  console.log('[Socket Diagnostics] Connecting to socket URL:', socketUrl);
 
   socket = io(socketUrl, {
     auth: { token },
