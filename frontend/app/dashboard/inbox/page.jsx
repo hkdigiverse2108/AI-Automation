@@ -30,6 +30,14 @@ function formatConversationTime(dateStr) {
 export default function InboxPage() {
   const { user } = useAuthStore();
   const { conversations, fetchConversations, fetchMessages, currentConversation, messages, addMessage, updateMessageStatus } = useConversationStore();
+
+  const sortedConversations = [...conversations].sort((a, b) => {
+    const aPriority = (a.urgency === 'critical' || a.sentiment === 'angry') ? 2 : (a.urgency === 'high' || a.sentiment === 'frustrated') ? 1 : 0;
+    const bPriority = (b.urgency === 'critical' || b.sentiment === 'angry') ? 2 : (b.urgency === 'high' || b.sentiment === 'frustrated') ? 1 : 0;
+    if (aPriority !== bPriority) return bPriority - aPriority;
+    return new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0);
+  });
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState(user?.role === 'agent' ? 'assigned' : '');
@@ -278,21 +286,13 @@ export default function InboxPage() {
 
         {/* Conversation List */}
         <div className="flex-1 overflow-y-auto">
-          {(() => {
-            const sortedConversations = [...conversations].sort((a, b) => {
-              const aPriority = (a.urgency === 'critical' || a.sentiment === 'angry') ? 2 : (a.urgency === 'high' || a.sentiment === 'frustrated') ? 1 : 0;
-              const bPriority = (b.urgency === 'critical' || b.sentiment === 'angry') ? 2 : (b.urgency === 'high' || b.sentiment === 'frustrated') ? 1 : 0;
-              if (aPriority !== bPriority) return bPriority - aPriority;
-              return new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0);
-            });
-
-            return sortedConversations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-wa-text-light px-8">
-                <MessageSquare className="w-16 h-16 mb-4 opacity-20" />
-                <p className="text-sm font-medium">No conversations yet</p>
-                <p className="text-xs mt-1 text-center opacity-70">Start a new chat to begin messaging</p>
-              </div>
-            ) : sortedConversations.map((conv) => {
+          {sortedConversations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-wa-text-light px-8">
+              <MessageSquare className="w-16 h-16 mb-4 opacity-20" />
+              <p className="text-sm font-medium">No conversations yet</p>
+              <p className="text-xs mt-1 text-center opacity-70">Start a new chat to begin messaging</p>
+            </div>
+          ) : sortedConversations.map((conv) => {
             const contact = conv.contactId || {};
             const badge = STATUS_BADGES[conv.status] || {};
             const BadgeIcon = badge.icon;
