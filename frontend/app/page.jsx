@@ -151,12 +151,9 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
-            <Link href="/register" className="w-full sm:w-auto px-7 py-3.5 bg-wa-green hover:bg-wa-green-hover text-white font-bold rounded-xl shadow-lg shadow-wa-green/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm">
-              <span>Launch Console Free</span>
+            <Link href="/login" className="w-full sm:w-auto px-7 py-3.5 bg-wa-green hover:bg-wa-green-hover text-white font-bold rounded-xl shadow-lg shadow-wa-green/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm">
+              <span>Admin Login Console</span>
               <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link href="/login" className="w-full sm:w-auto bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold py-3.5 px-7 rounded-xl transition-all text-center text-sm">
-              Admin Login
             </Link>
           </div>
 
