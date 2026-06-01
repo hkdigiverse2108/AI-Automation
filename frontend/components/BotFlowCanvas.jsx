@@ -567,7 +567,7 @@ export default function BotFlowCanvas({ flow, onSave }) {
                       <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Image Caption</label>
                       <textarea
                         rows="3"
-                        value={selectedNode.data.message?.caption || ''}
+                        value={selectedNode.data.message?.caption || selectedNode.data.message?.text || ''}
                         onChange={(e) => handleUpdateNodeData('message', { caption: e.target.value, text: e.target.value })}
                         placeholder="Enter image caption body..."
                         className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
@@ -654,7 +654,7 @@ export default function BotFlowCanvas({ flow, onSave }) {
                       <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Question Caption</label>
                       <textarea
                         rows="3"
-                        value={selectedNode.data.message?.caption || ''}
+                        value={selectedNode.data.message?.caption || selectedNode.data.message?.text || ''}
                         onChange={(e) => handleUpdateNodeData('message', { caption: e.target.value, text: e.target.value })}
                         placeholder="Enter question caption copy..."
                         className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400"

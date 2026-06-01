@@ -662,7 +662,7 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
           imageUrl = await resolveAssetUrl(flow._id, imageUrl);
         }
         imageUrl = interpolate(imageUrl, vars);
-        const caption = interpolate(msgData.caption || '', vars);
+        const caption = interpolate(msgData.caption || msgData.text || '', vars);
         const result = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, imageUrl, caption);
         await saveAndEmitMessage(userId, conversation, contact, caption, 'bot', io, 'image', { mediaUrl: result.sentUrl || imageUrl }, result);
       } else {
@@ -706,7 +706,7 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
           imageUrl = await resolveAssetUrl(flow._id, imageUrl);
         }
         imageUrl = interpolate(imageUrl, vars);
-        const caption = interpolate(msgData.caption || '', vars);
+        const caption = interpolate(msgData.caption || msgData.text || '', vars);
         const result = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, imageUrl, caption);
         await saveAndEmitMessage(userId, conversation, contact, caption, 'bot', io, 'image', { mediaUrl: result.sentUrl || imageUrl }, result);
       } else {
