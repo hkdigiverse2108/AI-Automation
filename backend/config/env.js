@@ -52,6 +52,7 @@ const env = {
   SMTP_USER: process.env.SMTP_USER,
   SMTP_PASS: process.env.SMTP_PASS,
   FROM_EMAIL: process.env.FROM_EMAIL,
+  RESEND_API_KEY: process.env.RESEND_API_KEY || 're_FGASbNex_8HfPvn5AywTnFCduXfBnUkSB',
 
   isProd: () => env.NODE_ENV === 'production',
   isDev: () => env.NODE_ENV === 'development',
