@@ -608,7 +608,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                 <p className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex items-center gap-1.5 mt-0.5">
                   <Phone className="w-3 h-3" />
                   <span className="font-mono">{contact.phone || ''}</span>
-                  {isLocked ? (
+                  {conversation?.status === 'human' ? (
                     <>
                       <span className="text-slate-400">·</span>
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30 font-bold uppercase tracking-wider">
@@ -616,11 +616,19 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                         <span>Assigned to {conversation.assignedAgent?.name || 'Agent'}</span>
                       </span>
                     </>
+                  ) : conversation?.status === 'bot' ? (
+                    <>
+                      <span className="text-slate-400">·</span>
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30 font-bold uppercase tracking-wider">
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                        <span>Bot Handling</span>
+                      </span>
+                    </>
                   ) : (
                     <>
                       <span className="text-slate-400">·</span>
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30 font-bold uppercase tracking-wider font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0 animate-pulse" />
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-705 border border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 font-bold uppercase tracking-wider font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
                         <span>AI Handling</span>
                       </span>
                     </>
