@@ -1235,7 +1235,7 @@ function getMatchingImage(text) {
 
   // Costumes & Lockers
   if (lower.includes('costume') || lower.includes('dress') || lower.includes('swimwear') || lower.includes('કોસ્ટ્યુમ') || lower.includes('કપડાં') || lower.includes('ડ્રેસ') || lower.includes('સ્વિમવેર')) return { url: 'https://images.unsplash.com/photo-1564859228273-274232fdb516?w=800&auto=format&fit=crop', caption: 'Water Park Swimwear & Costumes 🩱🩳' };
-  if (lower.includes('locker') || lower.includes('changing') || lower.includes('લોકર')) return { url: 'https://images.unsplash.com/photo-1574634534894-89d7576c8259?w=800&auto=format&fit=crop', caption: 'Locker Area & Changing Rooms 🔒' };
+  if (lower.includes('locker') || lower.includes('changing') || lower.includes('લોકર')) return { url: 'https://res.cloudinary.com/dhj4gacsd/image/upload/v1780306358/bot_media/ilim1dqultszfub9xqnt.jpg', caption: 'Locker Area & Changing Rooms 🔒' };
 
   // Food
   if (lower.includes('food') || lower.includes('lunch') || lower.includes('meal') || lower.includes('restaurant') || lower.includes('ભોજન') || lower.includes('ખોરાક') || lower.includes('લંચ') || lower.includes('મેનુ')) return { url: 'https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=800&auto=format&fit=crop', caption: 'Delicious Food at Our Food Court 🍲' };
