@@ -88,7 +88,44 @@ async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'W
     </div>
   `;
 
-  // 1. Try sending via Resend API (HTTP Port 443) which is never blocked by cloud hosts like Render
+  // 1. Try sending via Brevo (Sendinblue) HTTP API (HTTP Port 443) - handles @gmail.com senders without domain verification
+  if (env.BREVO_API_KEY) {
+    try {
+      logger.info(`Attempting to send onboarding email via Brevo HTTP API to ${toEmail}...`);
+      
+      const response = await axios.post(
+        'https://api.brevo.com/v3/smtp/email',
+        {
+          sender: {
+            name: 'WA Chatbox',
+            email: env.FROM_EMAIL || env.SMTP_USER || 'princegajera0506@gmail.com',
+          },
+          to: [
+            {
+              email: toEmail,
+              name: toName,
+            },
+          ],
+          subject: `Welcome to ${orgName} - Your Onboarding Credentials`,
+          htmlContent: htmlContent,
+        },
+        {
+          headers: {
+            'accept': 'application/json',
+            'api-key': env.BREVO_API_KEY,
+            'content-type': 'application/json',
+          },
+        }
+      );
+
+      logger.info(`Onboarding email successfully delivered via Brevo. Message ID: ${response.data.messageId}`);
+      return true;
+    } catch (error) {
+      logger.error('Brevo HTTP delivery failed. Falling back to next provider...', error.response?.data || error.message);
+    }
+  }
+
+  // 2. Try sending via Resend API (HTTP Port 443) which is never blocked by cloud hosts like Render
   if (apiKey) {
     try {
       logger.info(`Attempting to send onboarding email via Resend to ${toEmail}...`);
@@ -128,9 +165,9 @@ async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'W
     }
   }
 
-  // 2. Fallback to standard SMTP
+  // 3. Fallback to standard SMTP
   if (!transporter || !env.SMTP_USER || !env.SMTP_PASS) {
-    logger.error('SMTP credentials not configured and Resend failed. Skipping onboarding email.');
+    logger.error('SMTP credentials not configured and Brevo/Resend failed. Skipping onboarding email.');
     return false;
   }
 
