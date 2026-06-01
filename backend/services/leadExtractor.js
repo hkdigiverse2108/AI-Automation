@@ -59,8 +59,42 @@ async function extractLeadInfo(userId, conversationId) {
     // Sort chronologically
     messages.reverse();
 
-    // 2. Fetch existing lead if any
-    const existingLead = await Lead.findOne({ userId, contactId });
+    // 2. Fetch existing lead if any. If it doesn't exist, create it immediately!
+    let existingLead = await Lead.findOne({ userId, contactId });
+    if (!existingLead) {
+      // Check organization plan limits for leads
+      const User = require('../models/User');
+      const Organization = require('../models/Organization');
+      const adminUser = await User.findById(userId);
+      const org = adminUser ? await Organization.findById(adminUser.organizationId) : null;
+      
+      let allowed = true;
+      if (org) {
+        const totalLeads = await Lead.countDocuments({ userId });
+        if (totalLeads >= org.maxLeads) {
+          logger.warn(`Max leads limit of ${org.maxLeads} reached for organization ${org.name}. Skipping lead creation.`);
+          allowed = false;
+        }
+      }
+
+      if (allowed) {
+        existingLead = await Lead.create({
+          userId,
+          contactId,
+          conversationId,
+          name: contact.name || '',
+          phone: contact.phone || '',
+          email: contact.email || '',
+          status: 'new',
+          conversationDateTime: new Date()
+        });
+        logger.info(`Direct lead captured and saved to dashboard for contact: ${contact.phone}`);
+      }
+    } else {
+      existingLead.conversationId = conversationId;
+      existingLead.conversationDateTime = new Date();
+      await existingLead.save();
+    }
 
     // 3. Compile transcript
     const transcriptText = messages.map(msg => {
