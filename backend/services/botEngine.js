@@ -1233,39 +1233,39 @@ function getMatchingImage(text) {
   const lower = text.toLowerCase();
   
   // Rides & attractions
-  if (lower.includes('entrance')) return { url: 'https://images.unsplash.com/photo-1582650625119-3a31f8fa2699?w=800&auto=format&fit=crop', caption: 'Chab Chabba Chab Entrance 🌊' };
-  if (lower.includes('wave pool')) return { url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop', caption: 'Wave Pool 🌊' };
-  if (lower.includes('rain dance')) return { url: 'https://images.unsplash.com/photo-1519751138087-5bf79df62d5b?w=800&auto=format&fit=crop', caption: 'Rain Dance Area 💃🚿' };
-  if (lower.includes('kids zone') || lower.includes('kids splash') || lower.includes('splash zone')) return { url: 'https://images.unsplash.com/photo-1596464716127-f2a82984de30?w=800&auto=format&fit=crop', caption: 'Kids Zone 🧸💦' };
-  if (lower.includes('family pool') || lower.includes('family activity') || lower.includes('family pool experience')) return { url: 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=800&auto=format&fit=crop', caption: 'Family Activity Pool 👨‍👩‍👧‍👦🏊' };
-  if (lower.includes('slide') || lower.includes('ride') || lower.includes('spiral')) return { url: 'https://images.unsplash.com/photo-1519751138087-5bf79df62d5b?w=800&auto=format&fit=crop', caption: 'Giant Water Slides 🎢💦' };
+  if (lower.includes('entrance') || lower.includes('પ્રવેશ') || lower.includes('એન્ટ્રન્સ')) return { url: 'https://images.unsplash.com/photo-1582650625119-3a31f8fa2699?w=800&auto=format&fit=crop', caption: 'Chab Chabba Chab Entrance 🌊' };
+  if (lower.includes('wave pool') || lower.includes('વેવ પૂલ')) return { url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop', caption: 'Wave Pool 🌊' };
+  if (lower.includes('rain dance') || lower.includes('રેઈન ડાન્સ')) return { url: 'https://images.unsplash.com/photo-1519751138087-5bf79df62d5b?w=800&auto=format&fit=crop', caption: 'Rain Dance Area 💃🚿' };
+  if (lower.includes('kids zone') || lower.includes('kids splash') || lower.includes('splash zone') || lower.includes('બાળકો') || lower.includes('કિડ્સ')) return { url: 'https://images.unsplash.com/photo-1596464716127-f2a82984de30?w=800&auto=format&fit=crop', caption: 'Kids Zone 🧸💦' };
+  if (lower.includes('family pool') || lower.includes('family activity') || lower.includes('family pool experience') || lower.includes('ફેમિલી')) return { url: 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=800&auto=format&fit=crop', caption: 'Family Activity Pool 👨‍👩‍👧‍👦🏊' };
+  if (lower.includes('slide') || lower.includes('ride') || lower.includes('spiral') || lower.includes('રાઇડ') || lower.includes('સ્લાઇડ')) return { url: 'https://images.unsplash.com/photo-1519751138087-5bf79df62d5b?w=800&auto=format&fit=crop', caption: 'Giant Water Slides 🎢💦' };
   
   // Rooms
-  if (lower.includes('deluxe') || lower.includes('splashy deluxe')) return { url: 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=800&auto=format&fit=crop', caption: 'Splashy Deluxe Room 🏨' };
-  if (lower.includes('villa') || lower.includes('marine villa')) return { url: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800&auto=format&fit=crop', caption: 'Marine Villa AC Room 🏡' };
-  if (lower.includes('cabana') || lower.includes('luxury cabana')) return { url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop', caption: 'Luxury Cabana 🏖️' };
-  if (lower.includes('stay') || lower.includes('room')) return { url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800&auto=format&fit=crop', caption: 'Family Stay Room 🛏️' };
+  if (lower.includes('deluxe') || lower.includes('splashy deluxe') || lower.includes('ડીલક્સ') || lower.includes('ડેલક્સ')) return { url: 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=800&auto=format&fit=crop', caption: 'Splashy Deluxe Room 🏨' };
+  if (lower.includes('villa') || lower.includes('marine villa') || lower.includes('વિલા')) return { url: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800&auto=format&fit=crop', caption: 'Marine Villa AC Room 🏡' };
+  if (lower.includes('cabana') || lower.includes('luxury cabana') || lower.includes('કેબાના')) return { url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop', caption: 'Luxury Cabana 🏖️' };
+  if (lower.includes('stay') || lower.includes('room') || lower.includes('રૂમ') || lower.includes('રોકાણ')) return { url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800&auto=format&fit=crop', caption: 'Family Stay Room 🛏️' };
 
   // Costumes & Lockers
-  if (lower.includes('costume') || lower.includes('dress') || lower.includes('swimwear')) return { url: 'https://images.unsplash.com/photo-1564859228273-274232fdb516?w=800&auto=format&fit=crop', caption: 'Water Park Swimwear & Costumes 🩱🩳' };
-  if (lower.includes('locker') || lower.includes('changing')) return { url: 'https://images.unsplash.com/photo-1574634534894-89d7576c8259?w=800&auto=format&fit=crop', caption: 'Locker Area & Changing Rooms 🔒' };
+  if (lower.includes('costume') || lower.includes('dress') || lower.includes('swimwear') || lower.includes('કોસ્ટ્યુમ') || lower.includes('કપડાં') || lower.includes('ડ્રેસ') || lower.includes('સ્વિમવેર')) return { url: 'https://images.unsplash.com/photo-1564859228273-274232fdb516?w=800&auto=format&fit=crop', caption: 'Water Park Swimwear & Costumes 🩱🩳' };
+  if (lower.includes('locker') || lower.includes('changing') || lower.includes('લોકર')) return { url: 'https://images.unsplash.com/photo-1574634534894-89d7576c8259?w=800&auto=format&fit=crop', caption: 'Locker Area & Changing Rooms 🔒' };
 
   // Food
-  if (lower.includes('food') || lower.includes('lunch') || lower.includes('meal') || lower.includes('restaurant')) return { url: 'https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=800&auto=format&fit=crop', caption: 'Delicious Food at Our Food Court 🍲' };
-  if (lower.includes('chole')) return { url: 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?w=800&auto=format&fit=crop', caption: 'Chole Puri 🍛' };
-  if (lower.includes('pav bhaji')) return { url: 'https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=800&auto=format&fit=crop', caption: 'Pav Bhaji 🍛' };
-  if (lower.includes('manchurian')) return { url: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=800&auto=format&fit=crop', caption: 'Manchurian 🍜' };
-  if (lower.includes('biryani')) return { url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&auto=format&fit=crop', caption: 'Veg Biryani 🍚' };
-  if (lower.includes('noodles')) return { url: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=800&auto=format&fit=crop', caption: 'Noodles 🍝' };
+  if (lower.includes('food') || lower.includes('lunch') || lower.includes('meal') || lower.includes('restaurant') || lower.includes('ભોજન') || lower.includes('ખોરાક') || lower.includes('લંચ') || lower.includes('મેનુ')) return { url: 'https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=800&auto=format&fit=crop', caption: 'Delicious Food at Our Food Court 🍲' };
+  if (lower.includes('chole') || lower.includes('છોલે')) return { url: 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?w=800&auto=format&fit=crop', caption: 'Chole Puri 🍛' };
+  if (lower.includes('pav bhaji') || lower.includes('પાવભાજી') || lower.includes('પાવ ભાજી')) return { url: 'https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=800&auto=format&fit=crop', caption: 'Pav Bhaji 🍛' };
+  if (lower.includes('manchurian') || lower.includes('મંચુરિયન')) return { url: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=800&auto=format&fit=crop', caption: 'Manchurian 🍜' };
+  if (lower.includes('biryani') || lower.includes('બિરયાની')) return { url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&auto=format&fit=crop', caption: 'Veg Biryani 🍚' };
+  if (lower.includes('noodles') || lower.includes('નૂડલ્સ')) return { url: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=800&auto=format&fit=crop', caption: 'Noodles 🍝' };
 
   // Group Trips
-  if (lower.includes('school') || lower.includes('student')) return { url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=800&auto=format&fit=crop', caption: 'School Trips Group 🎒' };
-  if (lower.includes('college') || lower.includes('university') || lower.includes('educational')) return { url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop', caption: 'College Outing Group 🎓' };
-  if (lower.includes('corporate') || lower.includes('company') || lower.includes('team')) return { url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&auto=format&fit=crop', caption: 'Corporate Team Outing 👔' };
+  if (lower.includes('school') || lower.includes('student') || lower.includes('શાળા') || lower.includes('વિદ્યાર્થી') || lower.includes('સ્કૂલ')) return { url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=800&auto=format&fit=crop', caption: 'School Trips Group 🎒' };
+  if (lower.includes('college') || lower.includes('university') || lower.includes('educational') || lower.includes('કોલેજ') || lower.includes('યુનિવર્સિટી')) return { url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop', caption: 'College Outing Group 🎓' };
+  if (lower.includes('corporate') || lower.includes('company') || lower.includes('team') || lower.includes('કોર્પોરેટ') || lower.includes('કંપની')) return { url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&auto=format&fit=crop', caption: 'Corporate Team Outing 👔' };
 
   // Gallery / Location
-  if (lower.includes('gallery') || lower.includes('attractions')) return { url: 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=800&auto=format&fit=crop', caption: 'Water Park View 🎡' };
-  if (lower.includes('ticket') || lower.includes('price') || lower.includes('counter')) return { url: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=800&auto=format&fit=crop', caption: 'Ticket Counter 🎟️' };
+  if (lower.includes('gallery') || lower.includes('attractions') || lower.includes('ગેલેરી') || lower.includes('આકર્ષણ') || lower.includes('આકર્ષણો') || lower.includes('ફોટા') || lower.includes('તસવીરો')) return { url: 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=800&auto=format&fit=crop', caption: 'Water Park View 🎡' };
+  if (lower.includes('ticket') || lower.includes('price') || lower.includes('counter') || lower.includes('ટિકિટ') || lower.includes('દર') || lower.includes('ભાવ')) return { url: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=800&auto=format&fit=crop', caption: 'Ticket Counter 🎟️' };
 
   return null;
 }
