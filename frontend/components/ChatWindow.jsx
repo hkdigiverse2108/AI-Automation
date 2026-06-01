@@ -586,7 +586,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
       <div className="flex-1 flex flex-col h-full min-w-0 bg-wa-bg/15 dark:bg-wa-dark-bg/10 relative">
         
         {/* HEADER */}
-        <div className="wa-header h-[60px] flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0 bg-wa-panel dark:bg-wa-dark-panel relative z-20">
+        <div className="wa-header h-[60px] flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0 relative z-20">
           <div className="flex items-center gap-2 md:gap-3 cursor-pointer">
             {onBack && (
               <button 
