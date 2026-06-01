@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '../../lib/store';
 import Sidebar from '../../components/Sidebar';
+import NotificationCenter from '../../components/NotificationCenter';
 import { Menu } from 'lucide-react';
 
 export default function DashboardLayout({ children }) {
@@ -63,8 +64,24 @@ export default function DashboardLayout({ children }) {
               WA Chatbox
             </span>
           </div>
-          <div className="w-8 h-8 rounded-full bg-wa-green/10 text-wa-green font-bold text-xs flex items-center justify-center border border-wa-green/20">
-            {user?.name?.[0]?.toUpperCase() || 'U'}
+          <div className="flex items-center gap-2">
+            <NotificationCenter />
+            <div className="w-8 h-8 rounded-full bg-wa-green/10 text-wa-green font-bold text-xs flex items-center justify-center border border-wa-green/20">
+              {user?.name?.[0]?.toUpperCase() || 'U'}
+            </div>
+          </div>
+        </header>
+
+        {/* Desktop notification bar - only visible on lg+ */}
+        <header className="hidden lg:flex items-center justify-end h-[48px] bg-wa-panel-header/50 dark:bg-wa-dark-panel-header/50 border-b border-wa-border/50 dark:border-wa-dark-border/50 px-6 shrink-0 z-10 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <NotificationCenter />
+            <div className="flex items-center gap-2 pl-3 border-l border-wa-border dark:border-wa-dark-border">
+              <div className="w-7 h-7 rounded-full bg-wa-green/10 text-wa-green font-bold text-[10px] flex items-center justify-center border border-wa-green/20">
+                {user?.name?.[0]?.toUpperCase() || 'U'}
+              </div>
+              <span className="text-xs font-semibold text-wa-text-primary dark:text-white hidden xl:inline">{user?.name || 'User'}</span>
+            </div>
           </div>
         </header>
 

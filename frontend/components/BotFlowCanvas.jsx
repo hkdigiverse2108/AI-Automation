@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -12,28 +12,76 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { 
   MessageSquare, HelpCircle, GitFork, Activity, Clock, Bot, 
-  UserCheck, Plus, Trash2, Save, Play, X, Settings
+  UserCheck, Plus, Trash2, Save, Play, X, Settings,
+  Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Keyboard,
+  GripVertical, Layers
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { customNodeTypes } from './CustomBotNodes';
 
 // Available node type definitions with styling details
 const NODE_TYPES_INFO = {
-  message: { label: 'Send Message', icon: MessageSquare, color: 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-450' },
-  question: { label: 'Ask Question', icon: HelpCircle, color: 'border-blue-500 bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-450' },
-  condition: { label: 'Condition Branch', icon: GitFork, color: 'border-amber-500 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-450' },
-  ai: { label: 'AI Agent Prompt', icon: Bot, color: 'border-purple-500 bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-450' },
-  delay: { label: 'Wait Delay', icon: Clock, color: 'border-pink-500 bg-pink-50 dark:bg-pink-950/20 text-pink-700 dark:text-pink-450' },
-  handoff: { label: 'Human Handoff', icon: UserCheck, color: 'border-red-500 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-450' }
+  message: { label: 'Send Message', icon: MessageSquare, color: '#10b981', bgClass: 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400', rfType: 'messageNode' },
+  question: { label: 'Ask Question', icon: HelpCircle, color: '#3b82f6', bgClass: 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400', rfType: 'questionNode' },
+  condition: { label: 'Condition', icon: GitFork, color: '#f59e0b', bgClass: 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400', rfType: 'conditionNode' },
+  ai: { label: 'AI Agent', icon: Bot, color: '#8b5cf6', bgClass: 'bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-400', rfType: 'aiNode' },
+  delay: { label: 'Wait Delay', icon: Clock, color: '#ec4899', bgClass: 'bg-pink-50 dark:bg-pink-950/20 border-pink-200 dark:border-pink-800 text-pink-700 dark:text-pink-400', rfType: 'delayNode' },
+  handoff: { label: 'Human Handoff', icon: UserCheck, color: '#ef4444', bgClass: 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400', rfType: 'handoffNode' }
 };
+
+// Maximum undo/redo history size
+const MAX_HISTORY = 30;
 
 export default function BotFlowCanvas({ flow, onSave }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState(null);
+  const reactFlowWrapper = useRef(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
   
-  // Trigger config for the overall bot flow
+  // Trigger config
   const [triggerType, setTriggerType] = useState('keyword');
   const [keywords, setKeywords] = useState('');
+
+  // Undo/Redo history
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isUndoRedo = useRef(false);
+
+  // Save current state to history
+  const pushHistory = useCallback((newNodes, newEdges) => {
+    if (isUndoRedo.current) {
+      isUndoRedo.current = false;
+      return;
+    }
+    setHistory(prev => {
+      const truncated = prev.slice(0, historyIndex + 1);
+      const next = [...truncated, { nodes: JSON.parse(JSON.stringify(newNodes)), edges: JSON.parse(JSON.stringify(newEdges)) }];
+      if (next.length > MAX_HISTORY) next.shift();
+      return next;
+    });
+    setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
+  }, [historyIndex]);
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex <= 0) return;
+    isUndoRedo.current = true;
+    const prev = history[historyIndex - 1];
+    setNodes(prev.nodes);
+    setEdges(prev.edges);
+    setHistoryIndex(i => i - 1);
+    toast('Undo', { icon: '↩️', duration: 1000 });
+  }, [history, historyIndex, setNodes, setEdges]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex >= history.length - 1) return;
+    isUndoRedo.current = true;
+    const next = history[historyIndex + 1];
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    setHistoryIndex(i => i + 1);
+    toast('Redo', { icon: '↪️', duration: 1000 });
+  }, [history, historyIndex, setNodes, setEdges]);
 
   // Map backend model to React Flow representation
   useEffect(() => {
@@ -42,30 +90,18 @@ export default function BotFlowCanvas({ flow, onSave }) {
       setKeywords(flow.trigger?.keywords?.join(', ') || '');
       
       if (flow.nodes && flow.nodes.length > 0) {
-        const rfNodes = flow.nodes.map(n => ({
-          id: n.id,
-          type: 'default',
-          position: n.position || { x: 100, y: 100 },
-          data: { 
-            ...n.data, 
-            nodeType: n.type, 
-            label: (
-              <div className="flex items-center gap-2 font-medium">
-                {renderNodeIcon(n.type)}
-                <span>{NODE_TYPES_INFO[n.type]?.label || n.type}</span>
-              </div>
-            ) 
-          },
-          style: {
-            borderRadius: '12px',
-            border: '2px solid',
-            padding: '10px',
-            fontSize: '12px',
-            width: 180,
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-            borderColor: getBorderColor(n.type)
-          }
-        }));
+        const rfNodes = flow.nodes.map(n => {
+          const info = NODE_TYPES_INFO[n.type] || NODE_TYPES_INFO.message;
+          return {
+            id: n.id,
+            type: info.rfType,
+            position: n.position || { x: 100, y: 100 },
+            data: { 
+              ...n.data, 
+              nodeType: n.type, 
+            },
+          };
+        });
         
         const rfEdges = [];
         flow.nodes.forEach(n => {
@@ -75,9 +111,11 @@ export default function BotFlowCanvas({ flow, onSave }) {
                 id: `${n.id}-${e.targetNodeId}-${idx}`,
                 source: n.id,
                 target: e.targetNodeId,
+                sourceHandle: e.sourceHandle || 'out',
                 label: e.label || '',
                 animated: true,
-                markerEnd: { type: MarkerType.ArrowClosed }
+                style: { strokeWidth: 2, stroke: '#00a884' },
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#00a884' }
               });
             });
           }
@@ -85,68 +123,53 @@ export default function BotFlowCanvas({ flow, onSave }) {
 
         setNodes(rfNodes);
         setEdges(rfEdges);
+        // Initialize history
+        setHistory([{ nodes: JSON.parse(JSON.stringify(rfNodes)), edges: JSON.parse(JSON.stringify(rfEdges)) }]);
+        setHistoryIndex(0);
       } else {
-        // Create an entry point node if flow is empty
         const initialNode = {
           id: 'node_1',
-          type: 'default',
+          type: 'messageNode',
           position: { x: 250, y: 150 },
           data: { 
             nodeType: 'message', 
             message: { text: 'Hello! Thanks for reaching out.' },
-            label: (
-              <div className="flex items-center gap-2 font-medium">
-                <MessageSquare className="w-4 h-4 text-emerald-500" />
-                <span>Send Message</span>
-              </div>
-            )
           },
-          style: { borderRadius: '12px', border: '2px solid #10b981', padding: '10px', fontSize: '12px', width: 180 }
         };
         setNodes([initialNode]);
         setEdges([]);
+        setHistory([{ nodes: [{ ...initialNode }], edges: [] }]);
+        setHistoryIndex(0);
       }
     }
   }, [flow, setNodes, setEdges]);
 
-  const renderNodeIcon = (type) => {
-    const Icon = NODE_TYPES_INFO[type]?.icon || MessageSquare;
-    return <Icon className="w-4 h-4" />;
-  };
-
-  const getBorderColor = (type) => {
-    switch (type) {
-      case 'message': return '#10b981';
-      case 'question': return '#3b82f6';
-      case 'condition': return '#f59e0b';
-      case 'ai': return '#8b5cf6';
-      case 'delay': return '#ec4899';
-      case 'handoff': return '#ef4444';
-      default: return '#64748b';
-    }
-  };
-
   // Connect handler
   const onConnect = useCallback(
     (params) => {
-      // Add standard arrow markers to edges
       const edgeParams = {
         ...params,
         animated: true,
-        markerEnd: { type: MarkerType.ArrowClosed }
+        style: { strokeWidth: 2, stroke: '#00a884' },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#00a884' }
       };
-      setEdges((eds) => addEdge(edgeParams, eds));
+      setEdges((eds) => {
+        const next = addEdge(edgeParams, eds);
+        pushHistory(nodes, next);
+        return next;
+      });
     },
-    [setEdges]
+    [setEdges, nodes, pushHistory]
   );
 
   // Add a new node to canvas
   const handleAddNode = (type) => {
     const newId = `node_${Date.now()}`;
+    const info = NODE_TYPES_INFO[type];
     const newNode = {
       id: newId,
-      type: 'default',
-      position: { x: 300, y: 250 },
+      type: info.rfType,
+      position: { x: 300 + Math.random() * 100, y: 200 + Math.random() * 100 },
       data: {
         nodeType: type,
         message: { text: type === 'message' ? 'Hello text' : '' },
@@ -154,25 +177,14 @@ export default function BotFlowCanvas({ flow, onSave }) {
         condition: type === 'condition' ? { variable: '', value: '' } : undefined,
         delaySeconds: type === 'delay' ? 60 : undefined,
         aiPrompt: type === 'ai' ? 'Respond to customer inquiry.' : undefined,
-        label: (
-          <div className="flex items-center gap-2 font-medium">
-            {renderNodeIcon(type)}
-            <span>{NODE_TYPES_INFO[type]?.label}</span>
-          </div>
-        )
       },
-      style: {
-        borderRadius: '12px',
-        border: '2px solid',
-        padding: '10px',
-        fontSize: '12px',
-        width: 180,
-        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-        borderColor: getBorderColor(type)
-      }
     };
-    setNodes((nds) => [...nds, newNode]);
-    toast.success(`Added ${NODE_TYPES_INFO[type]?.label} block`);
+    setNodes((nds) => {
+      const next = [...nds, newNode];
+      pushHistory(next, edges);
+      return next;
+    });
+    toast.success(`Added ${info.label} block`);
   };
 
   // Node Selection
@@ -184,8 +196,8 @@ export default function BotFlowCanvas({ flow, onSave }) {
   const handleUpdateNodeData = (field, val) => {
     if (!selectedNode) return;
     
-    setNodes((nds) =>
-      nds.map((node) => {
+    setNodes((nds) => {
+      const updated = nds.map((node) => {
         if (node.id === selectedNode.id) {
           const updatedNode = {
             ...node,
@@ -194,31 +206,70 @@ export default function BotFlowCanvas({ flow, onSave }) {
               [field]: val
             }
           };
-          // Sync changes in editor panel
           setSelectedNode(updatedNode);
           return updatedNode;
         }
         return node;
-      })
-    );
+      });
+      pushHistory(updated, edges);
+      return updated;
+    });
   };
 
   // Delete Node
   const handleDeleteNode = (id) => {
-    setNodes((nds) => nds.filter((node) => node.id !== id));
-    setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
+    setNodes((nds) => {
+      const next = nds.filter((node) => node.id !== id);
+      setEdges((eds) => {
+        const nextEdges = eds.filter((edge) => edge.source !== id && edge.target !== id);
+        pushHistory(next, nextEdges);
+        return nextEdges;
+      });
+      return next;
+    });
     setSelectedNode(null);
     toast.success('Block deleted');
   };
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      // Delete key
+      if (e.key === 'Delete' && selectedNode) {
+        handleDeleteNode(selectedNode.id);
+        return;
+      }
+      // Ctrl+Z = Undo
+      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+      // Ctrl+Shift+Z or Ctrl+Y = Redo
+      if ((e.ctrlKey && e.shiftKey && e.key === 'z') || (e.ctrlKey && e.key === 'y')) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+      // Ctrl+S = Save
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        handleSaveFlow();
+        return;
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [selectedNode, handleUndo, handleRedo]);
+
   // Map back to Mongoose Schema and save
   const handleSaveFlow = () => {
     const formattedNodes = nodes.map((node) => {
-      // Find all target edges from this node
       const matchingEdges = edges.filter((e) => e.source === node.id);
       const subEdges = matchingEdges.map((e) => ({
         targetNodeId: e.target,
-        label: e.label || ''
+        label: e.label || '',
+        sourceHandle: e.sourceHandle || 'out',
       }));
 
       return {
@@ -245,19 +296,28 @@ export default function BotFlowCanvas({ flow, onSave }) {
     onSave({ trigger, nodes: formattedNodes });
   };
 
+  // Fit view
+  const handleFitView = () => {
+    if (reactFlowInstance) {
+      reactFlowInstance.fitView({ padding: 0.2, duration: 300 });
+    }
+  };
+
   return (
-    <div className="flex h-[75vh] border border-dark-200 dark:border-dark-700 rounded-2xl overflow-hidden glass-card bg-slate-50 dark:bg-dark-950 relative">
+    <div className="flex h-[75vh] border border-wa-border dark:border-wa-dark-border rounded-2xl overflow-hidden bg-slate-50 dark:bg-[#0a1118] relative shadow-xl">
       {/* Node Palette Bar (Left) */}
-      <div className="w-56 border-r border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 p-4 shrink-0 flex flex-col justify-between h-full">
+      <div className="w-56 border-r border-wa-border dark:border-wa-dark-border bg-white dark:bg-[#111b21] p-4 shrink-0 flex flex-col justify-between h-full">
         <div className="flex-1 overflow-y-auto pr-1 space-y-4 mb-4 scrollbar-thin">
           <div>
-            <h4 className="text-xs font-bold text-dark-500 uppercase tracking-wider mb-2">Trigger Details</h4>
+            <h4 className="text-[10px] font-extrabold text-wa-text-secondary uppercase tracking-[0.12em] mb-2 flex items-center gap-1.5">
+              <Settings className="w-3 h-3" /> Trigger Config
+            </h4>
             <div className="space-y-2">
-              <label className="block text-[11px] font-semibold text-dark-400">Trigger Type</label>
+              <label className="block text-[11px] font-semibold text-wa-text-light">Trigger Type</label>
               <select 
                 value={triggerType} 
                 onChange={(e) => setTriggerType(e.target.value)}
-                className="w-full text-xs px-2 py-1.5 border dark:border-dark-700 bg-transparent rounded focus:outline-none"
+                className="w-full text-xs px-2.5 py-2 border border-wa-border dark:border-wa-dark-border bg-wa-search dark:bg-wa-dark-search rounded-lg focus:outline-none focus:ring-1 focus:ring-wa-green text-wa-text-primary dark:text-white"
               >
                 <option value="keyword">Keywords Match</option>
                 <option value="any">On First Inbound Message</option>
@@ -265,36 +325,76 @@ export default function BotFlowCanvas({ flow, onSave }) {
 
               {triggerType === 'keyword' && (
                 <div>
-                  <label className="block text-[11px] font-semibold text-dark-400">Keywords list</label>
+                  <label className="block text-[11px] font-semibold text-wa-text-light">Keywords list</label>
                   <input 
                     type="text" 
                     placeholder="hi, hello, menu"
                     value={keywords}
                     onChange={(e) => setKeywords(e.target.value)}
-                    className="w-full text-xs px-2 py-1.5 border dark:border-dark-700 bg-transparent rounded mt-1"
+                    className="w-full text-xs px-2.5 py-2 border border-wa-border dark:border-wa-dark-border bg-wa-search dark:bg-wa-dark-search rounded-lg mt-1 focus:outline-none focus:ring-1 focus:ring-wa-green text-wa-text-primary dark:text-white"
                   />
-                  <p className="text-[9px] text-dark-400 mt-0.5">Comma-separated</p>
+                  <p className="text-[9px] text-wa-text-light mt-0.5">Comma-separated</p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="border-t border-dark-100 dark:border-dark-800 pt-3">
-            <h4 className="text-xs font-bold text-dark-500 uppercase tracking-wider mb-2.5">Flow Blocks</h4>
-            <div className="grid grid-cols-1 gap-2">
+          <div className="border-t border-wa-border dark:border-wa-dark-border pt-3">
+            <h4 className="text-[10px] font-extrabold text-wa-text-secondary uppercase tracking-[0.12em] mb-2.5 flex items-center gap-1.5">
+              <Layers className="w-3 h-3" /> Flow Blocks
+            </h4>
+            <div className="grid grid-cols-1 gap-1.5">
               {Object.entries(NODE_TYPES_INFO).map(([key, item]) => {
                 const Icon = item.icon;
                 return (
                   <button
                     key={key}
                     onClick={() => handleAddNode(key)}
-                    className={`flex items-center gap-2 px-3 py-2 border rounded-xl text-left hover:scale-[1.02] transition-transform text-xs ${item.color}`}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 border rounded-xl text-left hover:scale-[1.02] active:scale-[0.98] transition-all text-xs font-semibold ${item.bgClass}`}
                   >
-                    <Icon className="w-4 h-4 shrink-0" />
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: item.color + '20' }}>
+                      <Icon className="w-3.5 h-3.5" style={{ color: item.color }} />
+                    </div>
                     <span>{item.label}</span>
+                    <Plus className="w-3 h-3 ml-auto opacity-40" />
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Undo/Redo + Shortcuts */}
+          <div className="border-t border-wa-border dark:border-wa-dark-border pt-3">
+            <h4 className="text-[10px] font-extrabold text-wa-text-secondary uppercase tracking-[0.12em] mb-2 flex items-center gap-1.5">
+              <Keyboard className="w-3 h-3" /> Actions
+            </h4>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                onClick={handleUndo}
+                disabled={historyIndex <= 0}
+                className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-semibold border border-wa-border dark:border-wa-dark-border text-wa-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover disabled:opacity-30 transition-all"
+              >
+                <Undo2 className="w-3.5 h-3.5" /> Undo
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={historyIndex >= history.length - 1}
+                className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-semibold border border-wa-border dark:border-wa-dark-border text-wa-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover disabled:opacity-30 transition-all"
+              >
+                <Redo2 className="w-3.5 h-3.5" /> Redo
+              </button>
+            </div>
+            <button
+              onClick={handleFitView}
+              className="w-full mt-1.5 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-semibold border border-wa-border dark:border-wa-dark-border text-wa-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-all"
+            >
+              <Maximize2 className="w-3.5 h-3.5" /> Fit to View
+            </button>
+            <div className="mt-2 text-[9px] text-wa-text-light space-y-0.5">
+              <p><kbd className="px-1 py-0.5 bg-wa-search dark:bg-wa-dark-search rounded text-[8px] font-mono">Ctrl+Z</kbd> Undo</p>
+              <p><kbd className="px-1 py-0.5 bg-wa-search dark:bg-wa-dark-search rounded text-[8px] font-mono">Ctrl+Y</kbd> Redo</p>
+              <p><kbd className="px-1 py-0.5 bg-wa-search dark:bg-wa-dark-search rounded text-[8px] font-mono">Ctrl+S</kbd> Save</p>
+              <p><kbd className="px-1 py-0.5 bg-wa-search dark:bg-wa-dark-search rounded text-[8px] font-mono">Del</kbd> Delete node</p>
             </div>
           </div>
         </div>
@@ -309,7 +409,7 @@ export default function BotFlowCanvas({ flow, onSave }) {
       </div>
 
       {/* Main React Flow Canvas */}
-      <div className="flex-1 h-full">
+      <div className="flex-1 h-full" ref={reactFlowWrapper}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -317,41 +417,83 @@ export default function BotFlowCanvas({ flow, onSave }) {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
+          onInit={setReactFlowInstance}
+          nodeTypes={customNodeTypes}
+          snapToGrid={true}
+          snapGrid={[16, 16]}
           fitView
+          defaultEdgeOptions={{
+            animated: true,
+            style: { strokeWidth: 2, stroke: '#00a884' },
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#00a884' },
+          }}
         >
-          <Controls />
-          <MiniMap />
-          <Background color="#cbd5e1" gap={16} />
+          <Controls 
+            showInteractive={false}
+            className="!bg-white dark:!bg-wa-dark-panel !border !border-wa-border dark:!border-wa-dark-border !rounded-xl !shadow-lg"
+          />
+          <MiniMap 
+            nodeColor={(n) => {
+              const type = n.data?.nodeType;
+              return NODE_TYPES_INFO[type]?.color || '#64748b';
+            }}
+            maskColor="rgba(0,0,0,0.08)"
+            className="!bg-white dark:!bg-wa-dark-panel !border !border-wa-border dark:!border-wa-dark-border !rounded-xl"
+          />
+          <Background color="#e2e8f0" gap={16} size={1} />
         </ReactFlow>
+      </div>
+
+      {/* Node info bar at bottom */}
+      <div className="absolute bottom-3 left-60 right-3 flex items-center justify-between px-4 py-2 bg-white/90 dark:bg-[#111b21]/90 backdrop-blur-md border border-wa-border dark:border-wa-dark-border rounded-xl shadow-lg text-[10px] z-20">
+        <div className="flex items-center gap-4 text-wa-text-secondary">
+          <span className="font-bold">{nodes.length} <span className="font-normal">blocks</span></span>
+          <span className="font-bold">{edges.length} <span className="font-normal">connections</span></span>
+        </div>
+        <div className="flex items-center gap-1 text-wa-text-light">
+          <span>Snap: 16px grid</span>
+          <span className="mx-1">·</span>
+          <span>History: {historyIndex + 1}/{history.length}</span>
+        </div>
       </div>
 
       {/* Editor Panel (Right Side Drawer Overlay) */}
       {selectedNode && (
-        <div className="w-80 h-full border-l border-dark-200 dark:border-dark-700 bg-white dark:bg-dark-900 absolute right-0 top-0 z-10 shadow-2xl p-5 flex flex-col justify-between animate-slide-in">
+        <div className="w-80 h-full border-l border-wa-border dark:border-wa-dark-border bg-white dark:bg-[#111b21] absolute right-0 top-0 z-30 shadow-2xl p-5 flex flex-col justify-between animate-slide-in overflow-y-auto">
           <div className="space-y-5">
-            <div className="flex items-center justify-between border-b dark:border-dark-850 pb-3">
+            <div className="flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border pb-3">
               <div className="flex items-center gap-2">
-                {renderNodeIcon(selectedNode.data.nodeType)}
-                <span className="font-bold text-sm dark:text-white capitalize">{selectedNode.data.nodeType} Block</span>
+                {(() => {
+                  const info = NODE_TYPES_INFO[selectedNode.data.nodeType];
+                  const Icon = info?.icon || MessageSquare;
+                  return (
+                    <>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: (info?.color || '#64748b') + '15' }}>
+                        <Icon className="w-4 h-4" style={{ color: info?.color || '#64748b' }} />
+                      </div>
+                      <span className="font-bold text-sm text-wa-text-primary dark:text-white capitalize">{selectedNode.data.nodeType} Block</span>
+                    </>
+                  );
+                })()}
               </div>
               <button 
                 onClick={() => setSelectedNode(null)}
-                className="p-1 rounded hover:bg-dark-100 dark:hover:bg-dark-800"
+                className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
               >
-                <X className="w-4 h-4 text-dark-500" />
+                <X className="w-4 h-4 text-wa-text-secondary" />
               </button>
             </div>
 
             {/* MESSAGE type settings */}
             {selectedNode.data.nodeType === 'message' && (
               <div>
-                <label className="block text-xs font-semibold text-dark-500 uppercase mb-1.5">Outbound Text Message</label>
+                <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Outbound Text Message</label>
                 <textarea
                   rows="4"
                   value={selectedNode.data.message?.text || ''}
                   onChange={(e) => handleUpdateNodeData('message', { text: e.target.value })}
                   placeholder="Enter message body copy..."
-                  className="w-full text-sm px-3 py-2 border dark:border-dark-700 rounded-lg dark:bg-dark-950 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
                 />
               </div>
             )}
@@ -360,25 +502,25 @@ export default function BotFlowCanvas({ flow, onSave }) {
             {selectedNode.data.nodeType === 'question' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-dark-500 uppercase mb-1.5">Question Text</label>
+                  <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Question Text</label>
                   <textarea
                     rows="3"
                     value={selectedNode.data.message?.text || ''}
                     onChange={(e) => handleUpdateNodeData('message', { text: e.target.value })}
                     placeholder="Ask user a question..."
-                    className="w-full text-sm px-3 py-2 border dark:border-dark-700 rounded-lg dark:bg-dark-950 focus:outline-none"
+                    className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-dark-500 uppercase mb-1.5">Store Answer in Variable</label>
+                  <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Store Answer in Variable</label>
                   <input
                     type="text"
                     value={selectedNode.data.variable || ''}
                     onChange={(e) => handleUpdateNodeData('variable', e.target.value)}
                     placeholder="e.g. user_choice"
-                    className="w-full text-sm px-3 py-1.5 border dark:border-dark-700 rounded-lg dark:bg-dark-950 focus:outline-none"
+                    className="w-full text-sm px-3 py-1.5 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
                   />
-                  <p className="text-[9px] text-dark-400 mt-1">This context variable can be used for downstream conditionals.</p>
+                  <p className="text-[9px] text-wa-text-light mt-1">This context variable can be used for downstream conditionals.</p>
                 </div>
               </div>
             )}
@@ -386,13 +528,13 @@ export default function BotFlowCanvas({ flow, onSave }) {
             {/* CONDITION type settings */}
             {selectedNode.data.nodeType === 'condition' && (
               <div className="space-y-4">
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-250 rounded-lg text-xs text-amber-700 space-y-1">
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl text-xs text-amber-700 dark:text-amber-400 space-y-1">
                   <span className="font-bold block">Conditional Route Instructions:</span>
-                  <p>First output handle path is for <span className="font-bold">TRUE</span> branch, and the second handle is for the <span className="font-bold">FALSE</span> branch.</p>
+                  <p>Connect the <span className="font-bold text-emerald-600">TRUE</span> output to one path, and the <span className="font-bold text-red-500">FALSE</span> output to another.</p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-dark-500 uppercase mb-1.5">Target Variable name</label>
+                  <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Target Variable name</label>
                   <input
                     type="text"
                     value={selectedNode.data.condition?.variable || ''}
@@ -401,11 +543,11 @@ export default function BotFlowCanvas({ flow, onSave }) {
                       value: selectedNode.data.condition?.value || '' 
                     })}
                     placeholder="e.g. user_choice"
-                    className="w-full text-sm px-3 py-1.5 border dark:border-dark-700 rounded-lg dark:bg-dark-950 focus:outline-none"
+                    className="w-full text-sm px-3 py-1.5 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-dark-500 uppercase mb-1.5">Expected Matching Value</label>
+                  <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Expected Matching Value</label>
                   <input
                     type="text"
                     value={selectedNode.data.condition?.value || ''}
@@ -414,7 +556,7 @@ export default function BotFlowCanvas({ flow, onSave }) {
                       value: e.target.value 
                     })}
                     placeholder="e.g. yes"
-                    className="w-full text-sm px-3 py-1.5 border dark:border-dark-700 rounded-lg dark:bg-dark-950 focus:outline-none"
+                    className="w-full text-sm px-3 py-1.5 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none"
                   />
                 </div>
               </div>
@@ -423,13 +565,13 @@ export default function BotFlowCanvas({ flow, onSave }) {
             {/* AI Prompt settings */}
             {selectedNode.data.nodeType === 'ai' && (
               <div>
-                <label className="block text-xs font-semibold text-dark-500 uppercase mb-1.5">AI Persona Prompt Settings</label>
+                <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">AI Persona Prompt Settings</label>
                 <textarea
                   rows="5"
                   value={selectedNode.data.aiPrompt || ''}
                   onChange={(e) => handleUpdateNodeData('aiPrompt', e.target.value)}
                   placeholder="e.g. You are a helpful booking assistant. Guide the user to schedule an appointment..."
-                  className="w-full text-sm px-3 py-2 border dark:border-dark-700 rounded-lg dark:bg-dark-950 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
                 />
               </div>
             )}
@@ -437,21 +579,33 @@ export default function BotFlowCanvas({ flow, onSave }) {
             {/* DELAY settings */}
             {selectedNode.data.nodeType === 'delay' && (
               <div>
-                <label className="block text-xs font-semibold text-dark-500 uppercase mb-1.5">Delay Duration (Seconds)</label>
+                <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Delay Duration (Seconds)</label>
                 <input
                   type="number"
                   value={selectedNode.data.delaySeconds || 0}
                   onChange={(e) => handleUpdateNodeData('delaySeconds', parseInt(e.target.value) || 0)}
-                  className="w-full text-sm px-3 py-1.5 border dark:border-dark-700 rounded-lg dark:bg-dark-950 focus:outline-none"
+                  className="w-full text-sm px-3 py-1.5 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none"
                 />
+                <div className="mt-2 flex gap-2">
+                  {[30, 60, 300, 3600].map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => handleUpdateNodeData('delaySeconds', v)}
+                      className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-wa-border dark:border-wa-dark-border text-wa-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                    >
+                      {v >= 3600 ? `${v / 3600}h` : v >= 60 ? `${v / 60}m` : `${v}s`}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
             {/* HANDOFF settings */}
             {selectedNode.data.nodeType === 'handoff' && (
-              <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-xl text-red-600 space-y-1">
+              <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-xl text-red-600 dark:text-red-400 space-y-1">
                 <span className="text-xs font-bold block">Live Human Agent Transition</span>
-                <p className="text-[11px] text-dark-600 dark:text-dark-300">
+                <p className="text-[11px] text-gray-600 dark:text-gray-300">
                   When execution reaches this node, the AI bot pauses, and status updates to "human". This will notify your team inbox.
                 </p>
               </div>
@@ -460,7 +614,7 @@ export default function BotFlowCanvas({ flow, onSave }) {
 
           <button
             onClick={() => handleDeleteNode(selectedNode.id)}
-            className="w-full py-2.5 border border-red-250 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl flex items-center justify-center gap-2 text-xs font-semibold transition-colors mt-6"
+            className="w-full py-2.5 border border-red-200 dark:border-red-900/50 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl flex items-center justify-center gap-2 text-xs font-semibold transition-colors mt-6"
           >
             <Trash2 className="w-4 h-4" />
             <span>Delete Block</span>

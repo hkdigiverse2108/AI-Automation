@@ -25,6 +25,19 @@ const contactSchema = new mongoose.Schema(
     emailHash: { type: String, default: '' },
     nameHash: { type: String, default: '' },
     isEncrypted: { type: Boolean, default: false },
+    // Engagement scoring fields
+    engagementScore: { type: Number, default: 0, min: 0, max: 100 },
+    segment: {
+      type: String,
+      enum: ['hot', 'warm', 'cold', 'new', ''],
+      default: 'new'
+    },
+    lastEngagementAt: { type: Date },
+    scoringBreakdown: {
+      engagement: { type: Number, default: 0 },
+      recency: { type: Number, default: 0 },
+      responseRate: { type: Number, default: 0 },
+    },
   },
   { timestamps: true, strict: true }
 );
@@ -137,5 +150,7 @@ contactSchema.index({ userId: 1, lastMessageAt: -1 });
 contactSchema.index({ userId: 1, isDeleted: 1 });
 contactSchema.index({ userId: 1, name: 1 });
 contactSchema.index({ userId: 1, email: 1 });
+contactSchema.index({ userId: 1, segment: 1 });
+contactSchema.index({ userId: 1, engagementScore: -1 });
 
 module.exports = mongoose.model('Contact', contactSchema);

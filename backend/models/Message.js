@@ -113,6 +113,12 @@ messageSchema.post('save', async function (doc) {
         doc.content = decrypted.content;
       }
     }
+    if (doc.contactId) {
+      const { calculateContactScore } = require('../services/scoring');
+      calculateContactScore(doc.contactId).catch(err => {
+        console.error('Error auto-calculating contact score on message save:', err.message);
+      });
+    }
   } catch (err) {
     console.error('Message decryption post-save failed:', err.message);
   }

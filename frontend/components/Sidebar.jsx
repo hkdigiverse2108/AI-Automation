@@ -6,7 +6,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Bot, FileText,
   Settings, LogOut, Sun, Moon, MessageCircle, Shield,
   Users2, Clock, Zap, Terminal, PanelLeftClose, PanelLeft,
-  Building, Activity, Globe, Lock, X
+  Building, Activity, Globe, Lock, X, BarChart3
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
@@ -31,6 +31,12 @@ const navSections = [
     title: 'Automation',
     items: [
       { href: '/dashboard/bot-builder', label: 'Bot Builder', icon: Bot },
+    ]
+  },
+  {
+    title: 'Insights',
+    items: [
+      { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
     ]
   },
   {
@@ -71,7 +77,7 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/admin?tab=admins', label: 'Organization Admins', icon: Shield },
             { href: '/dashboard/team', label: 'Telecallers', icon: Users2 },
             { href: '/dashboard/inbox', label: 'Conversations', icon: MessageSquare, badge: true },
-            { href: '/dashboard/admin?tab=analytics', label: 'Analytics', icon: Activity },
+            { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
             { href: '/dashboard/admin?tab=subscriptions', label: 'Subscriptions', icon: Zap },
             { href: '/dashboard/settings?tab=integrations', label: 'Integrations', icon: Globe },
             { href: '/dashboard/bot-builder', label: 'AI Management', icon: Bot },

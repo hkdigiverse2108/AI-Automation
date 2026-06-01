@@ -12,7 +12,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 // GET /contacts
 router.get('/', async (req, res) => {
   try {
-    const { search, tags, source, optedOut, page = 1, limit = 20, sort = '-createdAt' } = req.query;
+    const { search, tags, source, optedOut, segment, page = 1, limit = 20, sort = '-createdAt' } = req.query;
     const query = { userId: req.userId, isDeleted: { $ne: true } };
 
     if (search) {
@@ -35,6 +35,7 @@ router.get('/', async (req, res) => {
     }
     if (tags) query.tags = { $in: tags.split(',') };
     if (source) query.source = source;
+    if (segment) query.segment = segment;
     if (optedOut !== undefined) query.optedOut = optedOut === 'true';
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -233,6 +234,17 @@ router.post('/:id/opt-out', ...validateObjectId('id'), async (req, res) => {
     res.json({ success: true, message: 'Contact opted out' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Opt-out failed', code: 'OPTOUT_ERROR' });
+  }
+});
+
+// POST /contacts/recalculate-scores
+router.post('/recalculate-scores', async (req, res) => {
+  try {
+    const { recalculateAllScores } = require('../services/scoring');
+    const result = await recalculateAllScores(req.userId);
+    res.json({ success: true, data: result, message: 'Scoring recalculation complete' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to recalculate scores', code: 'RECALC_ERROR' });
   }
 });
 

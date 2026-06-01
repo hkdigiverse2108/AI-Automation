@@ -7,6 +7,7 @@ import {
   X, Mail, Phone, User, Tag, HelpCircle, Loader2, MessageSquare, Edit2, CheckSquare, Square
 } from 'lucide-react';
 import api from '../lib/api';
+import { ScoreBadge } from './ContactScoreCard';
 
 // Helper to generate a soft color class based on user initials
 const getAvatarBg = (name) => {
@@ -59,6 +60,7 @@ export default function ContactTable() {
   const [selectedTag, setSelectedTag] = useState('');
   const [source, setSource] = useState('');
   const [optedOut, setOptedOut] = useState('');
+  const [segment, setSegment] = useState('');
   
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -140,7 +142,8 @@ export default function ContactTable() {
         search: debouncedSearch || undefined,
         tags: selectedTag || undefined,
         source: source || undefined,
-        optedOut: optedOut === '' ? undefined : optedOut
+        optedOut: optedOut === '' ? undefined : optedOut,
+        segment: segment || undefined
       };
       
       const { data } = await api.get('/contacts', { params });
@@ -168,7 +171,7 @@ export default function ContactTable() {
 
   useEffect(() => {
     fetchContacts();
-  }, [page, selectedTag, source, optedOut, debouncedSearch]);
+  }, [page, selectedTag, source, optedOut, segment, debouncedSearch]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -424,6 +427,19 @@ export default function ContactTable() {
             ))}
           </select>
 
+          {/* Segment Filter */}
+          <select
+            value={segment}
+            onChange={(e) => { setSegment(e.target.value); setPage(1); }}
+            className="px-3 py-2 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-2 focus:ring-wa-green/30"
+          >
+            <option value="">All Segments</option>
+            <option value="hot">Hot 🔥</option>
+            <option value="warm">Warm 🌡️</option>
+            <option value="cold">Cold ❄️</option>
+            <option value="new">New ✨</option>
+          </select>
+
           {/* Status Filter */}
           <select
             value={optedOut}
@@ -458,6 +474,7 @@ export default function ContactTable() {
                 <th className="px-6 py-4">Name</th>
                 <th className="px-6 py-4">WhatsApp Phone</th>
                 <th className="px-6 py-4">Email</th>
+                <th className="px-6 py-4">Engagement</th>
                 <th className="px-6 py-4">Source</th>
                 <th className="px-6 py-4">Tags</th>
                 <th className="px-6 py-4">Status</th>
@@ -523,6 +540,9 @@ export default function ContactTable() {
                       </td>
                       <td className="px-6 py-4 text-wa-text-secondary dark:text-wa-dark-text-secondary text-xs">
                         {contact.email || '-'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <ScoreBadge score={contact.engagementScore} segment={contact.segment} size="xs" />
                       </td>
                       <td className="px-6 py-4">
                         <span className="px-2 py-0.5 rounded-lg bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium capitalize">
@@ -654,6 +674,12 @@ export default function ContactTable() {
                         <span className="font-mono text-wa-text-primary dark:text-wa-dark-text-primary font-medium">{contact.phone}</span>
                       </div>
                       <div>
+                        <span className="block text-[10px] uppercase font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary/60">Engagement</span>
+                        <div className="mt-0.5">
+                          <ScoreBadge score={contact.engagementScore} segment={contact.segment} size="xs" />
+                        </div>
+                      </div>
+                      <div>
                         <span className="block text-[10px] uppercase font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary/60">Email</span>
                         <span className="text-wa-text-secondary dark:text-wa-dark-text-secondary truncate block">{contact.email || '-'}</span>
                       </div>
@@ -664,9 +690,9 @@ export default function ContactTable() {
                       <div>
                         <span className="block text-[10px] uppercase font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary/60">Status</span>
                         {contact.optedOut ? (
-                          <span className="text-red-500 font-semibold">Opted Out</span>
+                          <span className="text-red-500 font-semibold block">Opted Out</span>
                         ) : (
-                          <span className="text-wa-green font-semibold">Active</span>
+                          <span className="text-wa-green font-semibold block">Active</span>
                         )}
                       </div>
                     </div>
