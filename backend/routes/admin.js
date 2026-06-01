@@ -275,7 +275,6 @@ router.post('/users/:id/suspend', async (req, res) => {
 router.get('/organizations', async (req, res) => {
   try {
     const Organization = require('../models/Organization');
-    const Lead = require('../models/Lead');
     const Conversation = require('../models/Conversation');
 
     const orgs = await Organization.find({}).sort('-createdAt').lean();
@@ -297,7 +296,6 @@ router.get('/organizations', async (req, res) => {
         });
 
         if (adminUser) {
-          totalLeads = await Lead.countDocuments({ userId: adminUser._id });
           totalConversations = await Conversation.countDocuments({ userId: adminUser._id });
 
           const startOfMonth = new Date();
@@ -535,7 +533,6 @@ router.delete('/organizations/:id', async (req, res) => {
       const AutoTagRule = require('../models/AutoTagRule');
       const AuditLog = require('../models/AuditLog');
       const ApiLog = require('../models/ApiLog');
-      const Lead = require('../models/Lead');
       const RefreshToken = require('../models/RefreshToken');
       const ReplyTrigger = require('../models/ReplyTrigger');
       const Sequence = require('../models/Sequence');
@@ -564,7 +561,6 @@ router.delete('/organizations/:id', async (req, res) => {
           ]
         }),
         ApiLog.deleteMany({ userId: { $in: orgUserIds } }),
-        Lead.deleteMany({ userId: { $in: orgUserIds } }),
         RefreshToken.deleteMany({ userId: { $in: orgUserIds } }),
         ReplyTrigger.deleteMany({ userId: { $in: orgUserIds } }),
         Sequence.deleteMany({ userId: { $in: orgUserIds } }),
