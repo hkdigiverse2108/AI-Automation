@@ -669,7 +669,7 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
         const imageUrl = interpolate(msgData.mediaUrl || '', vars);
         const caption = interpolate(msgData.caption || '', vars);
         const result = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, imageUrl, caption);
-        await saveAndEmitMessage(userId, conversation, contact, caption, 'bot', io, 'image', { mediaUrl: imageUrl }, result);
+        await saveAndEmitMessage(userId, conversation, contact, caption, 'bot', io, 'image', { mediaUrl: result.sentUrl || imageUrl }, result);
       } else {
         const text = interpolate(msgData?.text || node.data?.message?.text || '', vars);
         if (text) {
@@ -707,7 +707,7 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
         const imageUrl = interpolate(msgData.mediaUrl || '', vars);
         const caption = interpolate(msgData.caption || '', vars);
         const result = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, imageUrl, caption);
-        await saveAndEmitMessage(userId, conversation, contact, caption, 'bot', io, 'image', { mediaUrl: imageUrl }, result);
+        await saveAndEmitMessage(userId, conversation, contact, caption, 'bot', io, 'image', { mediaUrl: result.sentUrl || imageUrl }, result);
       } else {
         const text = interpolate(msgData?.text || node.data?.message?.text || '', vars);
         if (text) {
@@ -924,7 +924,7 @@ async function sendAndSaveMessage(userId, conversation, contact, phoneNumberId, 
           contactId: contact._id,
           direction: 'outbound',
           type: 'image',
-          content: { text: matchingImg.caption, mediaUrl: matchingImg.url },
+          content: { text: matchingImg.caption, mediaUrl: imgResult.sentUrl || matchingImg.url },
           status: imgResult.success ? 'sent' : 'failed',
           metaMessageId: imgResult.data?.messages?.[0]?.id,
           sentBy,
@@ -997,7 +997,7 @@ async function saveAndEmitMessage(userId, conversation, contact, text, sentBy, i
             contactId: contact._id,
             direction: 'outbound',
             type: 'image',
-            content: { text: matchingImg.caption, mediaUrl: matchingImg.url },
+            content: { text: matchingImg.caption, mediaUrl: imgResult.sentUrl || matchingImg.url },
             status: imgResult.success ? 'sent' : 'failed',
             metaMessageId: imgResult.data?.messages?.[0]?.id,
             sentBy,

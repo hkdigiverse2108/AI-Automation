@@ -427,7 +427,7 @@ router.post('/send', async (req, res) => {
       type,
       content: {
         text: type === 'contact' ? `${req.body.contactName} (${req.body.contactPhone})` : text,
-        mediaUrl: finalMediaUrl,
+        mediaUrl: (type === 'image' && result?.sentUrl) ? result.sentUrl : finalMediaUrl,
         caption,
         filename: filename || originalFilename,
         contactName: req.body.contactName,
@@ -534,7 +534,7 @@ router.post('/bulk', async (req, res) => {
           contactId: contact._id,
           direction: 'outbound',
           type,
-          content: { text, mediaUrl, caption },
+          content: { text, mediaUrl: (type === 'image' && result?.sentUrl) ? result.sentUrl : mediaUrl, caption },
           status: result.success ? 'sent' : 'failed',
           metaMessageId: result.data?.messages?.[0]?.id,
           sentBy: 'human',

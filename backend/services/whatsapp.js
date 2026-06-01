@@ -125,14 +125,81 @@ async function sendTextMessage(phoneNumberId, token, to, text) {
   }, token);
 }
 
+const urlCache = new Map();
+
+async function proxyImageUrl(imageUrl) {
+  if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.startsWith('http') || imageUrl.includes('res.cloudinary.com')) {
+    return imageUrl;
+  }
+
+  // Check in-memory cache first
+  if (urlCache.has(imageUrl)) {
+    return urlCache.get(imageUrl);
+  }
+
+  const cacheKey = `cloudinary_proxy:${imageUrl}`;
+  try {
+    const { getRedisClient } = require('../config/redis');
+    const redis = getRedisClient();
+    if (redis) {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        urlCache.set(imageUrl, cached);
+        return cached;
+      }
+    }
+  } catch (err) {
+    logger.error('Failed to query Redis for image proxy cache:', err.message);
+  }
+
+  try {
+    const cloudinaryService = require('./cloudinaryService');
+    if (!cloudinaryService.isConfigured()) {
+      logger.warn('Cloudinary is not configured, sending original image URL.');
+      return imageUrl;
+    }
+
+    logger.info(`Downloading remote image to proxy through Cloudinary: ${imageUrl}`);
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const buffer = Buffer.from(response.data);
+
+    const cloudinaryUrl = await cloudinaryService.uploadStream(buffer, 'whatsapp_image_proxy');
+    logger.info(`Successfully proxied image via Cloudinary: ${cloudinaryUrl}`);
+
+    // Cache the result
+    urlCache.set(imageUrl, cloudinaryUrl);
+    try {
+      const { getRedisClient } = require('../config/redis');
+      const redis = getRedisClient();
+      if (redis) {
+        await redis.set(cacheKey, cloudinaryUrl);
+      }
+    } catch (err) {
+      logger.error('Failed to save to Redis for image proxy cache:', err.message);
+    }
+
+    return cloudinaryUrl;
+  } catch (error) {
+    logger.error(`Error proxying image URL ${imageUrl} through Cloudinary:`, error.message);
+    return imageUrl; // Fallback to original URL
+  }
+}
+
 async function sendImageMessage(phoneNumberId, token, to, imageUrl, caption = '', mediaId = null) {
-  const imagePayload = mediaId ? { id: mediaId, caption } : { link: imageUrl, caption };
-  return metaApiCall('post', `${META_API_URL}/${phoneNumberId}/messages`, {
+  let finalImageUrl = imageUrl;
+  if (!mediaId) {
+    finalImageUrl = await proxyImageUrl(imageUrl);
+  }
+  const imagePayload = mediaId ? { id: mediaId, caption } : { link: finalImageUrl, caption };
+  const res = await metaApiCall('post', `${META_API_URL}/${phoneNumberId}/messages`, {
     messaging_product: 'whatsapp',
     to,
     type: 'image',
     image: imagePayload,
   }, token);
+
+  res.sentUrl = finalImageUrl;
+  return res;
 }
 
 async function sendDocumentMessage(phoneNumberId, token, to, docUrl, filename = 'document', mediaId = null) {
