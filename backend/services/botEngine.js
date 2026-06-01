@@ -2,9 +2,31 @@ const Contact = require('../models/Contact');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const BotFlow = require('../models/BotFlow');
+const BotMediaAsset = require('../models/BotMediaAsset');
 const WhatsAppAccount = require('../models/WhatsAppAccount');
 const whatsapp = require('./whatsapp');
 const { decryptField } = require('./encryption');
+
+/**
+ * Resolves an assetKey or mediaUrl to a real URL by querying BotMediaAsset if needed.
+ */
+async function resolveAssetUrl(botId, mediaUrlOrKey) {
+  if (!mediaUrlOrKey) return '';
+  const trimmed = mediaUrlOrKey.trim();
+  // If it's already a full HTTP or relative upload URL, return it
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/uploads/')) {
+    return trimmed;
+  }
+  try {
+    const asset = await BotMediaAsset.findOne({ botId, assetKey: trimmed });
+    if (asset) {
+      return asset.fileUrl;
+    }
+  } catch (err) {
+    logger.error('Error resolving assetKey:', err);
+  }
+  return trimmed; // Fallback
+}
 const winston = require('winston');
 
 const logger = winston.createLogger({
@@ -623,7 +645,13 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
         const result = await whatsapp.sendListMessage(phoneNumberId, token, contact.phone, body, msgData.sections || [], header, footer);
         await saveAndEmitMessage(userId, conversation, contact, body, 'bot', io, 'interactive', { interactive: msgData }, result);
       } else if (msgData?.type === 'image') {
-        const imageUrl = interpolate(msgData.mediaUrl || '', vars);
+        let imageUrl = msgData.mediaUrl || '';
+        if (msgData.assetKey) {
+          imageUrl = await resolveAssetUrl(flow._id, msgData.assetKey);
+        } else {
+          imageUrl = await resolveAssetUrl(flow._id, imageUrl);
+        }
+        imageUrl = interpolate(imageUrl, vars);
         const caption = interpolate(msgData.caption || '', vars);
         const result = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, imageUrl, caption);
         await saveAndEmitMessage(userId, conversation, contact, caption, 'bot', io, 'image', { mediaUrl: result.sentUrl || imageUrl }, result);
@@ -661,7 +689,13 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
         const result = await whatsapp.sendListMessage(phoneNumberId, token, contact.phone, body, msgData.sections || [], header, footer);
         await saveAndEmitMessage(userId, conversation, contact, body, 'bot', io, 'interactive', { interactive: msgData }, result);
       } else if (msgData?.type === 'image') {
-        const imageUrl = interpolate(msgData.mediaUrl || '', vars);
+        let imageUrl = msgData.mediaUrl || '';
+        if (msgData.assetKey) {
+          imageUrl = await resolveAssetUrl(flow._id, msgData.assetKey);
+        } else {
+          imageUrl = await resolveAssetUrl(flow._id, imageUrl);
+        }
+        imageUrl = interpolate(imageUrl, vars);
         const caption = interpolate(msgData.caption || '', vars);
         const result = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, imageUrl, caption);
         await saveAndEmitMessage(userId, conversation, contact, caption, 'bot', io, 'image', { mediaUrl: result.sentUrl || imageUrl }, result);

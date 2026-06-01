@@ -78,8 +78,10 @@ function StyledHandle({ type, position, id, label, color }) {
    1. MESSAGE NODE — Green theme
    ═══════════════════════════════════════════════ */
 export const MessageNode = memo(({ data, selected }) => {
-  const text = data.message?.text || '';
-  const isConfigured = text.length > 0;
+  const isImage = data.message?.type === 'image';
+  const text = isImage ? (data.message?.caption || '') : (data.message?.text || '');
+  const assetKey = data.message?.assetKey || '';
+  const isConfigured = isImage ? !!assetKey : text.length > 0;
 
   return (
     <NodeShell color="#10b981" borderColor="border-emerald-400" isConfigured={isConfigured} selected={selected}>
@@ -90,13 +92,21 @@ export const MessageNode = memo(({ data, selected }) => {
         <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center shadow-sm">
           <MessageSquare className="w-3.5 h-3.5 text-white" />
         </div>
-        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 tracking-wide">SEND MESSAGE</span>
+        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 tracking-wide font-extrabold uppercase">
+          {isImage ? 'SEND IMAGE' : 'SEND MESSAGE'}
+        </span>
       </div>
 
       {/* Body */}
-      <div className="px-3 py-2.5">
+      <div className="px-3 py-2.5 space-y-1.5">
+        {isImage && (
+          <div className="flex items-center gap-1.5 bg-emerald-50/50 dark:bg-emerald-950/20 px-2 py-1 rounded-lg border border-emerald-100 dark:border-emerald-900/40 text-[10px] text-emerald-700 dark:text-emerald-400 font-mono font-bold">
+            <span role="img" aria-label="image">🖼️</span>
+            <span className="truncate max-w-[150px]">{assetKey || 'MISSING_ASSET'}</span>
+          </div>
+        )}
         <p className="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed line-clamp-3">
-          {text || <span className="italic text-gray-400">Click to configure message...</span>}
+          {text || (isImage ? <span className="italic text-gray-400">Set image caption...</span> : <span className="italic text-gray-400">Click to configure message...</span>)}
         </p>
       </div>
 
@@ -111,9 +121,11 @@ MessageNode.displayName = 'MessageNode';
    2. QUESTION NODE — Blue theme
    ═══════════════════════════════════════════════ */
 export const QuestionNode = memo(({ data, selected }) => {
-  const text = data.message?.text || '';
+  const isImage = data.message?.type === 'image';
+  const text = isImage ? (data.message?.caption || '') : (data.message?.text || '');
+  const assetKey = data.message?.assetKey || '';
   const variable = data.variable || '';
-  const isConfigured = text.length > 0 && variable.length > 0;
+  const isConfigured = (isImage ? !!assetKey : text.length > 0) && variable.length > 0;
 
   return (
     <NodeShell color="#3b82f6" borderColor="border-blue-400" isConfigured={isConfigured} selected={selected}>
@@ -123,12 +135,20 @@ export const QuestionNode = memo(({ data, selected }) => {
         <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center shadow-sm">
           <HelpCircle className="w-3.5 h-3.5 text-white" />
         </div>
-        <span className="text-xs font-bold text-blue-700 dark:text-blue-400 tracking-wide">ASK QUESTION</span>
+        <span className="text-xs font-bold text-blue-700 dark:text-blue-400 tracking-wide font-extrabold uppercase">
+          {isImage ? 'ASK IMAGE Q' : 'ASK QUESTION'}
+        </span>
       </div>
 
       <div className="px-3 py-2.5 space-y-1.5">
+        {isImage && (
+          <div className="flex items-center gap-1.5 bg-blue-50/50 dark:bg-blue-950/20 px-2 py-1 rounded-lg border border-blue-100 dark:border-blue-900/40 text-[10px] text-blue-700 dark:text-blue-400 font-mono font-bold">
+            <span role="img" aria-label="image">🖼️</span>
+            <span className="truncate max-w-[150px]">{assetKey || 'MISSING_ASSET'}</span>
+          </div>
+        )}
         <p className="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed line-clamp-2">
-          {text || <span className="italic text-gray-400">Set question text...</span>}
+          {text || (isImage ? <span className="italic text-gray-400">Set image caption...</span> : <span className="italic text-gray-400">Set question text...</span>)}
         </p>
         {variable && (
           <div className="flex items-center gap-1">

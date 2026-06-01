@@ -9,12 +9,14 @@ import {
 import api from '../../../lib/api';
 import BotFlowCanvas from '../../../components/BotFlowCanvas';
 import FlowSimulatorPanel from '../../../components/FlowSimulatorPanel';
+import BotMediaLibrary from '../../../components/BotMediaLibrary';
 
 export default function BotBuilderPage() {
   const [flows, setFlows] = useState([]);
   const [currentFlow, setCurrentFlow] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState('builder'); // 'builder' or 'media'
   
   // Simulator state
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
@@ -57,6 +59,7 @@ export default function BotBuilderPage() {
       nodes: []
     };
     setCurrentFlow(defaultFlow);
+    setActiveTab('builder');
   };
 
   const handleSaveFlow = async (canvasData) => {
@@ -185,6 +188,7 @@ export default function BotBuilderPage() {
               onChange={(e) => {
                 const selected = flows.find(f => f._id === e.target.value);
                 setCurrentFlow(selected || null);
+                setActiveTab('builder');
               }}
               className="bg-transparent text-wa-text-primary dark:text-white font-bold text-sm focus:outline-none py-1 min-w-[220px]"
             >
@@ -238,6 +242,41 @@ export default function BotBuilderPage() {
         )}
       </div>
 
+      {/* Tabs Switcher */}
+      {currentFlow && (
+        <div className="flex border-b border-wa-border dark:border-wa-dark-border gap-6 text-sm">
+          <button
+            onClick={() => setActiveTab('builder')}
+            className={`pb-3 font-semibold transition-all relative ${
+              activeTab === 'builder'
+                ? 'text-wa-green'
+                : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary dark:hover:text-white'
+            }`}
+          >
+            Workflow Builder
+            {activeTab === 'builder' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-wa-green rounded-full animate-fade-in" />
+            )}
+          </button>
+          
+          {currentFlow._id !== 'new_flow' && (
+            <button
+              onClick={() => setActiveTab('media')}
+              className={`pb-3 font-semibold transition-all relative ${
+                activeTab === 'media'
+                  ? 'text-wa-green'
+                  : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary dark:hover:text-white'
+              }`}
+            >
+              Media Library
+              {activeTab === 'media' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-wa-green rounded-full animate-fade-in" />
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Main Canvas Area */}
       {loading ? (
         <div className="h-[55vh] flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary">
@@ -247,16 +286,22 @@ export default function BotBuilderPage() {
           </div>
         </div>
       ) : currentFlow ? (
-        <div className="flex gap-4 h-[75vh] w-full items-start overflow-hidden">
-          <div className="flex-1 h-full min-w-0">
-            <BotFlowCanvas flow={currentFlow} onSave={handleSaveFlow} />
+        activeTab === 'builder' ? (
+          <div className="flex gap-4 h-[75vh] w-full items-start overflow-hidden">
+            <div className="flex-1 h-full min-w-0">
+              <BotFlowCanvas flow={currentFlow} onSave={handleSaveFlow} />
+            </div>
+            <FlowSimulatorPanel
+              flow={currentFlow}
+              isOpen={isSimulatorOpen}
+              onClose={() => setIsSimulatorOpen(false)}
+            />
           </div>
-          <FlowSimulatorPanel
-            flow={currentFlow}
-            isOpen={isSimulatorOpen}
-            onClose={() => setIsSimulatorOpen(false)}
-          />
-        </div>
+        ) : (
+          <div className="w-full">
+            <BotMediaLibrary botId={currentFlow._id} />
+          </div>
+        )
       ) : (
         <div className="h-[55vh] flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary border-2 border-dashed border-wa-border dark:border-wa-dark-border rounded-2xl bg-white dark:bg-wa-dark-panel shadow-sm">
           <div className="text-center space-y-4 max-w-sm p-6">

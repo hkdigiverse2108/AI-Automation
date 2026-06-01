@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { customNodeTypes } from './CustomBotNodes';
+import api from '../lib/api';
 
 // Available node type definitions with styling details
 const NODE_TYPES_INFO = {
@@ -36,8 +37,25 @@ export default function BotFlowCanvas({ flow, onSave }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState(null);
+  const [assets, setAssets] = useState([]);
   const reactFlowWrapper = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
+
+  useEffect(() => {
+    const fetchAssets = async () => {
+      if (flow?._id && flow?._id !== 'new_flow') {
+        try {
+          const { data } = await api.get(`/media/bot/${flow._id}`);
+          if (data.success) {
+            setAssets(data.data.assets);
+          }
+        } catch (err) {
+          console.error('Failed to fetch assets for picker:', err);
+        }
+      }
+    };
+    fetchAssets();
+  }, [flow, selectedNode]);
   
   // Trigger config
   const [triggerType, setTriggerType] = useState('keyword');
@@ -486,15 +504,88 @@ export default function BotFlowCanvas({ flow, onSave }) {
 
             {/* MESSAGE type settings */}
             {selectedNode.data.nodeType === 'message' && (
-              <div>
-                <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Outbound Text Message</label>
-                <textarea
-                  rows="4"
-                  value={selectedNode.data.message?.text || ''}
-                  onChange={(e) => handleUpdateNodeData('message', { text: e.target.value })}
-                  placeholder="Enter message body copy..."
-                  className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Message Type</label>
+                  <select
+                    value={selectedNode.data.message?.type || 'text'}
+                    onChange={(e) => {
+                      const type = e.target.value;
+                      handleUpdateNodeData('message', { 
+                        type, 
+                        mediaUrl: type === 'text' ? '' : (selectedNode.data.message?.mediaUrl || ''),
+                        assetKey: type === 'text' ? '' : (selectedNode.data.message?.assetKey || ''),
+                        caption: type === 'text' ? '' : (selectedNode.data.message?.caption || '')
+                      });
+                    }}
+                    className="w-full text-xs px-2.5 py-2 border border-wa-border dark:border-wa-dark-border bg-wa-search dark:bg-wa-dark-search rounded-lg focus:outline-none text-wa-text-primary dark:text-white"
+                  >
+                    <option value="text">Outbound Text Message</option>
+                    <option value="image">Image Attachment</option>
+                  </select>
+                </div>
+
+                {selectedNode.data.message?.type === 'image' ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Image Source Asset</label>
+                      <select
+                        value={selectedNode.data.message?.assetKey || ''}
+                        onChange={(e) => {
+                          const assetKey = e.target.value;
+                          handleUpdateNodeData('message', { 
+                            assetKey, 
+                            mediaUrl: assetKey 
+                          });
+                        }}
+                        className="w-full text-xs px-2.5 py-2 border border-wa-border dark:border-wa-dark-border bg-wa-search dark:bg-wa-dark-search rounded-lg focus:outline-none text-wa-text-primary dark:text-white font-mono"
+                      >
+                        <option value="">-- Choose Asset from Media Library --</option>
+                        {assets.map(a => (
+                          <option key={a._id} value={a.assetKey}>{a.assetKey} ({a.fileName})</option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-wa-text-light mt-1">
+                        Don't see your asset here? Upload it in the <span className="font-bold text-wa-green">Media Library</span> tab.
+                      </p>
+                    </div>
+
+                    {/* Show preview of selected asset */}
+                    {selectedNode.data.message?.assetKey && (
+                      <div className="p-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search aspect-video flex items-center justify-center overflow-hidden">
+                        {(() => {
+                          const selectedAsset = assets.find(a => a.assetKey === selectedNode.data.message.assetKey);
+                          if (selectedAsset) {
+                            return <img src={selectedAsset.fileUrl} className="max-h-full object-contain" alt="preview" />;
+                          }
+                          return <span className="text-[10px] text-wa-text-light">Asset url resolving...</span>;
+                        })()}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Image Caption</label>
+                      <textarea
+                        rows="3"
+                        value={selectedNode.data.message?.caption || ''}
+                        onChange={(e) => handleUpdateNodeData('message', { caption: e.target.value, text: e.target.value })}
+                        placeholder="Enter image caption body..."
+                        className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Message Text Copy</label>
+                    <textarea
+                      rows="4"
+                      value={selectedNode.data.message?.text || ''}
+                      onChange={(e) => handleUpdateNodeData('message', { text: e.target.value })}
+                      placeholder="Enter message body copy..."
+                      className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -502,15 +593,87 @@ export default function BotFlowCanvas({ flow, onSave }) {
             {selectedNode.data.nodeType === 'question' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Question Text</label>
-                  <textarea
-                    rows="3"
-                    value={selectedNode.data.message?.text || ''}
-                    onChange={(e) => handleUpdateNodeData('message', { text: e.target.value })}
-                    placeholder="Ask user a question..."
-                    className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  />
+                  <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Question Type</label>
+                  <select
+                    value={selectedNode.data.message?.type || 'text'}
+                    onChange={(e) => {
+                      const type = e.target.value;
+                      handleUpdateNodeData('message', { 
+                        type, 
+                        mediaUrl: type === 'text' ? '' : (selectedNode.data.message?.mediaUrl || ''),
+                        assetKey: type === 'text' ? '' : (selectedNode.data.message?.assetKey || ''),
+                        caption: type === 'text' ? '' : (selectedNode.data.message?.caption || '')
+                      });
+                    }}
+                    className="w-full text-xs px-2.5 py-2 border border-wa-border dark:border-wa-dark-border bg-wa-search dark:bg-wa-dark-search rounded-lg focus:outline-none text-wa-text-primary dark:text-white"
+                  >
+                    <option value="text">Outbound Text Question</option>
+                    <option value="image">Image Attachment Question</option>
+                  </select>
                 </div>
+
+                {selectedNode.data.message?.type === 'image' ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Image Source Asset</label>
+                      <select
+                        value={selectedNode.data.message?.assetKey || ''}
+                        onChange={(e) => {
+                          const assetKey = e.target.value;
+                          handleUpdateNodeData('message', { 
+                            assetKey, 
+                            mediaUrl: assetKey 
+                          });
+                        }}
+                        className="w-full text-xs px-2.5 py-2 border border-wa-border dark:border-wa-dark-border bg-wa-search dark:bg-wa-dark-search rounded-lg focus:outline-none text-wa-text-primary dark:text-white font-mono"
+                      >
+                        <option value="">-- Choose Asset from Media Library --</option>
+                        {assets.map(a => (
+                          <option key={a._id} value={a.assetKey}>{a.assetKey} ({a.fileName})</option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-wa-text-light mt-1">
+                        Don't see your asset here? Upload it in the <span className="font-bold text-wa-green">Media Library</span> tab.
+                      </p>
+                    </div>
+
+                    {/* Show preview of selected asset */}
+                    {selectedNode.data.message?.assetKey && (
+                      <div className="p-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search aspect-video flex items-center justify-center overflow-hidden">
+                        {(() => {
+                          const selectedAsset = assets.find(a => a.assetKey === selectedNode.data.message.assetKey);
+                          if (selectedAsset) {
+                            return <img src={selectedAsset.fileUrl} className="max-h-full object-contain" alt="preview" />;
+                          }
+                          return <span className="text-[10px] text-wa-text-light">Asset url resolving...</span>;
+                        })()}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Question Caption</label>
+                      <textarea
+                        rows="3"
+                        value={selectedNode.data.message?.caption || ''}
+                        onChange={(e) => handleUpdateNodeData('message', { caption: e.target.value, text: e.target.value })}
+                        placeholder="Enter question caption copy..."
+                        className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Question Text Copy</label>
+                    <textarea
+                      rows="3"
+                      value={selectedNode.data.message?.text || ''}
+                      onChange={(e) => handleUpdateNodeData('message', { text: e.target.value })}
+                      placeholder="Ask user a question..."
+                      className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Store Answer in Variable</label>
                   <input

@@ -97,9 +97,11 @@ const triggersRoute = require('./routes/triggers');
 const chatLogsRoute = require('./routes/chat-logs');
 const analyticsRoute = require('./routes/analytics');
 const notificationsRoute = require('./routes/notifications');
+const mediaRoute = require('./routes/media');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
+  app.use(`${prefix}/media`, mediaRoute);
   app.use(`${prefix}/webhook`, webhookRoutes);
   app.use(`${prefix}/messages`, messagesRoute);
   app.use(`${prefix}/contacts`, contactsRoute);
