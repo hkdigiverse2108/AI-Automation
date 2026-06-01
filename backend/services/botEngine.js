@@ -217,6 +217,17 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     conversation.unreadCount = (conversation.unreadCount || 0) + 1;
     await conversation.save();
 
+    // Trigger real-time message notification
+    const { createNotification } = require('./notificationService');
+    createNotification({
+      userId,
+      organizationId: conversation.organization_id || (adminUser ? adminUser.organizationId : null),
+      type: 'message',
+      title: `New Message from ${contact.name || contact.phone}`,
+      message: content.text || `Sent a ${msgType} attachment.`,
+      link: '/dashboard/inbox'
+    }).catch(err => logger.error('Failed to trigger message notification:', err.message));
+
 
 
     // Mark as read on WhatsApp
@@ -263,6 +274,18 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
         'bot', io
       );
       if (io) io.to(`user_${userId}`).emit('conversation_assigned', { conversationId: conversation._id, needsAgent: true });
+      
+      // Trigger handoff notification
+      const { createNotification } = require('./notificationService');
+      createNotification({
+        userId,
+        organizationId: conversation.organization_id || (adminUser ? adminUser.organizationId : null),
+        type: 'bot',
+        title: `Handoff Requested: ${contact.name || contact.phone}`,
+        message: `Customer is waiting for an agent takeover.`,
+        link: '/dashboard/inbox'
+      }).catch(err => logger.error('Failed to trigger handoff notification:', err.message));
+
       return;
     }
 
@@ -789,6 +812,18 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
       const text = "Connecting you to our team right now! ⚡ Someone will be with you shortly.";
       await sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, text, 'bot', io);
       if (io) io.to(`user_${userId}`).emit('conversation_assigned', { conversationId: conversation._id, needsAgent: true });
+
+      // Trigger handoff notification
+      const { createNotification } = require('./notificationService');
+      createNotification({
+        userId,
+        organizationId: conversation.organization_id || (adminUser ? adminUser.organizationId : null),
+        type: 'bot',
+        title: `Handoff Requested: ${contact.name || contact.phone}`,
+        message: `Customer is waiting for an agent takeover.`,
+        link: '/dashboard/inbox'
+      }).catch(err => logger.error('Failed to trigger handoff notification:', err.message));
+
       break;
     }
 
@@ -1047,6 +1082,18 @@ async function runAutomations(userId, conversation, contact, savedMsg, phoneNumb
               agentId: rule.agentId,
             });
           }
+
+          // Trigger assignment notification
+          const { createNotification } = require('./notificationService');
+          createNotification({
+            userId: rule.agentId.toString(),
+            organizationId: conversation.organization_id || (adminUser ? adminUser.organizationId : null),
+            type: 'team',
+            title: `New Chat Assigned: ${contact.name || contact.phone}`,
+            message: `Auto-assigned via active routing rules.`,
+            link: '/dashboard/inbox'
+          }).catch(err => logger.error('Failed to trigger assignment notification:', err.message));
+
           logger.info(`Auto-assigned conversation ${conversation._id} to agent ${rule.agentId}`);
           break;
         }

@@ -151,6 +151,10 @@ async function startServer() {
     initSocketService(io);
     webhookRoutes.setIO(io);
 
+    // Init notification service
+    const notificationService = require('./services/notificationService');
+    notificationService.setIO(io);
+
     // Init Bull queues (skip if no Redis in dev)
     try {
       initQueues(io);

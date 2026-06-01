@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 import { useRouter } from 'next/navigation';
+import { getSocket } from '../lib/socket';
 
 const TYPE_CONFIG = {
   system: { icon: Shield, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
@@ -67,6 +68,29 @@ export default function NotificationCenter() {
     const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
     return () => clearInterval(interval);
   }, [fetchUnreadCount]);
+
+  // Listen to Socket.io real-time events
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleNewNotification = (data) => {
+      setNotifications(prev => [data, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    };
+
+    const handleUnreadCount = (data) => {
+      setUnreadCount(data.count);
+    };
+
+    socket.on('new_notification', handleNewNotification);
+    socket.on('unread_notifications_count', handleUnreadCount);
+
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+      socket.off('unread_notifications_count', handleUnreadCount);
+    };
+  }, []);
 
   useEffect(() => {
     if (isOpen) fetchNotifications();
