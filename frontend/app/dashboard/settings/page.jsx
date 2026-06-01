@@ -5,7 +5,7 @@ import {
   User, Shield, Phone, Key, Smartphone, Loader2,
   CheckCircle2, AlertTriangle, Eye, EyeOff, Save, Link2,
   Lock, Settings, Copy, Check, Terminal, HeartPulse, RefreshCw, Info, HelpCircle,
-  Globe, Wifi, Radio, Sliders, Server, MessageSquare, Facebook, Instagram, AlertCircle, XCircle, Brain
+  Globe, Wifi, Radio, Sliders, Server, MessageSquare, Facebook, Instagram, AlertCircle, XCircle
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useAuthStore } from '../../../lib/store';
@@ -63,11 +63,6 @@ export default function SettingsPage() {
   const [fetchingWa, setFetchingWa] = useState(false);
   const [savingWa, setSavingWa] = useState(false);
 
-  // Grok configuration states
-  const [grokApiKey, setGrokApiKey] = useState('');
-  const [hasGrokKey, setHasGrokKey] = useState(false);
-  const [savingGrok, setSavingGrok] = useState(false);
-  const [showGrokKey, setShowGrokKey] = useState(false);
   const [testingConnection, setTestingConnection] = useState({ whatsapp: false, facebook: false, instagram: false });
   const [disconnectingConnection, setDisconnectingConnection] = useState({ whatsapp: false, facebook: false, instagram: false });
   const [waTokenLifespan, setWaTokenLifespan] = useState('permanent');
@@ -135,35 +130,7 @@ export default function SettingsPage() {
     }
   };
 
-  // Load AI configuration (specifically Grok)
-  const fetchAiConfig = async () => {
-    try {
-      const { data } = await api.get('/settings/integrations/ai');
-      if (data.success && data.data) {
-        setGrokApiKey(data.data.grokApiKey || '');
-        setHasGrokKey(!!(data.data.grokApiKey && !data.data.grokApiKey.includes('••••')));
-      }
-    } catch (err) {
-      toast.error('Failed to load Grok AI configuration');
-    }
-  };
 
-  const handleSaveGrok = async (e) => {
-    if (e) e.preventDefault();
-    setSavingGrok(true);
-    try {
-      const { data } = await api.post('/settings/integrations/ai', { grokApiKey });
-      if (data.success) {
-        toast.success('Grok API Key updated successfully!');
-        setGrokApiKey('');
-        fetchAiConfig();
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to save Grok API Key');
-    } finally {
-      setSavingGrok(false);
-    }
-  };
 
   const handleSaveMeta = async (e) => {
     if (e) e.preventDefault();
@@ -372,7 +339,6 @@ export default function SettingsPage() {
             onClick={() => {
               setActiveTab('meta-integrations');
               fetchMetaConfig();
-              fetchAiConfig();
             }}
             className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 -mb-[2px] transition-all duration-200 ${
               activeTab === 'meta-integrations'
@@ -637,19 +603,6 @@ export default function SettingsPage() {
                 <Instagram className="w-3.5 h-3.5" />
                 <span>Instagram Integration</span>
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveSubTab('grok-ai');
-                  fetchAiConfig();
-                }}
-                className={`flex-1 py-3 text-xs font-bold transition-all border-b-2 flex items-center justify-center gap-1.5 ${
-                  activeSubTab === 'grok-ai' ? 'border-wa-green text-wa-green bg-white dark:bg-wa-dark-panel' : 'border-transparent text-wa-text-secondary hover:text-wa-text-primary'
-                }`}
-              >
-                <Brain className="w-3.5 h-3.5" />
-                <span>Grok AI Configuration</span>
-              </button>
             </div>
 
             {/* Sub Tab Panel Form */}
@@ -660,13 +613,7 @@ export default function SettingsPage() {
                   <span>Fetching Meta configuration database records...</span>
                 </div>
               ) : (
-                <form onSubmit={(e) => {
-                  if (activeSubTab === 'grok-ai') {
-                    handleSaveGrok(e);
-                  } else {
-                    handleSaveMeta(e);
-                  }
-                }} className="space-y-6">
+                <form onSubmit={handleSaveMeta} className="space-y-6">
                   {/* WHATSAPP SUBTAB */}
                   {activeSubTab === 'whatsapp' && (
                     <div className="space-y-5">
@@ -1118,105 +1065,55 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  {/* GROK AI SUBTAB */}
-                  {activeSubTab === 'grok-ai' && (
-                    <div className="space-y-5">
-                      <div>
-                        <div className="flex justify-between items-center mb-1">
-                          <label className="block text-[10px] font-extrabold uppercase text-wa-text-secondary">
-                            xAI Grok / Groq API Key *
-                          </label>
-                          {hasGrokKey && (
-                            <span className="text-[10px] font-bold text-emerald-500 flex items-center gap-0.5">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Configured & Encrypted
-                            </span>
-                          )}
-                        </div>
-                        <div className="relative">
-                          <input
-                            type={showGrokKey ? "text" : "password"}
-                            placeholder={hasGrokKey ? "••••••••••••••••••••••••••••" : "Enter your Grok/Groq API Key"}
-                            value={grokApiKey}
-                            onChange={(e) => setGrokApiKey(e.target.value)}
-                            className="w-full pl-4 pr-10 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30 font-mono"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowGrokKey(!showGrokKey)}
-                            className="absolute right-3 top-3 text-wa-text-secondary hover:text-wa-text-primary"
-                          >
-                            {showGrokKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                        <p className="text-[10px] text-wa-text-secondary mt-1">
-                          Provide your own xAI Grok (starts with <code>xai-</code>) or Groq (starts with <code>gsk_</code>) API Key.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Actions Row */}
                   <div className="flex flex-col sm:flex-row items-center gap-3 border-t border-wa-border dark:border-wa-dark-border pt-4">
-                    {activeSubTab === 'grok-ai' ? (
+                    <button
+                      type="submit"
+                      disabled={savingWa}
+                      className="flex items-center justify-center gap-2 px-5 py-2.5 text-white bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 rounded-xl text-xs font-semibold shadow-md transition-all duration-200 w-full sm:w-auto"
+                    >
+                      {savingWa ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      <span>Save Credentials</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={testingConnection[activeSubTab]}
+                      onClick={() => handleTestConnection(activeSubTab)}
+                      className="flex items-center justify-center gap-2 px-5 py-2.5 text-wa-text-primary dark:text-white border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg dark:hover:bg-wa-dark-hover disabled:opacity-50 rounded-xl text-xs font-semibold transition-all duration-200 w-full sm:w-auto"
+                    >
+                      {testingConnection[activeSubTab] ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-wa-green" />
+                          <span>Testing Connection...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Wifi className="w-4 h-4 text-wa-green" />
+                          <span>Verify Meta Connection</span>
+                        </>
+                      )}
+                    </button>
+
+                    {metaConfig[activeSubTab]?.status && metaConfig[activeSubTab]?.status !== 'disconnected' && (
                       <button
-                        type="submit"
-                        disabled={savingGrok || !grokApiKey}
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 text-white bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 rounded-xl text-xs font-semibold shadow-md transition-all duration-200 w-full sm:w-auto"
+                        type="button"
+                        disabled={disconnectingConnection[activeSubTab]}
+                        onClick={() => handleDisconnectConnection(activeSubTab)}
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20 disabled:opacity-50 rounded-xl text-xs font-semibold shadow-sm transition-all duration-200 w-full sm:w-auto"
                       >
-                        {savingGrok ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        <span>Save Grok API Key</span>
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          type="submit"
-                          disabled={savingWa}
-                          className="flex items-center justify-center gap-2 px-5 py-2.5 text-white bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 rounded-xl text-xs font-semibold shadow-md transition-all duration-200 w-full sm:w-auto"
-                        >
-                          {savingWa ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                          <span>Save Credentials</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={testingConnection[activeSubTab]}
-                          onClick={() => handleTestConnection(activeSubTab)}
-                          className="flex items-center justify-center gap-2 px-5 py-2.5 text-wa-text-primary dark:text-white border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg dark:hover:bg-wa-dark-hover disabled:opacity-50 rounded-xl text-xs font-semibold transition-all duration-200 w-full sm:w-auto"
-                        >
-                          {testingConnection[activeSubTab] ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin text-wa-green" />
-                              <span>Testing Connection...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Wifi className="w-4 h-4 text-wa-green" />
-                              <span>Verify Meta Connection</span>
-                            </>
-                          )}
-                        </button>
-
-                        {metaConfig[activeSubTab]?.status && metaConfig[activeSubTab]?.status !== 'disconnected' && (
-                          <button
-                            type="button"
-                            disabled={disconnectingConnection[activeSubTab]}
-                            onClick={() => handleDisconnectConnection(activeSubTab)}
-                            className="flex items-center justify-center gap-2 px-5 py-2.5 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20 disabled:opacity-50 rounded-xl text-xs font-semibold shadow-sm transition-all duration-200 w-full sm:w-auto"
-                          >
-                            {disconnectingConnection[activeSubTab] ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
-                                <span>Disconnecting...</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="w-4 h-4 text-rose-500" />
-                                <span>Disconnect Integration</span>
-                              </>
-                            )}
-                          </button>
+                        {disconnectingConnection[activeSubTab] ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+                            <span>Disconnecting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-4 h-4 text-rose-500" />
+                            <span>Disconnect Integration</span>
+                          </>
                         )}
-                      </>
+                      </button>
                     )}
                   </div>
                 </form>

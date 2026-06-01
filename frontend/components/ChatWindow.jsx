@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import toast from 'react-hot-toast';
-import AiCopilotPanel from './AiCopilotPanel';
 
 function formatMessageDate(date) {
   if (isToday(date)) return 'TODAY';
@@ -78,7 +77,6 @@ export default function ChatWindow({ conversation, messages }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
-  const [showCopilot, setShowCopilot] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiCategory, setEmojiCategory] = useState('smileys');
   const [emojiSearch, setEmojiSearch] = useState('');
@@ -655,14 +653,6 @@ export default function ChatWindow({ conversation, messages }) {
                 <span>Locked</span>
               </button>
             )}
-
-            <button 
-              onClick={() => setShowCopilot(!showCopilot)}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${showCopilot ? 'text-purple-600 bg-purple-500/10' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'}`}
-              title="Toggle AI Copilot Sidekick"
-            >
-              <Bot className="w-5 h-5 text-wa-green" />
-            </button>
 
             <button 
               onClick={() => setShowSidebar(!showSidebar)}
@@ -1343,13 +1333,6 @@ export default function ChatWindow({ conversation, messages }) {
       </>
     )}
 
-      {/* RIGHT COLUMN: AI COPILOT SIDEBAR */}
-      <AiCopilotPanel
-        conversationId={conversation._id}
-        onApplyDraft={(draftText) => setText(draftText)}
-        isOpen={showCopilot}
-        setIsOpen={setShowCopilot}
-      />
 
       {/* MODAL: SEND CONTACT CARD */}
       {isContactModalOpen && (

@@ -4,7 +4,6 @@ const Message = require('../models/Message');
 const BotFlow = require('../models/BotFlow');
 const WhatsAppAccount = require('../models/WhatsAppAccount');
 const whatsapp = require('./whatsapp');
-const aiAgent = require('./aiAgent');
 const { decryptField } = require('./encryption');
 const winston = require('winston');
 
@@ -218,33 +217,7 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     conversation.unreadCount = (conversation.unreadCount || 0) + 1;
     await conversation.save();
 
-    // 5b. Real-time sentiment analysis
-    try {
-      const sentimentEngine = require('./sentimentEngine');
-      const analysisText = content.text || content.caption || '';
-      if (analysisText && adminUser && adminUser.organizationId) {
-        sentimentEngine.analyzeMessage(conversation._id, adminUser.organizationId, analysisText).then((analysis) => {
-          if (analysis && io) {
-            const ownerId = adminUser.ownerId || adminUser._id;
-            io.to(`user_${ownerId}`).emit('conversation_ai_updated', {
-              conversationId: conversation._id,
-              sentiment: analysis.sentiment,
-              urgency: analysis.urgency,
-              risk: analysis.risk,
-              isComplaint: analysis.isComplaint,
-              isRefundRequested: analysis.isRefundRequested,
-              isLegalThreat: analysis.isLegalThreat,
-              isVipCustomer: analysis.isVipCustomer,
-              confidence: analysis.confidence
-            });
-          }
-        }).catch((err) => {
-          logger.error('Background sentiment analysis promise failed:', err.message);
-        });
-      }
-    } catch (err) {
-      logger.error('Failed to trigger sentiment analysis:', err.message);
-    }
+
 
     // Mark as read on WhatsApp
     if (messageData.id) {
@@ -290,8 +263,15 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     }
 
     if (conversation.status === 'ai') {
-      // Pass to AI agent
-      await handleAIMode(userId, conversation, contact, content, phoneNumberId, token, io);
+      // AI is deprecated, route to human agent
+      conversation.status = 'human';
+      await conversation.save();
+      await sendAndSaveMessage(
+        userId, conversation, contact, phoneNumberId, token,
+        "Connecting you to our team right now! ⚡ Someone will be with you shortly.",
+        'bot', io
+      );
+      if (io) io.to(`user_${userId}`).emit('conversation_assigned', { conversationId: conversation._id, needsAgent: true });
       return;
     }
 
@@ -381,44 +361,7 @@ function extractContent(messageData, msgType) {
   return content;
 }
 
-/**
- * Handle AI mode conversation.
- */
-async function handleAIMode(userId, conversation, contact, content, phoneNumberId, token, io) {
-  try {
-    const history = await Message.find({ userId, conversationId: conversation._id })
-      .sort({ timestamp: -1 })
-      .limit(10)
-      .lean();
-    history.reverse();
 
-    // Fetch user and organization to retrieve custom AI keys
-    const User = require('../models/User');
-    const Organization = require('../models/Organization');
-    const user = await User.findById(userId);
-    const org = user ? await Organization.findById(user.organizationId).lean() : null;
-
-    const aiResponse = await aiAgent.processWithAI(history, contact, content.text || '', '', org);
-
-    if (aiResponse.handoff) {
-      conversation.status = 'human';
-      await conversation.save();
-      const handoffMsg = await sendAndSaveMessage(
-        userId, conversation, contact, phoneNumberId, token,
-        "I'm connecting you with a team member right now! ⚡ They'll be with you shortly.",
-        'ai', io
-      );
-      if (io) io.to(`user_${userId}`).emit('conversation_assigned', { conversationId: conversation._id });
-      return;
-    }
-
-    if (aiResponse.text) {
-      await sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, aiResponse.text, 'ai', io);
-    }
-  } catch (error) {
-    logger.error('AI mode error:', error);
-  }
-}
 
 /**
  * Process the bot flow for a message.
