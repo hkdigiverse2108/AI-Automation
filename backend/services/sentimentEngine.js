@@ -11,22 +11,39 @@ const logger = winston.createLogger({
 });
 
 /**
- * Helper to fetch decypted OpenAI credentials for the tenant organization or platform default.
+ * Helper to fetch decrypted Grok credentials for the tenant organization.
  */
-async function getSentimentOpenAIClient(orgId) {
+async function getSentimentAIClient(orgId) {
   const { decryptField } = require('./encryption');
   const org = await Organization.findById(orgId);
   
-  const customOpenAIKey = org?.aiConfig?.openaiApiKey ? decryptField(org.aiConfig.openaiApiKey) : null;
-  const finalOpenAIKey = (customOpenAIKey && customOpenAIKey.trim() !== '') ? customOpenAIKey.trim() : env.OPENAI_API_KEY;
+  const customGrokKey = org?.aiConfig?.grokApiKey ? decryptField(org.aiConfig.grokApiKey) : null;
+  const finalGrokKey = (customGrokKey && customGrokKey.trim() !== '') ? customGrokKey.trim() : null;
 
-  const hasOpenAI = finalOpenAIKey && finalOpenAIKey !== 'your_openai_api_key' && finalOpenAIKey.trim() !== '';
-  if (!hasOpenAI) {
-    throw new Error('OpenAI key is not configured for sentiment analysis.');
+  if (!finalGrokKey) {
+    throw new Error('Grok API Key is not configured for sentiment analysis.');
+  }
+
+  let clientOptions = {};
+  let modelName = 'grok-2';
+
+  const isGroq = finalGrokKey.startsWith('gsk_');
+  if (isGroq) {
+    clientOptions = {
+      apiKey: finalGrokKey,
+      baseURL: 'https://api.groq.com/openai/v1'
+    };
+    modelName = 'llama-3.1-8b-instant';
+  } else {
+    clientOptions = {
+      apiKey: finalGrokKey,
+      baseURL: 'https://api.x.ai/v1'
+    };
+    modelName = 'grok-2';
   }
 
   const { default: OpenAI } = await import('openai');
-  return new OpenAI({ apiKey: finalOpenAIKey });
+  return { openai: new OpenAI(clientOptions), modelName };
 }
 
 /**
@@ -36,7 +53,7 @@ async function analyzeMessage(conversationId, orgId, messageText) {
   try {
     if (!messageText || messageText.trim() === '') return null;
 
-    const openai = await getSentimentOpenAIClient(orgId);
+    const { openai, modelName } = await getSentimentAIClient(orgId);
 
     const systemPrompt = `You are a real-time customer behavior analyst.
 Read the user's incoming message and return an accurate behavioral and sentiment analysis.
@@ -63,7 +80,7 @@ Critical Triggers:
 Return ONLY the raw JSON string with no markdown blocks or conversational text.`;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // fast, cheap and perfect for structured analytical categorization
+      model: modelName, // fast, cheap and perfect for structured analytical categorization
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: messageText }

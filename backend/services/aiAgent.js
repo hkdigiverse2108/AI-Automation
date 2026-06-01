@@ -20,39 +20,28 @@ async function processWithAI(messageHistory, contact, userMessage, customPrompt 
     let clientOptions = {};
     let modelName = 'gpt-4';
 
-    // Resolve custom dynamic keys or fall back to system defaults
+    // Resolve custom dynamic key from database configuration
     const { decryptField } = require('./encryption');
     
-    // Decrypt keys if present
-    const customOpenAIKey = org?.aiConfig?.openaiApiKey ? decryptField(org.aiConfig.openaiApiKey) : null;
+    // Decrypt key if present
     const customGrokKey = org?.aiConfig?.grokApiKey ? decryptField(org.aiConfig.grokApiKey) : null;
+    const finalGrokKey = (customGrokKey && customGrokKey.trim() !== '') ? customGrokKey.trim() : null;
 
-    const finalOpenAIKey = (customOpenAIKey && customOpenAIKey.trim() !== '') ? customOpenAIKey.trim() : env.OPENAI_API_KEY;
-    const finalGrokKey = (customGrokKey && customGrokKey.trim() !== '') ? customGrokKey.trim() : env.GROK_API_KEY;
-
-    const hasGrok = finalGrokKey && finalGrokKey !== 'your_grok_api_key' && finalGrokKey.trim() !== '';
-    const hasOpenAI = finalOpenAIKey && finalOpenAIKey !== 'your_openai_api_key' && finalOpenAIKey.trim() !== '';
-
-    if (hasGrok) {
-      const isGroq = finalGrokKey.trim().startsWith('gsk_');
+    if (finalGrokKey) {
+      const isGroq = finalGrokKey.startsWith('gsk_');
       if (isGroq) {
         clientOptions = {
-          apiKey: finalGrokKey.trim(),
+          apiKey: finalGrokKey,
           baseURL: 'https://api.groq.com/openai/v1'
         };
         modelName = 'llama-3.1-8b-instant';
       } else {
         clientOptions = {
-          apiKey: finalGrokKey.trim(),
+          apiKey: finalGrokKey,
           baseURL: 'https://api.x.ai/v1'
         };
         modelName = 'grok-2';
       }
-    } else if (hasOpenAI) {
-      clientOptions = {
-        apiKey: finalOpenAIKey
-      };
-      modelName = 'gpt-4';
     } else {
       return { text: "I'm sorry, AI assistant is not configured. Let me connect you with a team member.", handoff: true };
     }

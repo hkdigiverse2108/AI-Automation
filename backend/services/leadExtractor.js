@@ -69,35 +69,36 @@ async function extractLeadInfo(userId, conversationId) {
       return `${role}: ${text}`;
     }).join('\n');
 
-    // 4. Initialize LLM Client
+    // 4. Initialize LLM Client from Database Organization Config
+    const User = require('../models/User');
+    const Organization = require('../models/Organization');
+    const { decryptField } = require('./encryption');
+
+    const user = await User.findById(userId);
+    const org = user ? await Organization.findById(user.organizationId) : null;
+    const customGrokKey = org?.aiConfig?.grokApiKey ? decryptField(org.aiConfig.grokApiKey) : null;
+    const finalGrokKey = (customGrokKey && customGrokKey.trim() !== '') ? customGrokKey.trim() : null;
+
     let clientOptions = {};
-    let modelName = 'gpt-4';
+    let modelName = 'grok-2';
 
-    const hasGrok = env.GROK_API_KEY && env.GROK_API_KEY !== 'your_grok_api_key' && env.GROK_API_KEY.trim() !== '';
-    const hasOpenAI = env.OPENAI_API_KEY && env.OPENAI_API_KEY !== 'your_openai_api_key' && env.OPENAI_API_KEY.trim() !== '';
-
-    if (hasGrok) {
-      const isGroq = env.GROK_API_KEY.trim().startsWith('gsk_');
+    if (finalGrokKey) {
+      const isGroq = finalGrokKey.startsWith('gsk_');
       if (isGroq) {
         clientOptions = {
-          apiKey: env.GROK_API_KEY.trim(),
+          apiKey: finalGrokKey,
           baseURL: 'https://api.groq.com/openai/v1'
         };
         modelName = 'llama-3.1-8b-instant';
       } else {
         clientOptions = {
-          apiKey: env.GROK_API_KEY.trim(),
+          apiKey: finalGrokKey,
           baseURL: 'https://api.x.ai/v1'
         };
         modelName = 'grok-2';
       }
-    } else if (hasOpenAI) {
-      clientOptions = {
-        apiKey: env.OPENAI_API_KEY
-      };
-      modelName = 'gpt-4';
     } else {
-      logger.warn('AI extractor cannot run: API keys not configured');
+      logger.warn(`AI extractor cannot run: Grok API key not configured for organization ${org?.name || 'unknown'}`);
       return;
     }
 

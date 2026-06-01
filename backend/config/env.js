@@ -24,11 +24,7 @@ const env = {
   META_VERIFY_TOKEN: process.env.META_VERIFY_TOKEN,
   META_APP_SECRET: process.env.META_APP_SECRET,
 
-  // OpenAI
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
 
-  // Grok / xAI
-  GROK_API_KEY: process.env.GROK_API_KEY,
 
   // Stripe
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

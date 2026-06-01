@@ -13,44 +13,29 @@ const logger = winston.createLogger({
 async function getAIClient(provider, org) {
   const { decryptField } = require('./encryption');
   
-  const customOpenAIKey = org?.aiConfig?.openaiApiKey ? decryptField(org.aiConfig.openaiApiKey) : null;
   const customGrokKey = org?.aiConfig?.grokApiKey ? decryptField(org.aiConfig.grokApiKey) : null;
+  const finalGrokKey = (customGrokKey && customGrokKey.trim() !== '') ? customGrokKey.trim() : null;
 
-  const finalOpenAIKey = (customOpenAIKey && customOpenAIKey.trim() !== '') ? customOpenAIKey.trim() : env.OPENAI_API_KEY;
-  const finalGrokKey = (customGrokKey && customGrokKey.trim() !== '') ? customGrokKey.trim() : env.GROK_API_KEY;
+  if (!finalGrokKey) {
+    throw new Error('Grok API Key is not configured for this organization.');
+  }
 
   let clientOptions = {};
-  let modelName = 'gpt-4o-mini'; // default cheaper model for fast copilot
+  let modelName = 'grok-2';
 
-  if (provider === 'grok') {
-    const hasGrok = finalGrokKey && finalGrokKey !== 'your_grok_api_key' && finalGrokKey.trim() !== '';
-    if (hasGrok) {
-      const isGroq = finalGrokKey.trim().startsWith('gsk_');
-      if (isGroq) {
-        clientOptions = {
-          apiKey: finalGrokKey.trim(),
-          baseURL: 'https://api.groq.com/openai/v1'
-        };
-        modelName = 'llama-3.1-8b-instant';
-      } else {
-        clientOptions = {
-          apiKey: finalGrokKey.trim(),
-          baseURL: 'https://api.x.ai/v1'
-        };
-        modelName = 'grok-2';
-      }
-    } else {
-      throw new Error('xAI Grok key is not configured.');
-    }
+  const isGroq = finalGrokKey.startsWith('gsk_');
+  if (isGroq) {
+    clientOptions = {
+      apiKey: finalGrokKey,
+      baseURL: 'https://api.groq.com/openai/v1'
+    };
+    modelName = 'llama-3.1-8b-instant';
   } else {
-    // Default to OpenAI
-    const hasOpenAI = finalOpenAIKey && finalOpenAIKey !== 'your_openai_api_key' && finalOpenAIKey.trim() !== '';
-    if (hasOpenAI) {
-      clientOptions = { apiKey: finalOpenAIKey };
-      modelName = 'gpt-4o'; // high quality model for drafts
-    } else {
-      throw new Error('OpenAI key is not configured.');
-    }
+    clientOptions = {
+      apiKey: finalGrokKey,
+      baseURL: 'https://api.x.ai/v1'
+    };
+    modelName = 'grok-2';
   }
 
   const { default: OpenAI } = await import('openai');
@@ -183,8 +168,8 @@ Return ONLY the translated text.`
  */
 async function summarizeConversation(messageHistory, summaryType = 'quick', org = null) {
   try {
-    // Summaries default to openai for reliability
-    const { openai, modelName } = await getAIClient('openai', org);
+    // Summaries use grok for reliability
+    const { openai, modelName } = await getAIClient('grok', org);
 
     let promptDetail = '';
     if (summaryType === 'detailed') {
@@ -229,7 +214,7 @@ Return the summary as clean markdown formatting.`
  */
 async function getSmartSuggestions(messageHistory, contact, org = null) {
   try {
-    const { openai, modelName } = await getAIClient('openai', org);
+    const { openai, modelName } = await getAIClient('grok', org);
 
     const historyStr = messageHistory.slice(-5).map(m => `${m.direction === 'inbound' ? 'Customer' : 'Agent'}: ${m.content?.text || '[Attachment]'}`).join('\n');
 
