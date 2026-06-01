@@ -517,7 +517,51 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
         }
       }
       // Move to next node
-      const nextEdge = currentNode.edges?.[0];
+      let nextEdge = currentNode.edges?.[0];
+      if (currentNode.edges && currentNode.edges.length > 1) {
+        const textVal = (content.text || '').toLowerCase().trim();
+        const titleVal = (content.interactive?.title || '').toLowerCase().trim();
+        const idVal = (content.interactive?.id || '').toLowerCase().trim();
+
+        // Helper to check exact match on any edge
+        const findExactMatch = (val) => {
+          if (!val) return null;
+          return currentNode.edges.find((e) => {
+            const edgeLabel = (e.label || '').toLowerCase().trim();
+            const condVal = (e.condition?.value || '').toLowerCase().trim();
+            const labels = edgeLabel.split(',').map(s => s.trim());
+            return labels.some(l => l === val) || condVal === val;
+          });
+        };
+
+        // Helper to check partial match on any edge
+        const findPartialMatch = (val) => {
+          if (!val) return null;
+          return currentNode.edges.find((e) => {
+            const edgeLabel = (e.label || '').toLowerCase().trim();
+            const condVal = (e.condition?.value || '').toLowerCase().trim();
+            const labels = edgeLabel.split(',').map(s => s.trim());
+            return labels.some(l => 
+              l === val || 
+              (l && val.includes(l)) || 
+              (val && l.includes(val))
+            ) || condVal === val;
+          });
+        };
+
+        // Pass 1: Try to find an exact match first (highest priority) across all inputs
+        let matchedEdge = findExactMatch(idVal) || findExactMatch(textVal) || findExactMatch(titleVal);
+
+        // Pass 2: Fall back to partial match logic if no exact match exists
+        if (!matchedEdge) {
+          matchedEdge = findPartialMatch(idVal) || findPartialMatch(textVal) || findPartialMatch(titleVal);
+        }
+
+        if (matchedEdge) {
+          nextEdge = matchedEdge;
+        }
+      }
+
       if (nextEdge) {
         currentNode = flow.nodes.find((n) => n.id === nextEdge.targetNodeId);
       } else {
@@ -621,6 +665,11 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
         const footer = interpolate(msgData.footer || '', vars);
         const result = await whatsapp.sendListMessage(phoneNumberId, token, contact.phone, body, msgData.sections || [], header, footer);
         await saveAndEmitMessage(userId, conversation, contact, body, 'bot', io, 'interactive', { interactive: msgData }, result);
+      } else if (msgData?.type === 'image') {
+        const imageUrl = interpolate(msgData.mediaUrl || '', vars);
+        const caption = interpolate(msgData.caption || '', vars);
+        const result = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, imageUrl, caption);
+        await saveAndEmitMessage(userId, conversation, contact, caption, 'bot', io, 'image', { mediaUrl: imageUrl }, result);
       } else {
         const text = interpolate(msgData?.text || node.data?.message?.text || '', vars);
         if (text) {
@@ -654,6 +703,11 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
         const footer = interpolate(msgData.footer || '', vars);
         const result = await whatsapp.sendListMessage(phoneNumberId, token, contact.phone, body, msgData.sections || [], header, footer);
         await saveAndEmitMessage(userId, conversation, contact, body, 'bot', io, 'interactive', { interactive: msgData }, result);
+      } else if (msgData?.type === 'image') {
+        const imageUrl = interpolate(msgData.mediaUrl || '', vars);
+        const caption = interpolate(msgData.caption || '', vars);
+        const result = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, imageUrl, caption);
+        await saveAndEmitMessage(userId, conversation, contact, caption, 'bot', io, 'image', { mediaUrl: imageUrl }, result);
       } else {
         const text = interpolate(msgData?.text || node.data?.message?.text || '', vars);
         if (text) {
@@ -811,6 +865,44 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
 }
 
 async function completeFlow(conversation) {
+  // Save booking details to Lead model if variables are present
+  const vars = Object.fromEntries(conversation.flowVariables || new Map());
+  if (vars.booking_name || vars.booking_phone || vars.booking_adults || vars.booking_date) {
+    try {
+      const Lead = require('../models/Lead');
+      const Contact = require('../models/Contact');
+      const contact = await Contact.findById(conversation.contactId);
+      
+      const adults = vars.booking_adults || '0';
+      const children = vars.booking_children || '0';
+      const date = vars.booking_date || '';
+      const room = vars.booking_room || 'None';
+      const special = vars.booking_special || '';
+      
+      const summary = `Water Park Booking: ${adults} Adults, ${children} Children. Visit Date: ${date}. Room: ${room}. Special request: ${special}`;
+      
+      await Lead.findOneAndUpdate(
+        { userId: conversation.userId, contactId: conversation.contactId },
+        {
+          userId: conversation.userId,
+          contactId: conversation.contactId,
+          conversationId: conversation._id,
+          name: vars.booking_name || (contact ? contact.name : ''),
+          phone: vars.booking_phone || (contact ? contact.phone : ''),
+          serviceRequired: 'Water Park Booking',
+          projectDescription: summary,
+          timeline: date,
+          specialRequirements: special,
+          status: 'qualified',
+          aiSummary: summary,
+        },
+        { upsert: true, new: true }
+      );
+    } catch (err) {
+      logger.error('Failed to manually sync lead:', err.message);
+    }
+  }
+
   conversation.currentNodeId = null;
   conversation.currentFlowId = null;
   conversation.status = 'waiting';
@@ -820,6 +912,36 @@ async function completeFlow(conversation) {
 }
 
 async function sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, text, sentBy, io, type = 'text', extra = {}) {
+  // Check if we need to send a matching image first
+  if (type === 'text') {
+    const matchingImg = getMatchingImage(text);
+    if (matchingImg) {
+      try {
+        const imgResult = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, matchingImg.url, matchingImg.caption);
+        const imgMsg = await Message.create({
+          userId,
+          conversationId: conversation._id,
+          contactId: contact._id,
+          direction: 'outbound',
+          type: 'image',
+          content: { text: matchingImg.caption, mediaUrl: matchingImg.url },
+          status: imgResult.success ? 'sent' : 'failed',
+          metaMessageId: imgResult.data?.messages?.[0]?.id,
+          sentBy,
+        });
+        if (io) {
+          io.to(`user_${userId}`).emit('new_message', {
+            message: imgMsg.toObject(),
+            contact: contact.toObject(),
+            conversationId: conversation._id,
+          });
+        }
+      } catch (err) {
+        logger.error('Failed to send matching image first:', err.message);
+      }
+    }
+  }
+
   const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
   const msg = await Message.create({
     userId,
@@ -859,6 +981,41 @@ async function saveOutboundMessage(userId, conversation, contact, type, content,
 }
 
 async function saveAndEmitMessage(userId, conversation, contact, text, sentBy, io, type, extra, apiResult) {
+  // Check if we need to send a matching image first
+  if (type === 'text') {
+    const matchingImg = getMatchingImage(text);
+    if (matchingImg) {
+      try {
+        const waAccount = await WhatsAppAccount.findOne({ userId, isActive: true });
+        if (waAccount) {
+          const token = decryptField(waAccount.accessToken);
+          const phoneNumberId = waAccount.phoneNumberId;
+          const imgResult = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, matchingImg.url, matchingImg.caption);
+          const imgMsg = await Message.create({
+            userId,
+            conversationId: conversation._id,
+            contactId: contact._id,
+            direction: 'outbound',
+            type: 'image',
+            content: { text: matchingImg.caption, mediaUrl: matchingImg.url },
+            status: imgResult.success ? 'sent' : 'failed',
+            metaMessageId: imgResult.data?.messages?.[0]?.id,
+            sentBy,
+          });
+          if (io) {
+            io.to(`user_${userId}`).emit('new_message', {
+              message: imgMsg.toObject(),
+              contact: contact.toObject(),
+              conversationId: conversation._id,
+            });
+          }
+        }
+      } catch (err) {
+        logger.error('Failed to send matching image first in saveAndEmitMessage:', err.message);
+      }
+    }
+  }
+
   const msg = await Message.create({
     userId,
     conversationId: conversation._id,
@@ -1069,6 +1226,48 @@ async function sendReplyForTrigger(userId, conversation, contact, trigger, phone
   if (trigger.replyText) {
     await sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, trigger.replyText, 'system', io);
   }
+}
+
+function getMatchingImage(text) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  
+  // Rides & attractions
+  if (lower.includes('entrance')) return { url: 'https://images.unsplash.com/photo-1582650625119-3a31f8fa2699?w=800&auto=format&fit=crop', caption: 'Chab Chabba Chab Entrance 🌊' };
+  if (lower.includes('wave pool')) return { url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop', caption: 'Wave Pool 🌊' };
+  if (lower.includes('rain dance')) return { url: 'https://images.unsplash.com/photo-1519751138087-5bf79df62d5b?w=800&auto=format&fit=crop', caption: 'Rain Dance Area 💃🚿' };
+  if (lower.includes('kids zone') || lower.includes('kids splash') || lower.includes('splash zone')) return { url: 'https://images.unsplash.com/photo-1596464716127-f2a82984de30?w=800&auto=format&fit=crop', caption: 'Kids Zone 🧸💦' };
+  if (lower.includes('family pool') || lower.includes('family activity') || lower.includes('family pool experience')) return { url: 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=800&auto=format&fit=crop', caption: 'Family Activity Pool 👨‍👩‍👧‍👦🏊' };
+  if (lower.includes('slide') || lower.includes('ride') || lower.includes('spiral')) return { url: 'https://images.unsplash.com/photo-1519751138087-5bf79df62d5b?w=800&auto=format&fit=crop', caption: 'Giant Water Slides 🎢💦' };
+  
+  // Rooms
+  if (lower.includes('deluxe') || lower.includes('splashy deluxe')) return { url: 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=800&auto=format&fit=crop', caption: 'Splashy Deluxe Room 🏨' };
+  if (lower.includes('villa') || lower.includes('marine villa')) return { url: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800&auto=format&fit=crop', caption: 'Marine Villa AC Room 🏡' };
+  if (lower.includes('cabana') || lower.includes('luxury cabana')) return { url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop', caption: 'Luxury Cabana 🏖️' };
+  if (lower.includes('stay') || lower.includes('room')) return { url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800&auto=format&fit=crop', caption: 'Family Stay Room 🛏️' };
+
+  // Costumes & Lockers
+  if (lower.includes('costume') || lower.includes('dress') || lower.includes('swimwear')) return { url: 'https://images.unsplash.com/photo-1564859228273-274232fdb516?w=800&auto=format&fit=crop', caption: 'Water Park Swimwear & Costumes 🩱🩳' };
+  if (lower.includes('locker') || lower.includes('changing')) return { url: 'https://images.unsplash.com/photo-1574634534894-89d7576c8259?w=800&auto=format&fit=crop', caption: 'Locker Area & Changing Rooms 🔒' };
+
+  // Food
+  if (lower.includes('food') || lower.includes('lunch') || lower.includes('meal') || lower.includes('restaurant')) return { url: 'https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=800&auto=format&fit=crop', caption: 'Delicious Food at Our Food Court 🍲' };
+  if (lower.includes('chole')) return { url: 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?w=800&auto=format&fit=crop', caption: 'Chole Puri 🍛' };
+  if (lower.includes('pav bhaji')) return { url: 'https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=800&auto=format&fit=crop', caption: 'Pav Bhaji 🍛' };
+  if (lower.includes('manchurian')) return { url: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=800&auto=format&fit=crop', caption: 'Manchurian 🍜' };
+  if (lower.includes('biryani')) return { url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&auto=format&fit=crop', caption: 'Veg Biryani 🍚' };
+  if (lower.includes('noodles')) return { url: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=800&auto=format&fit=crop', caption: 'Noodles 🍝' };
+
+  // Group Trips
+  if (lower.includes('school') || lower.includes('student')) return { url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=800&auto=format&fit=crop', caption: 'School Trips Group 🎒' };
+  if (lower.includes('college') || lower.includes('university') || lower.includes('educational')) return { url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop', caption: 'College Outing Group 🎓' };
+  if (lower.includes('corporate') || lower.includes('company') || lower.includes('team')) return { url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&auto=format&fit=crop', caption: 'Corporate Team Outing 👔' };
+
+  // Gallery / Location
+  if (lower.includes('gallery') || lower.includes('attractions')) return { url: 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=800&auto=format&fit=crop', caption: 'Water Park View 🎡' };
+  if (lower.includes('ticket') || lower.includes('price') || lower.includes('counter')) return { url: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=800&auto=format&fit=crop', caption: 'Ticket Counter 🎟️' };
+
+  return null;
 }
 
 module.exports = { processIncomingMessage };
