@@ -13,19 +13,29 @@ const { decryptField } = require('./encryption');
 async function resolveAssetUrl(botId, mediaUrlOrKey) {
   if (!mediaUrlOrKey) return '';
   const trimmed = mediaUrlOrKey.trim();
-  // If it's already a full HTTP or relative upload URL, return it
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/uploads/')) {
-    return trimmed;
-  }
-  try {
-    const asset = await BotMediaAsset.findOne({ botId, assetKey: trimmed });
-    if (asset) {
-      return asset.fileUrl;
+  let fileUrl = trimmed;
+
+  // If it's already a full HTTP or relative upload URL, don't lookup key
+  const isDirect = trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/uploads/');
+  if (!isDirect) {
+    try {
+      const asset = await BotMediaAsset.findOne({ botId, assetKey: trimmed });
+      if (asset) {
+        fileUrl = asset.fileUrl;
+      }
+    } catch (err) {
+      logger.error('Error resolving assetKey:', err);
     }
-  } catch (err) {
-    logger.error('Error resolving assetKey:', err);
   }
-  return trimmed; // Fallback
+
+  // Prepend absolute public host if it is a relative uploads path
+  if (fileUrl.startsWith('/uploads/')) {
+    const env = require('../config/env');
+    const publicOrigin = env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`;
+    fileUrl = `${publicOrigin}${fileUrl}`;
+  }
+
+  return fileUrl;
 }
 const winston = require('winston');
 

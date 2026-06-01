@@ -156,11 +156,24 @@ async function proxyImageUrl(imageUrl) {
     const cloudinaryService = require('./cloudinaryService');
     if (!cloudinaryService.isConfigured()) {
       logger.warn('Cloudinary is not configured, sending original image URL.');
+      // Prepend public origin even if Cloudinary is not configured so it is a valid absolute URL for Meta WABA
+      if (imageUrl.startsWith('/uploads/')) {
+        const env = require('../config/env');
+        const publicOrigin = env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`;
+        return `${publicOrigin}${imageUrl}`;
+      }
       return imageUrl;
     }
 
-    logger.info(`Downloading remote image to proxy through Cloudinary: ${imageUrl}`);
-    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    let downloadUrl = imageUrl;
+    if (downloadUrl.startsWith('/uploads/')) {
+      const env = require('../config/env');
+      const publicOrigin = env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`;
+      downloadUrl = `${publicOrigin}${downloadUrl}`;
+    }
+
+    logger.info(`Downloading remote image to proxy through Cloudinary: ${downloadUrl}`);
+    const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
     const buffer = Buffer.from(response.data);
 
     const cloudinaryUrl = await cloudinaryService.uploadStream(buffer, 'whatsapp_image_proxy');
