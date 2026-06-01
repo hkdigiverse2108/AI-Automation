@@ -14,7 +14,7 @@ import {
   MessageSquare, HelpCircle, GitFork, Activity, Clock, Bot, 
   UserCheck, Plus, Trash2, Save, Play, X, Settings,
   Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Keyboard,
-  GripVertical, Layers
+  GripVertical, Layers, UploadCloud, Loader2, Image
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { customNodeTypes } from './CustomBotNodes';
@@ -40,6 +40,86 @@ export default function BotFlowCanvas({ flow, onSave }) {
   const [assets, setAssets] = useState([]);
   const reactFlowWrapper = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleUploadImageNode = async (file) => {
+    if (!file || !flow?._id || flow?._id === 'new_flow') return;
+    
+    setUploadingImage(true);
+    const toastId = toast.loading('Uploading and attaching image to block...');
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const customKey = `ATTACH_${Date.now()}`;
+    formData.append('assetKey', customKey);
+
+    try {
+      const { data } = await api.post(`/media/bot/${flow._id}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (data.success) {
+        const asset = data.data.asset;
+        toast.success('Image attached successfully!', { id: toastId });
+        
+        // Fetch fresh list of assets
+        const assetsRes = await api.get(`/media/bot/${flow._id}`);
+        if (assetsRes.data.success) {
+          setAssets(assetsRes.data.assets);
+        }
+
+        // Update the selected node to image type
+        const currentText = selectedNode?.data?.message?.text || selectedNode?.data?.message?.caption || '';
+        handleUpdateNodeData('message', {
+          type: 'image',
+          assetKey: asset.assetKey,
+          mediaUrl: asset.assetKey,
+          caption: currentText,
+          text: currentText
+        });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Upload failed', { id: toastId });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith('image/')) {
+        handleUploadImageNode(file);
+      } else {
+        toast.error('Only image files are allowed');
+      }
+    }
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.type.startsWith('image/')) {
+        handleUploadImageNode(file);
+      } else {
+        toast.error('Only image files are allowed');
+      }
+    }
+  };
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -584,7 +664,75 @@ export default function BotFlowCanvas({ flow, onSave }) {
                       placeholder="Enter message body copy..."
                       className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
                     />
+
+                    {/* Premium Drag and Drop Image Attachment Box */}
+                    <div className="mt-3">
+                      <label className="block text-[10px] font-extrabold text-wa-text-secondary uppercase tracking-wider mb-1.5">
+                        Attach Image
+                      </label>
+                      <div
+                        onDragEnter={handleDrag}
+                        onDragOver={handleDrag}
+                        onDragLeave={handleDrag}
+                        onDrop={handleDrop}
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`
+                          border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200
+                          ${dragActive 
+                            ? 'border-wa-green bg-emerald-50/50 dark:bg-emerald-950/20 scale-[1.01]' 
+                            : 'border-wa-border dark:border-wa-dark-border hover:border-wa-green hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
+                          }
+                        `}
+                      >
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                        {uploadingImage ? (
+                          <div className="flex flex-col items-center gap-2 text-wa-text-secondary">
+                            <Loader2 className="w-6 h-6 text-wa-green animate-spin" />
+                            <span className="text-[10px] font-bold">Uploading image file...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center">
+                              <UploadCloud className="w-5 h-5 text-wa-green" />
+                            </div>
+                            <div className="text-center">
+                              <span className="text-[11px] font-bold text-wa-text-primary dark:text-white block">
+                                Drag & drop image here
+                              </span>
+                              <span className="text-[9px] text-wa-text-light">
+                                or click to select from computer
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                )}
+
+                {/* Add a remove attachment button for image type message in Message drawer */}
+                {selectedNode.data.message?.type === 'image' && (
+                  <button
+                    onClick={() => {
+                      const currentText = selectedNode.data.message?.caption || selectedNode.data.message?.text || '';
+                      handleUpdateNodeData('message', {
+                        type: 'text',
+                        text: currentText,
+                        mediaUrl: '',
+                        assetKey: '',
+                        caption: ''
+                      });
+                    }}
+                    className="w-full mt-2 py-2 flex items-center justify-center gap-1.5 border border-red-200 dark:border-red-950/50 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-500 hover:text-red-600 rounded-xl text-xs font-bold transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" /> Remove Image Attachment
+                  </button>
                 )}
               </div>
             )}
@@ -671,7 +819,75 @@ export default function BotFlowCanvas({ flow, onSave }) {
                       placeholder="Ask user a question..."
                       className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
+
+                    {/* Premium Drag and Drop Image Attachment Box */}
+                    <div className="mt-3">
+                      <label className="block text-[10px] font-extrabold text-wa-text-secondary uppercase tracking-wider mb-1.5">
+                        Attach Image
+                      </label>
+                      <div
+                        onDragEnter={handleDrag}
+                        onDragOver={handleDrag}
+                        onDragLeave={handleDrag}
+                        onDrop={handleDrop}
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`
+                          border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200
+                          ${dragActive 
+                            ? 'border-wa-green bg-emerald-50/50 dark:bg-emerald-950/20 scale-[1.01]' 
+                            : 'border-wa-border dark:border-wa-dark-border hover:border-wa-green hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
+                          }
+                        `}
+                      >
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                        {uploadingImage ? (
+                          <div className="flex flex-col items-center gap-2 text-wa-text-secondary">
+                            <Loader2 className="w-6 h-6 text-wa-green animate-spin" />
+                            <span className="text-[10px] font-bold">Uploading image file...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center">
+                              <UploadCloud className="w-5 h-5 text-wa-green" />
+                            </div>
+                            <div className="text-center">
+                              <span className="text-[11px] font-bold text-wa-text-primary dark:text-white block">
+                                Drag & drop image here
+                              </span>
+                              <span className="text-[9px] text-wa-text-light">
+                                or click to select from computer
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                )}
+
+                {/* Add a remove attachment button for image type question in Question drawer */}
+                {selectedNode.data.message?.type === 'image' && (
+                  <button
+                    onClick={() => {
+                      const currentText = selectedNode.data.message?.caption || selectedNode.data.message?.text || '';
+                      handleUpdateNodeData('message', {
+                        type: 'text',
+                        text: currentText,
+                        mediaUrl: '',
+                        assetKey: '',
+                        caption: ''
+                      });
+                    }}
+                    className="w-full mt-2 py-2 flex items-center justify-center gap-1.5 border border-red-200 dark:border-red-950/50 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-500 hover:text-red-600 rounded-xl text-xs font-bold transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" /> Remove Image Attachment
+                  </button>
                 )}
 
                 <div>
