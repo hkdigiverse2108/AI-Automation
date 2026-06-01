@@ -107,6 +107,26 @@ contactSchema.post('findOne', async function (doc) {
   }
 });
 
+contactSchema.post('save', async function (doc) {
+  if (!doc) return;
+  try {
+    const { getOekForUser, decryptContact } = require('../services/oekService');
+    if (doc.isEncrypted) {
+      const rawOek = await getOekForUser(doc.userId);
+      if (rawOek) {
+        const decrypted = decryptContact(doc, rawOek);
+        doc.phone = decrypted.phone;
+        doc.name = decrypted.name;
+        doc.email = decrypted.email;
+        doc.notes = decrypted.notes;
+        doc.customFields = decrypted.customFields;
+      }
+    }
+  } catch (err) {
+    console.error('Contact decryption post-save failed:', err.message);
+  }
+});
+
 contactSchema.index({ userId: 1, phone: 1 }, { unique: true });
 contactSchema.index({ userId: 1, phoneHash: 1 });
 contactSchema.index({ userId: 1, emailHash: 1 });

@@ -102,4 +102,20 @@ messageSchema.post('findOne', async function (doc) {
   }
 });
 
+messageSchema.post('save', async function (doc) {
+  if (!doc) return;
+  try {
+    const { getOekForUser, decryptMessage } = require('../services/oekService');
+    if (doc.isEncrypted) {
+      const rawOek = await getOekForUser(doc.userId);
+      if (rawOek) {
+        const decrypted = decryptMessage(doc, rawOek);
+        doc.content = decrypted.content;
+      }
+    }
+  } catch (err) {
+    console.error('Message decryption post-save failed:', err.message);
+  }
+});
+
 module.exports = mongoose.model('Message', messageSchema);
