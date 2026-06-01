@@ -9,16 +9,19 @@ const logger = winston.createLogger({
   transports: [new winston.transports.Console()],
 });
 
-// Configure SMTP transporter for fallback
+// Configure SMTP transporter
 let transporter = null;
 try {
   transporter = nodemailer.createTransport({
     host: env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(env.SMTP_PORT, 10) || 587,
-    secure: false, // true for 465, false for other ports
+    secure: parseInt(env.SMTP_PORT, 10) === 465, // true for 465, false for 587
     auth: {
       user: env.SMTP_USER,
       pass: env.SMTP_PASS,
+    },
+    tls: {
+      rejectUnauthorized: false, // Prevents certificate handshake validation errors on cloud hosts
     },
   });
   logger.info('SMTP Mail Service successfully initialized');
@@ -85,37 +88,9 @@ async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'W
     </div>
   `;
 
-  // 1. Try sending via Resend API if API Key is configured
-  if (apiKey) {
-    try {
-      logger.info(`Attempting to send onboarding email via Resend to ${toEmail}...`);
-      
-      const response = await axios.post(
-        'https://api.resend.com/emails',
-        {
-          from: 'WA Chatbox <onboarding@resend.dev>',
-          to: toEmail,
-          subject: `Welcome to ${orgName} - Your Onboarding Credentials`,
-          html: htmlContent,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      logger.info(`Onboarding email successfully delivered via Resend. Message ID: ${response.data.id}`);
-      return true;
-    } catch (error) {
-      logger.error('Resend delivery failed. Falling back to SMTP...', error.response?.data || error.message);
-    }
-  }
-
-  // 2. Fallback to standard SMTP
+  // Send strictly via configured Nodemailer SMTP
   if (!transporter || !env.SMTP_USER || !env.SMTP_PASS) {
-    logger.warn('SMTP credentials not configured and Resend failed. Skipping onboarding email.');
+    logger.error('SMTP credentials not configured. Skipping onboarding email.');
     return false;
   }
 
