@@ -2,6 +2,7 @@ const router = require('express').Router();
 const ApiLog = require('../models/ApiLog');
 const Message = require('../models/Message');
 const { verifyToken } = require('../middleware/auth');
+const { getOekForUser, decryptContact, decryptMessage } = require('../services/oekService');
 
 router.use(verifyToken);
 
@@ -22,19 +23,28 @@ router.get('/', async (req, res) => {
         .populate('contactId', 'name phone')
         .lean();
 
+      const rawOek = await getOekForUser(userId);
+
+      const decryptedLogs = logs.map(l => {
+        const contact = l.contactId ? decryptContact(l.contactId, rawOek) : null;
+        const msg = decryptMessage(l, rawOek);
+
+        return {
+          id: msg._id,
+          contactName: contact?.name || 'Unknown',
+          contactPhone: contact?.phone || '',
+          direction: msg.direction,
+          type: msg.type,
+          content: msg.content?.text || msg.content?.caption || '[media]',
+          status: msg.status,
+          timestamp: msg.timestamp || msg.createdAt,
+        };
+      });
+
       return res.json({
         success: true,
         data: {
-          logs: logs.map(l => ({
-            id: l._id,
-            contactName: l.contactId?.name || 'Unknown',
-            contactPhone: l.contactId?.phone || '',
-            direction: l.direction,
-            type: l.type,
-            content: l.content?.text || l.content?.caption || '[media]',
-            status: l.status,
-            timestamp: l.timestamp || l.createdAt,
-          })),
+          logs: decryptedLogs,
           total,
           page: parseInt(page),
           pages: Math.ceil(total / limit),
