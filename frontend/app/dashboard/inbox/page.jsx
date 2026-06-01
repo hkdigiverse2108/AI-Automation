@@ -201,7 +201,7 @@ export default function InboxPage() {
       ];
 
   return (
-    <div className="flex h-[calc(100vh-1px)] -m-6 lg:-m-8 animate-fade-in relative overflow-hidden">
+    <div className="flex h-[calc(100vh-60px)] lg:h-[calc(100vh-48px)] -m-6 lg:-m-8 animate-fade-in relative overflow-hidden">
       {/* Left Panel — WhatsApp Web Conversation List */}
       <div className={`w-full lg:w-[420px] border-r border-wa-border dark:border-wa-dark-border flex flex-col bg-wa-panel dark:bg-wa-dark-panel shrink-0 ${
         currentConversation ? 'hidden lg:flex' : 'flex'
