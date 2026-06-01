@@ -234,15 +234,6 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
       });
     }
 
-    // Trigger background lead extraction
-    try {
-      const leadExtractor = require('./leadExtractor');
-      leadExtractor.extractLeadInfo(userId, conversation._id).catch((err) => {
-        logger.error('Lead extraction background promise error:', err);
-      });
-    } catch (err) {
-      logger.error('Failed to trigger lead extraction:', err);
-    }
 
     // Run keyword triggers, auto-tags, auto-routing
     const handledByAutomations = await runAutomations(userId, conversation, contact, savedMsg, phoneNumberId, token, io);
@@ -808,44 +799,6 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
 }
 
 async function completeFlow(conversation) {
-  // Save booking details to Lead model if variables are present
-  const vars = Object.fromEntries(conversation.flowVariables || new Map());
-  if (vars.booking_name || vars.booking_phone || vars.booking_adults || vars.booking_date) {
-    try {
-      const Lead = require('../models/Lead');
-      const Contact = require('../models/Contact');
-      const contact = await Contact.findById(conversation.contactId);
-      
-      const adults = vars.booking_adults || '0';
-      const children = vars.booking_children || '0';
-      const date = vars.booking_date || '';
-      const room = vars.booking_room || 'None';
-      const special = vars.booking_special || '';
-      
-      const summary = `Water Park Booking: ${adults} Adults, ${children} Children. Visit Date: ${date}. Room: ${room}. Special request: ${special}`;
-      
-      await Lead.findOneAndUpdate(
-        { userId: conversation.userId, contactId: conversation.contactId },
-        {
-          userId: conversation.userId,
-          contactId: conversation.contactId,
-          conversationId: conversation._id,
-          name: vars.booking_name || (contact ? contact.name : ''),
-          phone: vars.booking_phone || (contact ? contact.phone : ''),
-          serviceRequired: 'Water Park Booking',
-          projectDescription: summary,
-          timeline: date,
-          specialRequirements: special,
-          status: 'qualified',
-          aiSummary: summary,
-        },
-        { upsert: true, new: true }
-      );
-    } catch (err) {
-      logger.error('Failed to manually sync lead:', err.message);
-    }
-  }
-
   conversation.currentNodeId = null;
   conversation.currentFlowId = null;
   conversation.status = 'waiting';
