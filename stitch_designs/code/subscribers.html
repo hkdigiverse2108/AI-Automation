@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Subscribers | WA Marketing Business Suite</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-variant": "#d9e4ec",
+                      "text-secondary-light": "#667781",
+                      "secondary-fixed-dim": "#bbc8d1",
+                      "outline": "#6c7a74",
+                      "tertiary-container": "#e27465",
+                      "on-primary-container": "#003427",
+                      "on-tertiary-fixed-variant": "#7f2920",
+                      "on-secondary-container": "#5a666e",
+                      "tertiary-fixed": "#ffdad5",
+                      "surface-container-lowest": "#ffffff",
+                      "on-secondary-fixed-variant": "#3c4850",
+                      "primary-fixed-dim": "#59dcb5",
+                      "secondary-container": "#d7e4ee",
+                      "on-primary": "#ffffff",
+                      "secondary-fixed": "#d7e4ee",
+                      "background": "#f5faff",
+                      "status-info": "#3b82f6",
+                      "surface-tint": "#006b53",
+                      "secondary": "#546068",
+                      "primary-container": "#00a884",
+                      "error": "#ba1a1a",
+                      "primary": "#006b53",
+                      "primary-fixed": "#79f9d0",
+                      "outline-variant": "#bccac2",
+                      "on-surface": "#131d23",
+                      "surface-container-high": "#dfeaf2",
+                      "border-light": "#e9edef",
+                      "on-tertiary-container": "#5b0f09",
+                      "status-error": "#ef4444",
+                      "inverse-primary": "#59dcb5",
+                      "on-primary-fixed-variant": "#00513e",
+                      "status-warn": "#f59e0b",
+                      "on-background": "#131d23",
+                      "surface-container-low": "#eaf5fe",
+                      "bg-dark": "#0b141a",
+                      "on-secondary-fixed": "#111d24",
+                      "tertiary": "#9e4035",
+                      "surface": "#f5faff",
+                      "bg-light": "#f0f2f5",
+                      "surface-container": "#e5eff8",
+                      "surface-bright": "#f5faff",
+                      "text-secondary-dark": "#8696a0",
+                      "on-secondary": "#ffffff",
+                      "surface-panel-light": "#ffffff",
+                      "on-surface-variant": "#3d4a44",
+                      "surface-panel-dark": "#111b21",
+                      "on-error": "#ffffff",
+                      "tertiary-fixed-dim": "#ffb4a9",
+                      "border-dark": "#313d45",
+                      "on-primary-fixed": "#002117",
+                      "surface-container-highest": "#d9e4ec",
+                      "error-container": "#ffdad6",
+                      "surface-dim": "#d1dbe4",
+                      "on-error-container": "#93000a",
+                      "on-tertiary": "#ffffff",
+                      "on-tertiary-fixed": "#410000",
+                      "inverse-surface": "#283238",
+                      "inverse-on-surface": "#e8f2fb"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "2xl": "1rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "sidebar-expanded": "240px",
+                      "canvas": "16px",
+                      "gutter": "24px",
+                      "base": "8px",
+                      "sidebar-collapsed": "68px"
+              },
+              "fontFamily": {
+                      "display-hero": ["Inter"],
+                      "body-md": ["Inter"],
+                      "mono-data": ["JetBrains Mono"],
+                      "headline-lg": ["Inter"],
+                      "body-sm": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "caption": ["Inter"],
+                      "headline-md": ["Inter"]
+              },
+              "fontSize": {
+                      "display-hero": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "mono-data": ["13px", {"lineHeight": "18px", "letterSpacing": "0.02em", "fontWeight": "400"}],
+                      "headline-lg": ["20px", {"lineHeight": "28px", "fontWeight": "700"}],
+                      "body-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "caption": ["9px", {"lineHeight": "12px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "headline-md": ["18px", {"lineHeight": "24px", "fontWeight": "700"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        body { background-color: #f5faff; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .engagement-arc {
+            stroke-dasharray: 100;
+            transition: stroke-dashoffset 1s ease-out;
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md text-on-surface antialiased overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full w-sidebar-expanded bg-surface-panel-light dark:bg-surface-panel-dark border-r border-border-light dark:border-border-dark shadow-sm flex flex-col py-canvas px-base z-50">
+<div class="mb-10 px-base">
+<h1 class="font-display-hero text-display-hero text-primary dark:text-primary-fixed">WA Marketing</h1>
+<p class="text-body-sm text-text-secondary-light">Business Suite</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-secondary dark:text-text-secondary-dark hover:bg-surface-container dark:hover:bg-secondary-container/20 transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-secondary dark:text-text-secondary-dark hover:bg-surface-container dark:hover:bg-secondary-container/20 transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined">campaign</span>
+<span class="font-medium">Campaigns</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-secondary dark:text-text-secondary-dark hover:bg-surface-container dark:hover:bg-secondary-container/20 transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined">smart_toy</span>
+<span class="font-medium">Automation</span>
+</a>
+<a class="bg-primary-container text-on-primary-container rounded-xl font-bold flex items-center gap-3 px-3 py-2 transition-colors" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-medium">Contacts</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-secondary dark:text-text-secondary-dark hover:bg-surface-container dark:hover:bg-secondary-container/20 transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<span class="font-medium">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-secondary dark:text-text-secondary-dark hover:bg-surface-container dark:hover:bg-secondary-container/20 transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-medium">Settings</span>
+</a>
+</nav>
+<div class="mt-auto space-y-1">
+<button class="w-full bg-primary text-on-primary font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 mb-4 hover:scale-102 transition-transform shadow-sm">
+<span class="material-symbols-outlined">add</span>
+<span>New Campaign</span>
+</button>
+<a class="flex items-center gap-3 px-3 py-2 text-secondary hover:bg-surface-container rounded-xl" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-medium">Help</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-secondary hover:bg-surface-container rounded-xl" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-medium">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-sidebar-expanded min-h-screen flex flex-col h-screen overflow-hidden">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-40 w-full flex justify-between items-center h-16 px-gutter bg-surface/80 backdrop-blur-md border-b border-border-light shadow-sm">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary-light">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border-transparent focus:ring-2 focus:ring-primary/30 rounded-xl text-body-md transition-all outline-none" placeholder="Search contacts..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">dark_mode</span>
+</button>
+<div class="h-8 w-px bg-border-light mx-2"></div>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="font-bold text-on-surface">Alex Rivera</p>
+<p class="text-body-sm text-text-secondary-light">Marketing Lead</p>
+</div>
+<img alt="Profile" class="w-10 h-10 rounded-full border-2 border-primary-container" data-alt="A professional headshot of a Hispanic marketing manager in a well-lit office environment, smiling warmly. He is wearing a modern charcoal grey suit and a white shirt. The background features a blurred corporate workspace with soft bokeh and greenery, embodying a bright, high-performance professional atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAZhBMl_lA_fyoU-VaUYv5YImOzcqOjnVCA1Bq9cApJ9kQ8UY3NXV8tiodv9aDtZN7EfoQhN6eH9UmW83h74F-j_fTu1YZxMWM6_cwQZTXgFzpUaaOR2CSHT-ruXPnpdUKsnxY5iM5Kh52Cf8QQJAPk2yg82OOMJAUUktyb5O4MK8IKQIUENcRQ_MM5YyagpgW3uTG3FO_sy_eX1AStZ7PwH3y79UN-I3w40aw72YphPWrjBGTA2UZh7cjbSe0U0AGGkWxN48hZ11rA"/>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="flex-1 overflow-y-auto p-gutter bg-background scroll-smooth">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+<div>
+<h2 class="font-display-hero text-display-hero text-on-surface">Subscribers</h2>
+<p class="text-body-md text-text-secondary-light">Manage your 12,482 active business contacts</p>
+</div>
+<div class="flex flex-wrap gap-3">
+<button class="flex items-center gap-2 px-4 py-2 border border-border-light bg-surface-panel-light text-secondary rounded-xl hover:bg-surface-container transition-all font-semibold">
+<span class="material-symbols-outlined text-[20px]">refresh</span>
+                        Recalculate Scores
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 border border-border-light bg-surface-panel-light text-secondary rounded-xl hover:bg-surface-container transition-all font-semibold">
+<span class="material-symbols-outlined text-[20px]">upload</span>
+                        Import CSV
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 border border-border-light bg-surface-panel-light text-secondary rounded-xl hover:bg-surface-container transition-all font-semibold">
+<span class="material-symbols-outlined text-[20px]">download</span>
+                        Export
+                    </button>
+<button class="flex items-center gap-2 px-6 py-2 bg-primary text-on-primary rounded-xl hover:scale-102 transition-all font-bold shadow-sm">
+<span class="material-symbols-outlined text-[20px]">person_add</span>
+                        Add Contact
+                    </button>
+</div>
+</div>
+<!-- Filters Bar -->
+<div class="glass-card rounded-2xl p-4 mb-6 flex flex-wrap gap-4 items-center">
+<div class="flex-1 min-w-[200px] relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary-light text-[20px]">search</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-white border border-border-light rounded-xl focus:ring-2 focus:ring-primary/20 transition-all outline-none" placeholder="Search by name, phone or email..." type="text"/>
+</div>
+<select class="px-4 py-2.5 bg-white border border-border-light rounded-xl text-body-md text-on-surface-variant focus:ring-2 focus:ring-primary/20 outline-none min-w-[140px]">
+<option value="">Segment</option>
+<option value="hot">🔥 Hot Lead</option>
+<option value="warm">⚡ Warm Lead</option>
+<option value="cold">❄️ Cold Lead</option>
+</select>
+<select class="px-4 py-2.5 bg-white border border-border-light rounded-xl text-body-md text-on-surface-variant focus:ring-2 focus:ring-primary/20 outline-none min-w-[140px]">
+<option value="">Source</option>
+<option value="facebook">Facebook Ads</option>
+<option value="referral">Referral</option>
+<option value="direct">Direct Traffic</option>
+</select>
+<select class="px-4 py-2.5 bg-white border border-border-light rounded-xl text-body-md text-on-surface-variant focus:ring-2 focus:ring-primary/20 outline-none min-w-[140px]">
+<option value="">Status</option>
+<option value="active">Active</option>
+<option value="paused">Paused</option>
+<option value="blocked">Blocked</option>
+</select>
+<button class="p-2.5 text-primary hover:bg-primary-container/10 rounded-xl transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+<!-- Contacts Table Container -->
+<div class="bg-surface-panel-light rounded-2xl border border-border-light shadow-sm overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-border-light">
+<th class="px-6 py-4 font-bold text-text-secondary-light uppercase text-[11px] tracking-wider">Contact</th>
+<th class="px-6 py-4 font-bold text-text-secondary-light uppercase text-[11px] tracking-wider">Communication</th>
+<th class="px-6 py-4 font-bold text-text-secondary-light uppercase text-[11px] tracking-wider">Source</th>
+<th class="px-6 py-4 font-bold text-text-secondary-light uppercase text-[11px] tracking-wider">Engagement</th>
+<th class="px-6 py-4 font-bold text-text-secondary-light uppercase text-[11px] tracking-wider">Segment</th>
+<th class="px-6 py-4 font-bold text-text-secondary-light uppercase text-[11px] tracking-wider">Tags</th>
+<th class="px-6 py-4 font-bold text-text-secondary-light uppercase text-[11px] tracking-wider">Status</th>
+<th class="px-6 py-4"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-light">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img alt="Contact" class="w-10 h-10 rounded-xl object-cover" data-alt="A portrait of a young professional woman with a friendly expression. She is in a high-tech studio with soft, diffused teal and white lighting that reflects a modern SaaS brand aesthetic. The focus is sharp on her features, with a shallow depth of field, creating a premium and trustworthy visual profile." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDQ-dO1LTf4DEiDycSqUHPRDpEHwDbQFf8uBggm2qCeHqq2LYKt_sbmzF3pE-R3CZbpw3YdKlrG45VMlFGwTqos0s187E7Bg6aLd6RwRjSKNlmUc91sk6kxgpkza14Ukcolxz6heoZxcOAcmnMboeTLQswK6qqQJxLdW_C5uRN1YqXtNfzY3qZ-XrSPgpczk1rAS0Rwtn53v5UsOiNiP-jLQIkfUB6zN_i2VCu6oOp1aif8sBFwNJ3VBJvAVIixiyJrFah9safx8INm"/>
+<div>
+<p class="font-bold text-on-surface">Elena Rodriguez</p>
+<p class="text-caption text-text-secondary-light uppercase">Joined 2 days ago</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<p class="font-mono-data text-on-surface-variant">+1 (555) 012-3456</p>
+<p class="text-body-sm text-text-secondary-light">elena.r@corporate.com</p>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-1 bg-surface-container-highest text-on-surface-variant text-[11px] font-bold rounded-lg uppercase tracking-tight">
+                                        Facebook Ads
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="relative w-10 h-10 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-surface-container-highest" cx="20" cy="20" fill="transparent" r="16" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-primary engagement-arc" cx="20" cy="20" fill="transparent" r="16" stroke="currentColor" stroke-dasharray="100" stroke-dashoffset="15" stroke-width="4"></circle>
+</svg>
+<span class="absolute text-[10px] font-bold">85</span>
+</div>
+<span class="text-body-sm font-medium text-primary">High</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 bg-tertiary-container/20 text-on-tertiary-container text-body-sm font-bold rounded-full">
+<span class="w-1.5 h-1.5 bg-tertiary-container rounded-full"></span>
+                                        Hot Lead
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-wrap gap-1">
+<span class="px-2 py-0.5 bg-status-info/10 text-status-info text-[10px] font-bold rounded-md uppercase">Vip</span>
+<span class="px-2 py-0.5 bg-status-warn/10 text-status-warn text-[10px] font-bold rounded-md uppercase">Ebook</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<button class="w-10 h-5 bg-primary-container rounded-full relative transition-colors">
+<div class="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"></div>
+</button>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-2 text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img alt="Contact" class="w-10 h-10 rounded-xl object-cover" data-alt="A portrait of a male entrepreneur in his 30s. He has a clean-cut look and is wearing a modern casual linen shirt. The backdrop is a soft, minimalist architectural space with warm sunlight filtering through, creating a clean, high-end lifestyle vibe consistent with a professional business tool." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCrL_wOPqAmPjcvmSvjxWU5kk7Poki3wfCiXgMngKn0rG_ujCXEw9aJ_80GYdLjw2bxbTUQU4QAJ_j63E_ED_mKRyWa4eHJ8uTFEnOKtoF1jwfQw3v10DyppjtDhGmBapEU69TP8io8x5ZhlzGi-gtWNsN86kjSd-vLxe72Lcu_02B0Y3d9QEGC_7kYnPIkozcMMcB61yHCH_phRa6NSqgjEYMLLRZZIaizOUM1iSylLR8chDE-XG1LQPVrex4Zu8AnjM7LAZHueAFZ"/>
+<div>
+<p class="font-bold text-on-surface">Marcus Chen</p>
+<p class="text-caption text-text-secondary-light uppercase">Joined 1 week ago</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<p class="font-mono-data text-on-surface-variant">+44 20 7123 4567</p>
+<p class="text-body-sm text-text-secondary-light">m.chen@techflow.io</p>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-1 bg-surface-container-highest text-on-surface-variant text-[11px] font-bold rounded-lg uppercase tracking-tight">
+                                        Referral
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="relative w-10 h-10 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-surface-container-highest" cx="20" cy="20" fill="transparent" r="16" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-status-warn engagement-arc" cx="20" cy="20" fill="transparent" r="16" stroke="currentColor" stroke-dasharray="100" stroke-dashoffset="55" stroke-width="4"></circle>
+</svg>
+<span class="absolute text-[10px] font-bold">45</span>
+</div>
+<span class="text-body-sm font-medium text-status-warn">Medium</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 bg-secondary-container/30 text-on-secondary-container text-body-sm font-bold rounded-full">
+<span class="w-1.5 h-1.5 bg-secondary-container rounded-full"></span>
+                                        Warm Lead
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-wrap gap-1">
+<span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-md uppercase">Tech</span>
+<span class="px-2 py-0.5 bg-status-info/10 text-status-info text-[10px] font-bold rounded-md uppercase">SaaS</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<button class="w-10 h-5 bg-primary-container rounded-full relative transition-colors">
+<div class="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"></div>
+</button>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-2 text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img alt="Contact" class="w-10 h-10 rounded-xl object-cover" data-alt="A portrait of a creative director in an urban studio. She has vibrant energy and is wearing stylish, contemporary glasses. The lighting is crisp with cool undertones and soft highlights, reflecting a high-end, creative business persona in a professional, modern marketing environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkI-7H7QVZZwmSvpgN06bMCB28feVByecv8-HsN1kQ2kseSE1rJFPQaO1avdjzme3L6TIUkhosDA0FqTMUyJgtUjvcSAdSzH4GCMB6xuCZYVqvRZdgG0dubGRPclWAtkIOrpPZ_-cB3bxO2yEu4G0Zm8FBUgyHIGqtttzO_7cZO4C94aY_Q1k-2XIqhEd7IGQNK2I_3ElFNwoeg6NcOLK0bfFXgHE9PDhDNt0WExJq2snnaU1AolLJyVUu-cTWbPGoKN2sUmFrFqux"/>
+<div>
+<p class="font-bold text-on-surface">Sarah Jenkins</p>
+<p class="text-caption text-text-secondary-light uppercase">Joined 1 month ago</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<p class="font-mono-data text-on-surface-variant">+61 2 9876 5432</p>
+<p class="text-body-sm text-text-secondary-light">s.jenkins@design.com</p>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-1 bg-surface-container-highest text-on-surface-variant text-[11px] font-bold rounded-lg uppercase tracking-tight">
+                                        Direct
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="relative w-10 h-10 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-surface-container-highest" cx="20" cy="20" fill="transparent" r="16" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-status-error engagement-arc" cx="20" cy="20" fill="transparent" r="16" stroke="currentColor" stroke-dasharray="100" stroke-dashoffset="88" stroke-width="4"></circle>
+</svg>
+<span class="absolute text-[10px] font-bold">12</span>
+</div>
+<span class="text-body-sm font-medium text-status-error">Low</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 bg-surface-container text-text-secondary-light text-body-sm font-bold rounded-full">
+<span class="w-1.5 h-1.5 bg-outline-variant rounded-full"></span>
+                                        Cold Lead
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-wrap gap-1">
+<span class="px-2 py-0.5 bg-outline-variant/10 text-outline text-[10px] font-bold rounded-md uppercase">Inactive</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<button class="w-10 h-5 bg-outline-variant/30 rounded-full relative transition-colors">
+<div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"></div>
+</button>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-2 text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="px-6 py-4 bg-surface-container-low flex justify-between items-center border-t border-border-light">
+<p class="text-body-sm text-text-secondary-light">Showing <span class="font-bold text-on-surface">1-25</span> of 12,482 contacts</p>
+<div class="flex items-center gap-2">
+<button class="p-1 text-secondary hover:bg-surface-container rounded transition-colors disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<div class="flex gap-1">
+<button class="w-8 h-8 flex items-center justify-center bg-primary text-on-primary rounded font-bold text-body-sm">1</button>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-surface-container text-on-surface rounded font-medium text-body-sm">2</button>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-surface-container text-on-surface rounded font-medium text-body-sm">3</button>
+<span class="px-2">...</span>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-surface-container text-on-surface rounded font-medium text-body-sm">500</button>
+</div>
+<button class="p-1 text-secondary hover:bg-surface-container rounded transition-colors">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Stats Overview (Asymmetric/Bento element) -->
+<div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="glass-card p-6 rounded-2xl flex items-center gap-4 border-l-4 border-primary">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[32px]">trending_up</span>
+</div>
+<div>
+<p class="text-body-sm text-text-secondary-light uppercase font-bold tracking-wider">Growth Rate</p>
+<p class="text-display-hero text-on-surface">+12.5% <span class="text-body-sm font-medium text-primary">vs last month</span></p>
+</div>
+</div>
+<div class="glass-card p-6 rounded-2xl flex items-center gap-4 border-l-4 border-status-info">
+<div class="w-12 h-12 rounded-full bg-status-info/10 flex items-center justify-center text-status-info">
+<span class="material-symbols-outlined text-[32px]">forum</span>
+</div>
+<div>
+<p class="text-body-sm text-text-secondary-light uppercase font-bold tracking-wider">Avg Engagement</p>
+<p class="text-display-hero text-on-surface">64.2 <span class="text-body-sm font-medium text-status-info">Points</span></p>
+</div>
+</div>
+<div class="glass-card p-6 rounded-2xl flex items-center gap-4 border-l-4 border-tertiary">
+<div class="w-12 h-12 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-[32px]">verified_user</span>
+</div>
+<div>
+<p class="text-body-sm text-text-secondary-light uppercase font-bold tracking-wider">Opt-in Rate</p>
+<p class="text-display-hero text-on-surface">92.8% <span class="text-body-sm font-medium text-tertiary">Global</span></p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Micro-interactions Script -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Simulated toggle behavior
+            const toggles = document.querySelectorAll('button.relative');
+            toggles.forEach(toggle => {
+                toggle.addEventListener('click', () => {
+                    const knob = toggle.querySelector('div');
+                    const isActive = toggle.classList.contains('bg-primary-container');
+                    
+                    if (isActive) {
+                        toggle.classList.remove('bg-primary-container');
+                        toggle.classList.add('bg-outline-variant/30');
+                        knob.style.transform = 'translateX(-20px)';
+                    } else {
+                        toggle.classList.add('bg-primary-container');
+                        toggle.classList.remove('bg-outline-variant/30');
+                        knob.style.transform = 'translateX(0px)';
+                    }
+                });
+            });
+
+            // Smooth entry animations
+            const tableRows = document.querySelectorAll('tbody tr');
+            tableRows.forEach((row, index) => {
+                row.style.opacity = '0';
+                row.style.transform = 'translateY(10px)';
+                setTimeout(() => {
+                    row.style.transition = 'all 0.4s ease-out';
+                    row.style.opacity = '1';
+                    row.style.transform = 'translateY(0)';
+                }, index * 50);
+            });
+        });
+    </script>
+</body></html>

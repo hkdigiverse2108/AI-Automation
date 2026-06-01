@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Analytics | WA Business Marketing Suite</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "status-info": "#3b82f6",
+                        "on-primary-fixed": "#002117",
+                        "primary-fixed-dim": "#59dcb5",
+                        "inverse-on-surface": "#e8f2fb",
+                        "border-light": "#e9edef",
+                        "inverse-surface": "#283238",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed": "#111d24",
+                        "on-primary-fixed-variant": "#00513e",
+                        "on-error": "#ffffff",
+                        "inverse-primary": "#59dcb5",
+                        "tertiary-container": "#e27465",
+                        "secondary": "#546068",
+                        "tertiary": "#9e4035",
+                        "tertiary-fixed-dim": "#ffb4a9",
+                        "secondary-container": "#d7e4ee",
+                        "text-secondary-dark": "#8696a0",
+                        "surface-dim": "#d1dbe4",
+                        "on-secondary": "#ffffff",
+                        "on-surface": "#131d23",
+                        "on-surface-variant": "#3d4a44",
+                        "surface-container-high": "#dfeaf2",
+                        "surface-container": "#e5eff8",
+                        "on-tertiary-container": "#5b0f09",
+                        "surface-tint": "#006b53",
+                        "surface": "#f5faff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "bg-light": "#f0f2f5",
+                        "tertiary-fixed": "#ffdad5",
+                        "on-tertiary-fixed-variant": "#7f2920",
+                        "error": "#ba1a1a",
+                        "primary-container": "#00a884",
+                        "surface-panel-dark": "#111b21",
+                        "primary-fixed": "#79f9d0",
+                        "surface-container-highest": "#d9e4ec",
+                        "surface-panel-light": "#ffffff",
+                        "surface-variant": "#d9e4ec",
+                        "background": "#f5faff",
+                        "on-tertiary-fixed": "#410000",
+                        "outline-variant": "#bccac2",
+                        "on-secondary-fixed-variant": "#3c4850",
+                        "on-background": "#131d23",
+                        "outline": "#6c7a74",
+                        "bg-dark": "#0b141a",
+                        "primary": "#006b53",
+                        "status-warn": "#f59e0b",
+                        "status-error": "#ef4444",
+                        "error-container": "#ffdad6",
+                        "border-dark": "#313d45",
+                        "text-secondary-light": "#667781",
+                        "on-secondary-container": "#5a666e",
+                        "secondary-fixed": "#d7e4ee",
+                        "on-primary-container": "#003427",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#eaf5fe",
+                        "secondary-fixed-dim": "#bbc8d1",
+                        "surface-bright": "#f5faff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sidebar-collapsed": "68px",
+                        "gutter": "24px",
+                        "sidebar-expanded": "240px",
+                        "canvas": "16px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "caption": ["Inter"],
+                        "display-hero": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "mono-data": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["18px", {"lineHeight": "24px", "fontWeight": "700"}],
+                        "body-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "caption": ["9px", {"lineHeight": "12px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "display-hero": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg": ["20px", {"lineHeight": "28px", "fontWeight": "700"}],
+                        "mono-data": ["13px", {"lineHeight": "18px", "letterSpacing": "0.02em", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f0f2f5; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #bccac2; border-radius: 10px; }
+        .heatmap-cell { transition: all 0.2s ease; }
+        .heatmap-cell:hover { transform: scale(1.1); z-index: 10; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-background text-on-surface">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-sidebar-expanded z-40 bg-surface-panel-light/90 backdrop-blur-lg border-r border-border-light flex flex-col pt-20 pb-4 hidden md:flex">
+<div class="px-6 mb-8">
+<h1 class="font-headline-lg text-headline-lg text-primary">WA Business</h1>
+<p class="text-on-surface-variant font-body-sm text-body-sm opacity-70">Marketing Suite</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center text-on-surface-variant hover:bg-secondary-container/50 transition-all mx-2 my-1 px-4 py-2 font-body-md text-body-md group" href="#">
+<span class="material-symbols-outlined mr-3">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center text-on-surface-variant hover:bg-secondary-container/50 transition-all mx-2 my-1 px-4 py-2 font-body-md text-body-md group" href="#">
+<span class="material-symbols-outlined mr-3">inbox</span>
+                Inbox
+            </a>
+<a class="flex items-center text-on-surface-variant hover:bg-secondary-container/50 transition-all mx-2 my-1 px-4 py-2 font-body-md text-body-md group" href="#">
+<span class="material-symbols-outlined mr-3">campaign</span>
+                Campaigns
+            </a>
+<a class="flex items-center text-on-surface-variant hover:bg-secondary-container/50 transition-all mx-2 my-1 px-4 py-2 font-body-md text-body-md group" href="#">
+<span class="material-symbols-outlined mr-3">smart_toy</span>
+                Automation
+            </a>
+<a class="flex items-center text-on-surface-variant hover:bg-secondary-container/50 transition-all mx-2 my-1 px-4 py-2 font-body-md text-body-md group" href="#">
+<span class="material-symbols-outlined mr-3">group</span>
+                Contacts
+            </a>
+<a class="flex items-center bg-primary-container text-on-primary-container rounded-xl mx-2 my-1 px-4 py-2 font-bold font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined mr-3" style="font-variation-settings: 'FILL' 1;">analytics</span>
+                Analytics
+            </a>
+<a class="flex items-center text-on-surface-variant hover:bg-secondary-container/50 transition-all mx-2 my-1 px-4 py-2 font-body-md text-body-md group" href="#">
+<span class="material-symbols-outlined mr-3">settings</span>
+                Settings
+            </a>
+</nav>
+<div class="px-4 mt-auto">
+<button class="w-full bg-primary text-white rounded-xl py-3 font-bold hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">add_circle</span>
+                New Campaign
+            </button>
+<div class="mt-4 pt-4 border-t border-border-light">
+<a class="flex items-center text-on-surface-variant hover:bg-secondary-container/50 transition-all px-4 py-2 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined mr-3">help_outline</span>
+                    Help Center
+                </a>
+</div>
+</div>
+</aside>
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl border-b border-border-light shadow-sm flex justify-between items-center px-gutter h-16">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined md:hidden cursor-pointer">menu</span>
+<span class="font-display-hero text-display-hero text-primary">Marketing Suite</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex items-center gap-2 bg-surface-container-low px-4 py-2 rounded-full border border-border-light">
+<span class="material-symbols-outlined text-outline text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-md font-body-md w-48" placeholder="Search analytics..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors active:scale-95">
+<span class="material-symbols-outlined text-on-surface-variant">sync</span>
+</button>
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors relative active:scale-95">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full border border-white"></span>
+</button>
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors active:scale-95">
+<span class="material-symbols-outlined text-on-surface-variant">help</span>
+</button>
+<div class="h-8 w-px bg-border-light mx-1"></div>
+<div class="flex items-center gap-3 cursor-pointer group">
+<div class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-white font-bold overflow-hidden border-2 border-white shadow-sm group-hover:scale-105 transition-transform">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="A professional high-quality headshot of a smiling female marketing executive in a modern workspace. The lighting is bright and airy, typical of a professional corporate environment. She is wearing a smart casual blazer. The background is softly blurred showing a contemporary tech office with plants and glass walls." src="https://lh3.googleusercontent.com/aida-public/AB6AXuALh5vIbiTBEjDO_q8sfY5G38FtZLAiwoCGnUqLxMtqCUut3tnpG3-2L_tYhtt-07SCJOB0asUFT6sSF72COgguOaQ0fbPq7lNHhvNMBtPlYjhc0OlsXNn3xP5KGDyxES9WLttRqJiPws2FFWwHWYbt5_-eRN118H9fLHLL1EMJxL2EhlYvSoJM__vCf17OVaQIN-gfb4_YfOIJuLVlrK31RlRsiR1UULxKYkqqA1o6mfxAkZFGJdSP67_W0JrpLHe4O3a-O13k0hvP"/>
+</div>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="pt-16 md:pl-sidebar-expanded min-h-screen overflow-y-auto custom-scrollbar">
+<div class="p-gutter max-w-[1600px] mx-auto space-y-gutter">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fade-in" style="animation-delay: 0.1s;">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Analytics</h2>
+<p class="text-text-secondary-light font-body-md text-body-md">Real-time performance metrics for your WhatsApp campaigns.</p>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex bg-white/50 backdrop-blur-sm p-1 rounded-xl border border-border-light shadow-sm">
+<button class="px-4 py-1.5 rounded-lg text-body-sm font-bold transition-all bg-primary-container text-on-primary-container shadow-sm">7 Days</button>
+<button class="px-4 py-1.5 rounded-lg text-body-sm font-medium text-on-surface-variant hover:bg-surface-container transition-all">30 Days</button>
+<button class="px-4 py-1.5 rounded-lg text-body-sm font-medium text-on-surface-variant hover:bg-surface-container transition-all">90 Days</button>
+</div>
+<button class="flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-border-light text-on-surface-variant hover:bg-surface-container-low transition-all active:scale-95 shadow-sm">
+<span class="material-symbols-outlined">refresh</span>
+</button>
+</div>
+</div>
+<!-- Overview Stat Cards -->
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+<!-- Card 1 -->
+<div class="glass-card p-5 rounded-2xl shadow-sm animate-fade-in" style="animation-delay: 0.2s;">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat_bubble</span>
+</div>
+<span class="text-primary text-[11px] font-bold flex items-center">+12% ↑</span>
+</div>
+<p class="text-text-secondary-light font-body-sm text-body-sm mb-1">Total Messages</p>
+<h3 class="font-display-hero text-display-hero text-on-surface">42,892</h3>
+</div>
+<!-- Card 2 -->
+<div class="glass-card p-5 rounded-2xl shadow-sm animate-fade-in" style="animation-delay: 0.25s;">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-status-info/10 rounded-lg text-status-info">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">groups</span>
+</div>
+<span class="text-primary text-[11px] font-bold flex items-center">+5% ↑</span>
+</div>
+<p class="text-text-secondary-light font-body-sm text-body-sm mb-1">Active Contacts</p>
+<h3 class="font-display-hero text-display-hero text-on-surface">8,421</h3>
+</div>
+<!-- Card 3 -->
+<div class="glass-card p-5 rounded-2xl shadow-sm animate-fade-in" style="animation-delay: 0.3s;">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-status-warn/10 rounded-lg text-status-warn">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">speed</span>
+</div>
+<span class="text-status-error text-[11px] font-bold flex items-center">-2% ↓</span>
+</div>
+<p class="text-text-secondary-light font-body-sm text-body-sm mb-1">Response Rate</p>
+<h3 class="font-display-hero text-display-hero text-on-surface">94.2%</h3>
+</div>
+<!-- Card 4 -->
+<div class="glass-card p-5 rounded-2xl shadow-sm animate-fade-in" style="animation-delay: 0.35s;">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-tertiary/10 rounded-lg text-tertiary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">schedule</span>
+</div>
+<span class="text-primary text-[11px] font-bold flex items-center">+18% ↑</span>
+</div>
+<p class="text-text-secondary-light font-body-sm text-body-sm mb-1">Avg Response</p>
+<h3 class="font-display-hero text-display-hero text-on-surface">14m</h3>
+</div>
+<!-- Card 5 -->
+<div class="glass-card p-5 rounded-2xl shadow-sm animate-fade-in" style="animation-delay: 0.4s;">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<span class="text-primary text-[11px] font-bold flex items-center">+4% ↑</span>
+</div>
+<p class="text-text-secondary-light font-body-sm text-body-sm mb-1">Bot Rate</p>
+<h3 class="font-display-hero text-display-hero text-on-surface">78%</h3>
+</div>
+<!-- Card 6 -->
+<div class="glass-card p-5 rounded-2xl shadow-sm animate-fade-in" style="animation-delay: 0.45s;">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-status-info/10 rounded-lg text-status-info">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">rocket_launch</span>
+</div>
+<span class="text-primary text-[11px] font-bold flex items-center">+22% ↑</span>
+</div>
+<p class="text-text-secondary-light font-body-sm text-body-sm mb-1">Campaign Reach</p>
+<h3 class="font-display-hero text-display-hero text-on-surface">125k</h3>
+</div>
+</div>
+<!-- Charts Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-gutter">
+<!-- 1. Message Trends -->
+<div class="glass-card p-6 rounded-2xl shadow-sm flex flex-col h-[400px]">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h4 class="font-headline-md text-headline-md text-on-surface">Message Trends</h4>
+<p class="text-text-secondary-light text-body-sm font-body-sm">Inbound vs Outbound activity</p>
+</div>
+<div class="flex gap-4">
+<div class="flex items-center gap-1.5">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+<span class="text-caption font-caption text-on-surface-variant">Inbound</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="w-3 h-3 rounded-full bg-outline-variant"></span>
+<span class="text-caption font-caption text-on-surface-variant">Outbound</span>
+</div>
+</div>
+</div>
+<div class="flex-1 flex items-end justify-between gap-1 pb-2">
+<!-- Mockup Line Chart visualization using CSS -->
+<div class="w-full h-full relative overflow-hidden bg-surface-container-low/30 rounded-lg border border-border-light/50">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 100 50">
+<path d="M0,45 Q10,35 20,40 T40,25 T60,30 T80,10 T100,5" fill="none" stroke="#00a884" stroke-width="2"></path>
+<path d="M0,48 Q10,42 20,45 T40,35 T60,40 T80,25 T100,20" fill="none" stroke="#bccac2" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+</div>
+<!-- 2. Contact Growth -->
+<div class="glass-card p-6 rounded-2xl shadow-sm flex flex-col h-[400px]">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h4 class="font-headline-md text-headline-md text-on-surface">Contact Growth</h4>
+<p class="text-text-secondary-light text-body-sm font-body-sm">New subscribers per day</p>
+</div>
+</div>
+<div class="flex-1 relative bg-surface-container-low/30 rounded-lg border border-border-light/50 overflow-hidden">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 100 50">
+<defs>
+<lineargradient id="growthGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#00a884" stop-opacity="0.3"></stop>
+<stop offset="100%" stop-color="#00a884" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<path d="M0,50 L0,45 Q15,42 30,35 T60,15 T100,5 L100,50 Z" fill="url(#growthGradient)"></path>
+<path d="M0,45 Q15,42 30,35 T60,15 T100,5" fill="none" stroke="#00a884" stroke-width="3"></path>
+</svg>
+</div>
+</div>
+<!-- 3. Campaign Performance -->
+<div class="glass-card p-6 rounded-2xl shadow-sm flex flex-col h-[400px]">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h4 class="font-headline-md text-headline-md text-on-surface">Campaign Performance</h4>
+<p class="text-text-secondary-light text-body-sm font-body-sm">Funnel metrics by campaign</p>
+</div>
+</div>
+<div class="flex-1 flex items-end justify-between gap-4 px-2">
+<!-- Bar chart columns -->
+<div class="flex-1 flex flex-col items-center gap-1">
+<div class="w-full flex flex-col-reverse gap-0.5">
+<div class="w-full bg-primary h-40 rounded-t-sm" title="Sent: 12k"></div>
+<div class="w-full bg-primary/60 h-32 rounded-t-sm" title="Delivered: 10k"></div>
+<div class="w-full bg-primary/30 h-24 rounded-t-sm" title="Read: 8k"></div>
+</div>
+<span class="text-caption font-caption text-on-surface-variant">Blast v1</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-1">
+<div class="w-full flex flex-col-reverse gap-0.5">
+<div class="w-full bg-primary h-32 rounded-t-sm"></div>
+<div class="w-full bg-primary/60 h-24 rounded-t-sm"></div>
+<div class="w-full bg-primary/30 h-16 rounded-t-sm"></div>
+</div>
+<span class="text-caption font-caption text-on-surface-variant">Promo A</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-1">
+<div class="w-full flex flex-col-reverse gap-0.5">
+<div class="w-full bg-primary h-48 rounded-t-sm"></div>
+<div class="w-full bg-primary/60 h-40 rounded-t-sm"></div>
+<div class="w-full bg-primary/30 h-32 rounded-t-sm"></div>
+</div>
+<span class="text-caption font-caption text-on-surface-variant">Flash Sale</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-1">
+<div class="w-full flex flex-col-reverse gap-0.5">
+<div class="w-full bg-primary h-24 rounded-t-sm"></div>
+<div class="w-full bg-primary/60 h-18 rounded-t-sm"></div>
+<div class="w-full bg-primary/30 h-12 rounded-t-sm"></div>
+</div>
+<span class="text-caption font-caption text-on-surface-variant">Reminder</span>
+</div>
+</div>
+</div>
+<!-- 4. Hourly Activity Heatmap -->
+<div class="glass-card p-6 rounded-2xl shadow-sm flex flex-col h-[400px]">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h4 class="font-headline-md text-headline-md text-on-surface">Activity Heatmap</h4>
+<p class="text-text-secondary-light text-body-sm font-body-sm">Intensity by hour and day</p>
+</div>
+</div>
+<div class="flex-1 grid grid-cols-[30px_1fr] gap-2 overflow-hidden">
+<div class="flex flex-col justify-between text-caption font-caption text-text-secondary-light py-2">
+<span>Mon</span><span>Wed</span><span>Fri</span><span>Sun</span>
+</div>
+<div class="grid grid-cols-12 grid-rows-7 gap-1">
+<!-- Loop to create heatmap cells -->
+<script>
+                                for(let i=0; i<84; i++) {
+                                    const opacity = Math.random();
+                                    document.write(`<div class="heatmap-cell rounded-sm bg-primary" style="opacity: ${opacity < 0.2 ? 0.05 : opacity};"></div>`);
+                                }
+                            </script>
+</div>
+</div>
+<div class="mt-4 flex justify-between items-center px-8 text-caption font-caption text-text-secondary-light">
+<span>12 AM</span><span>12 PM</span><span>11 PM</span>
+</div>
+</div>
+<!-- 5. Conversation Status Distribution -->
+<div class="glass-card p-6 rounded-2xl shadow-sm flex flex-col h-[400px]">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h4 class="font-headline-md text-headline-md text-on-surface">Conversation Status</h4>
+<p class="text-text-secondary-light text-body-sm font-body-sm">Workflow stage breakdown</p>
+</div>
+</div>
+<div class="flex-1 flex flex-col items-center justify-center">
+<div class="relative w-48 h-48 rounded-full border-[18px] border-primary-container flex items-center justify-center">
+<div class="absolute inset-[-18px] w-48 h-48 rounded-full border-[18px] border-status-info border-t-transparent border-l-transparent transform rotate-45"></div>
+<div class="absolute inset-[-18px] w-48 h-48 rounded-full border-[18px] border-status-warn border-b-transparent border-r-transparent border-l-transparent transform -rotate-12"></div>
+<div class="text-center">
+<span class="font-headline-lg text-headline-lg block">2.4k</span>
+<span class="text-caption font-caption text-text-secondary-light uppercase tracking-widest">Active</span>
+</div>
+</div>
+<div class="mt-8 grid grid-cols-2 gap-x-8 gap-y-2 w-full max-w-xs">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-primary-container"></div>
+<span class="text-body-sm font-body-sm text-on-surface">Bot (45%)</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-status-info"></div>
+<span class="text-body-sm font-body-sm text-on-surface">Human (30%)</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-status-warn"></div>
+<span class="text-body-sm font-body-sm text-on-surface">Waiting (15%)</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-outline-variant"></div>
+<span class="text-body-sm font-body-sm text-on-surface">Done (10%)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 6. Conversations by Source -->
+<div class="glass-card p-6 rounded-2xl shadow-sm flex flex-col h-[400px]">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h4 class="font-headline-md text-headline-md text-on-surface">Conversations by Source</h4>
+<p class="text-text-secondary-light text-body-sm font-body-sm">Traffic origin analysis</p>
+</div>
+</div>
+<div class="flex-1 space-y-5">
+<div>
+<div class="flex justify-between mb-1.5">
+<span class="text-body-sm font-body-sm">WhatsApp Native</span>
+<span class="text-body-sm font-bold">58%</span>
+</div>
+<div class="w-full bg-surface-container rounded-full h-2">
+<div class="bg-primary h-full rounded-full w-[58%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between mb-1.5">
+<span class="text-body-sm font-body-sm">Manual Import</span>
+<span class="text-body-sm font-bold">22%</span>
+</div>
+<div class="w-full bg-surface-container rounded-full h-2">
+<div class="bg-status-info h-full rounded-full w-[22%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between mb-1.5">
+<span class="text-body-sm font-body-sm">API Webhook</span>
+<span class="text-body-sm font-bold">12%</span>
+</div>
+<div class="w-full bg-surface-container rounded-full h-2">
+<div class="bg-tertiary-container h-full rounded-full w-[12%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between mb-1.5">
+<span class="text-body-sm font-body-sm">Other/System</span>
+<span class="text-body-sm font-bold">8%</span>
+</div>
+<div class="w-full bg-surface-container rounded-full h-2">
+<div class="bg-outline h-full rounded-full w-[8%]"></div>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-border-light flex justify-between">
+<div class="text-center">
+<span class="block text-body-sm font-bold text-on-surface">1.2k</span>
+<span class="text-caption font-caption text-text-secondary-light">New Sources</span>
+</div>
+<div class="text-center">
+<span class="block text-body-sm font-bold text-primary">+4.2%</span>
+<span class="text-caption font-caption text-text-secondary-light">Growth</span>
+</div>
+<div class="text-center">
+<span class="block text-body-sm font-bold text-on-surface">98%</span>
+<span class="text-caption font-caption text-text-secondary-light">Accuracy</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Space for Scroll Clarity -->
+<div class="h-10"></div>
+</div>
+</main>
+<!-- FAB for Quick Actions (Suppressed as per rules for Analytics, but showing structure) -->
+<!-- <button class="fixed bottom-6 right-6 w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+        <span class="material-symbols-outlined">add</span>
+    </button> -->
+<script>
+        // Simple micro-interaction for active states
+        document.querySelectorAll('.glass-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-4px)';
+                card.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0)';
+            });
+        });
+
+        // Toggle period selection
+        const periodButtons = document.querySelectorAll('.bg-white\\/50 button');
+        periodButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                periodButtons.forEach(b => {
+                    b.classList.remove('bg-primary-container', 'text-on-primary-container', 'shadow-sm', 'font-bold');
+                    b.classList.add('text-on-surface-variant', 'font-medium');
+                });
+                btn.classList.add('bg-primary-container', 'text-on-primary-container', 'shadow-sm', 'font-bold');
+                btn.classList.remove('text-on-surface-variant', 'font-medium');
+                
+                // Simulate refresh
+                document.body.style.opacity = '0.9';
+                setTimeout(() => document.body.style.opacity = '1', 150);
+            });
+        });
+    </script>
+</body></html>

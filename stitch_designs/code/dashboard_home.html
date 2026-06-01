@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>WA Business Marketing Suite - Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#d9e4ec",
+                        "text-secondary-light": "#667781",
+                        "secondary-fixed-dim": "#bbc8d1",
+                        "outline": "#6c7a74",
+                        "tertiary-container": "#e27465",
+                        "on-primary-container": "#003427",
+                        "on-tertiary-fixed-variant": "#7f2920",
+                        "on-secondary-container": "#5a666e",
+                        "tertiary-fixed": "#ffdad5",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed-variant": "#3c4850",
+                        "primary-fixed-dim": "#59dcb5",
+                        "secondary-container": "#d7e4ee",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed": "#d7e4ee",
+                        "background": "#f5faff",
+                        "status-info": "#3b82f6",
+                        "surface-tint": "#006b53",
+                        "secondary": "#546068",
+                        "primary-container": "#00a884",
+                        "error": "#ba1a1a",
+                        "primary": "#006b53",
+                        "primary-fixed": "#79f9d0",
+                        "outline-variant": "#bccac2",
+                        "on-surface": "#131d23",
+                        "surface-container-high": "#dfeaf2",
+                        "border-light": "#e9edef",
+                        "on-tertiary-container": "#5b0f09",
+                        "status-error": "#ef4444",
+                        "inverse-primary": "#59dcb5",
+                        "on-primary-fixed-variant": "#00513e",
+                        "status-warn": "#f59e0b",
+                        "on-background": "#131d23",
+                        "surface-container-low": "#eaf5fe",
+                        "bg-dark": "#0b141a",
+                        "on-secondary-fixed": "#111d24",
+                        "tertiary": "#9e4035",
+                        "surface": "#f5faff",
+                        "bg-light": "#f0f2f5",
+                        "surface-container": "#e5eff8",
+                        "surface-bright": "#f5faff",
+                        "text-secondary-dark": "#8696a0",
+                        "on-secondary": "#ffffff",
+                        "surface-panel-light": "#ffffff",
+                        "on-surface-variant": "#3d4a44",
+                        "surface-panel-dark": "#111b21",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed-dim": "#ffb4a9",
+                        "border-dark": "#313d45",
+                        "on-primary-fixed": "#002117",
+                        "surface-container-highest": "#d9e4ec",
+                        "error-container": "#ffdad6",
+                        "surface-dim": "#d1dbe4",
+                        "on-error-container": "#93000a",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed": "#410000",
+                        "inverse-surface": "#283238",
+                        "inverse-on-surface": "#e8f2fb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sidebar-expanded": "240px",
+                        "canvas": "16px",
+                        "gutter": "24px",
+                        "base": "8px",
+                        "sidebar-collapsed": "68px"
+                    },
+                    "fontFamily": {
+                        "display-hero": ["Inter"],
+                        "body-md": ["Inter"],
+                        "mono-data": ["jetbrainsMono"],
+                        "headline-lg": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "caption": ["Inter"],
+                        "headline-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "display-hero": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "mono-data": ["13px", {"lineHeight": "18px", "letterSpacing": "0.02em", "fontWeight": "400"}],
+                        "headline-lg": ["20px", {"lineHeight": "28px", "fontWeight": "700"}],
+                        "body-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "caption": ["9px", {"lineHeight": "12px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-md": ["18px", {"lineHeight": "24px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md selection:bg-primary/20">
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full w-sidebar-expanded bg-surface-panel-light border-r border-border-light shadow-sm flex flex-col py-canvas px-base z-50">
+<div class="mb-10 px-canvas">
+<span class="font-display-hero text-display-hero text-primary">WA Marketing</span>
+<p class="text-body-sm text-text-secondary-light">Business Suite</p>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Active Tab: Dashboard -->
+<a class="flex items-center gap-3 px-canvas py-3 bg-primary-container text-on-primary-container rounded-xl font-bold transition-transform duration-200 scale-102" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-canvas py-3 text-secondary hover:bg-surface-container transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined">campaign</span>
+<span>Campaigns</span>
+</a>
+<a class="flex items-center gap-3 px-canvas py-3 text-secondary hover:bg-surface-container transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined">smart_toy</span>
+<span>Automation</span>
+</a>
+<a class="flex items-center gap-3 px-canvas py-3 text-secondary hover:bg-surface-container transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined">group</span>
+<span>Contacts</span>
+</a>
+<a class="flex items-center gap-3 px-canvas py-3 text-secondary hover:bg-surface-container transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<span>Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-canvas py-3 text-secondary hover:bg-surface-container transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+<div class="mt-auto pt-canvas border-t border-border-light space-y-1">
+<button class="w-full flex items-center gap-3 px-canvas py-3 text-secondary hover:bg-surface-container transition-colors rounded-xl">
+<span class="material-symbols-outlined">help</span>
+<span>Help</span>
+</button>
+<button class="w-full flex items-center gap-3 px-canvas py-3 text-secondary hover:bg-surface-container transition-colors rounded-xl">
+<span class="material-symbols-outlined">logout</span>
+<span>Logout</span>
+</button>
+</div>
+</aside>
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-40 w-full bg-surface/80 backdrop-blur-md border-b border-border-light shadow-sm flex justify-between items-center h-16 px-gutter ml-sidebar-expanded">
+<div class="flex items-center gap-canvas flex-1 max-w-xl">
+<div class="relative w-full group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary-light">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary/30 transition-all text-body-md" placeholder="Search conversations, campaigns..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4">
+<button class="p-2 text-secondary hover:text-primary transition-all relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-status-error rounded-full border-2 border-surface"></span>
+</button>
+<button class="p-2 text-secondary hover:text-primary transition-all">
+<span class="material-symbols-outlined">dark_mode</span>
+</button>
+</div>
+<div class="h-8 w-[1px] bg-border-light"></div>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-body-sm font-bold text-on-surface">Alex Rivera</p>
+<p class="text-caption text-text-secondary-light">Marketing Lead</p>
+</div>
+<img alt="User Profile" class="w-10 h-10 rounded-full border-2 border-primary-container" data-alt="A professional portrait of a marketing executive in a modern tech office environment. The image is brightly lit with high-key corporate lighting, featuring a clean glass and steel background. The individual is dressed in contemporary business casual attire, reflecting a modern, approachable, and tech-savvy persona. The overall aesthetic is clean, professional, and optimistic, aligned with a high-end SaaS platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBGPIrit5WObno_FcaBmcZVxytJCb7EFlJMfTuXCJpaV5XbtAjLipVHgnbm8JZRa208uoaufVgwtK9znm-gUP79XiWX07gVSaTeRywmsq48DGDuxCTGSDw2newPZRA7ExwfKKdE_ZjfIgxdGrwhIdHFYtKIUwVRkbgC9fNaz0OtVcEO1BANqKi_EhzKrtQJ6udbWqm8gepgBSKWUy1D2ZWadg3DgX1j4wsNsZGVxk_nFwCxsBiFdYx8RoB3Kpy2d0kXajDA6EVP4qDw"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-sidebar-expanded p-gutter min-h-screen">
+<!-- Welcome Header -->
+<div class="mb-gutter flex items-center justify-between">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Good morning, Alex 👋</h1>
+<div class="flex items-center gap-2 mt-1">
+<span class="flex h-2 w-2 relative">
+<span class="animate-pulse absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+<span class="text-body-sm text-primary font-bold">System Online</span>
+<span class="text-body-sm text-text-secondary-light ml-2">• All nodes functioning at 99.9% uptime</span>
+</div>
+</div>
+<button class="bg-primary text-on-primary px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-sm hover:scale-102 transition-transform">
+<span class="material-symbols-outlined">add</span>
+                New Campaign
+            </button>
+</div>
+<!-- Horizontal Stats Scroll/Grid -->
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-gutter">
+<!-- Stat Card 1 -->
+<div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">group</span>
+<span class="text-primary text-[10px] font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-sm">trending_up</span> 12%
+                    </span>
+</div>
+<div>
+<p class="text-caption text-text-secondary-light uppercase tracking-wider">Total Contacts</p>
+<p class="text-headline-md font-bold text-on-surface">14.2k</p>
+</div>
+</div>
+<!-- Stat Card 2 -->
+<div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-status-info bg-status-info/10 p-1.5 rounded-lg">description</span>
+<span class="text-primary text-[10px] font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-sm">trending_up</span> 4%
+                    </span>
+</div>
+<div>
+<p class="text-caption text-text-secondary-light uppercase tracking-wider">Templates</p>
+<p class="text-headline-md font-bold text-on-surface">84</p>
+</div>
+</div>
+<!-- Stat Card 3 -->
+<div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-status-warn bg-status-warn/10 p-1.5 rounded-lg">mark_chat_unread</span>
+<span class="text-status-error text-[10px] font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-sm">trending_down</span> 2%
+                    </span>
+</div>
+<div>
+<p class="text-caption text-text-secondary-light uppercase tracking-wider">Unread</p>
+<p class="text-headline-md font-bold text-on-surface">12</p>
+</div>
+</div>
+<!-- Stat Card 4 -->
+<div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">send</span>
+<span class="text-primary text-[10px] font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-sm">trending_up</span> 28%
+                    </span>
+</div>
+<div>
+<p class="text-caption text-text-secondary-light uppercase tracking-wider">Sent Today</p>
+<p class="text-headline-md font-bold text-on-surface">3.8k</p>
+</div>
+</div>
+<!-- Stat Card 5 -->
+<div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-status-info bg-status-info/10 p-1.5 rounded-lg">bolt</span>
+<span class="text-primary text-[10px] font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-sm">trending_up</span> 1.2%
+                    </span>
+</div>
+<div>
+<p class="text-caption text-text-secondary-light uppercase tracking-wider">Active</p>
+<p class="text-headline-md font-bold text-on-surface">428</p>
+</div>
+</div>
+<!-- Stat Card 6 -->
+<div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">campaign</span>
+<span class="text-status-warn text-[10px] font-bold flex items-center gap-0.5">
+                         Steady
+                    </span>
+</div>
+<div>
+<p class="text-caption text-text-secondary-light uppercase tracking-wider">Campaigns</p>
+<p class="text-headline-md font-bold text-on-surface">12</p>
+</div>
+</div>
+<!-- Stat Card 7 -->
+<div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-tertiary bg-tertiary/10 p-1.5 rounded-lg">smart_toy</span>
+<span class="text-primary text-[10px] font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-sm">trending_up</span> 15%
+                    </span>
+</div>
+<div>
+<p class="text-caption text-text-secondary-light uppercase tracking-wider">Bot Sessions</p>
+<p class="text-headline-md font-bold text-on-surface">892</p>
+</div>
+</div>
+<!-- Stat Card 8 -->
+<div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg">done_all</span>
+<span class="text-primary text-[10px] font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-sm">check_circle</span> Max
+                    </span>
+</div>
+<div>
+<p class="text-caption text-text-secondary-light uppercase tracking-wider">Delivery Rate</p>
+<p class="text-headline-md font-bold text-on-surface">99.4%</p>
+</div>
+</div>
+</div>
+<!-- Main Dashboard Grid -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Messages Chart (Area) -->
+<div class="col-span-12 lg:col-span-8 glass-panel rounded-2xl p-canvas">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline-md text-on-surface">Messages Last 7 Days</h3>
+<div class="flex gap-2">
+<span class="flex items-center gap-1.5 text-body-sm text-primary font-bold bg-primary/5 px-3 py-1 rounded-full border border-primary/10">
+<span class="w-2 h-2 rounded-full bg-primary"></span> Sent
+                        </span>
+<span class="flex items-center gap-1.5 text-body-sm text-status-info font-bold bg-status-info/5 px-3 py-1 rounded-full border border-status-info/10">
+<span class="w-2 h-2 rounded-full bg-status-info"></span> Received
+                        </span>
+</div>
+</div>
+<div class="h-64 flex items-end justify-between gap-2 px-2 relative">
+<!-- Chart Simulation -->
+<div class="absolute inset-0 flex flex-col justify-between py-2 text-caption text-text-secondary-light pointer-events-none">
+<div class="border-t border-border-light/50 w-full">5k</div>
+<div class="border-t border-border-light/50 w-full">4k</div>
+<div class="border-t border-border-light/50 w-full">3k</div>
+<div class="border-t border-border-light/50 w-full">2k</div>
+<div class="border-t border-border-light/50 w-full">1k</div>
+<div class="w-full">0</div>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end relative">
+<div class="w-full bg-primary/20 rounded-t-lg h-[40%] transition-all group-hover:bg-primary/30"></div>
+<div class="w-full bg-primary rounded-t-lg h-[65%] absolute bottom-2 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+<span class="text-caption text-text-secondary-light">Mon</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end relative">
+<div class="w-full bg-primary/20 rounded-t-lg h-[45%] transition-all group-hover:bg-primary/30"></div>
+<div class="w-full bg-primary rounded-t-lg h-[70%] absolute bottom-2 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+<span class="text-caption text-text-secondary-light">Tue</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end relative">
+<div class="w-full bg-primary/20 rounded-t-lg h-[60%] transition-all group-hover:bg-primary/30"></div>
+<div class="w-full bg-primary rounded-t-lg h-[85%] absolute bottom-2 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+<span class="text-caption text-text-secondary-light">Wed</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end relative">
+<div class="w-full bg-primary/20 rounded-t-lg h-[55%] transition-all group-hover:bg-primary/30"></div>
+<div class="w-full bg-primary rounded-t-lg h-[75%] absolute bottom-2 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+<span class="text-caption text-text-secondary-light">Thu</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end relative">
+<div class="w-full bg-primary/20 rounded-t-lg h-[70%] transition-all group-hover:bg-primary/30"></div>
+<div class="w-full bg-primary rounded-t-lg h-[90%] absolute bottom-2 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+<span class="text-caption text-text-secondary-light">Fri</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end relative">
+<div class="w-full bg-primary/20 rounded-t-lg h-[30%] transition-all group-hover:bg-primary/30"></div>
+<div class="w-full bg-primary rounded-t-lg h-[50%] absolute bottom-2 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+<span class="text-caption text-text-secondary-light">Sat</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end relative">
+<div class="w-full bg-primary/20 rounded-t-lg h-[35%] transition-all group-hover:bg-primary/30"></div>
+<div class="w-full bg-primary rounded-t-lg h-[55%] absolute bottom-2 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+<span class="text-caption text-text-secondary-light">Sun</span>
+</div>
+</div>
+</div>
+<!-- Conversation Status (Donut) -->
+<div class="col-span-12 lg:col-span-4 glass-panel rounded-2xl p-canvas flex flex-col">
+<h3 class="font-headline-md text-on-surface mb-6">Conversation Status</h3>
+<div class="flex-1 flex flex-col items-center justify-center">
+<div class="relative w-48 h-48 mb-8">
+<!-- Custom SVG Donut -->
+<svg class="w-full h-full -rotate-90" viewbox="0 0 36 36">
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#f0f2f5" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#00a884" stroke-dasharray="65 100" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#3b82f6" stroke-dasharray="25 100" stroke-dashoffset="-65" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#ef4444" stroke-dasharray="10 100" stroke-dashoffset="-90" stroke-width="3"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+<span class="text-display-hero text-on-surface">1.2k</span>
+<span class="text-caption text-text-secondary-light uppercase">Total</span>
+</div>
+</div>
+<div class="grid grid-cols-2 w-full gap-y-4">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-primary"></div>
+<div class="flex flex-col">
+<span class="text-body-sm font-bold">Resolved</span>
+<span class="text-caption text-text-secondary-light">65% (780)</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-status-info"></div>
+<div class="flex flex-col">
+<span class="text-body-sm font-bold">Pending</span>
+<span class="text-caption text-text-secondary-light">25% (300)</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-status-error"></div>
+<div class="flex flex-col">
+<span class="text-body-sm font-bold">Failed</span>
+<span class="text-caption text-text-secondary-light">10% (120)</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-surface-container-high"></div>
+<div class="flex flex-col">
+<span class="text-body-sm font-bold">Unknown</span>
+<span class="text-caption text-text-secondary-light">0% (0)</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Conversations by Source (Bar) -->
+<div class="col-span-12 lg:col-span-4 glass-panel rounded-2xl p-canvas">
+<h3 class="font-headline-md text-on-surface mb-6">Conversations by Source</h3>
+<div class="space-y-6">
+<div>
+<div class="flex justify-between text-body-sm mb-1.5">
+<span class="font-bold">Organic Search</span>
+<span class="text-text-secondary-light">542</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[75%] rounded-full"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-body-sm mb-1.5">
+<span class="font-bold">Instagram Ads</span>
+<span class="text-text-secondary-light">381</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[55%] rounded-full"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-body-sm mb-1.5">
+<span class="font-bold">Facebook Posts</span>
+<span class="text-text-secondary-light">219</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[35%] rounded-full"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-body-sm mb-1.5">
+<span class="font-bold">Direct Link</span>
+<span class="text-text-secondary-light">94</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[15%] rounded-full"></div>
+</div>
+</div>
+</div>
+<div class="mt-8 pt-6 border-t border-border-light text-center">
+<button class="text-primary font-bold text-body-sm hover:underline">View Detailed Source Report</button>
+</div>
+</div>
+<!-- Quick Actions Grid -->
+<div class="col-span-12 lg:col-span-8 glass-panel rounded-2xl p-canvas">
+<h3 class="font-headline-md text-on-surface mb-6">Quick Actions</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<button class="flex flex-col items-center justify-center p-6 border border-border-light rounded-2xl hover:bg-primary-container/10 hover:border-primary/30 transition-all group">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">send</span>
+</div>
+<span class="font-bold text-on-surface">New Campaign</span>
+<p class="text-caption text-text-secondary-light mt-1">Blast to audience</p>
+</button>
+<button class="flex flex-col items-center justify-center p-6 border border-border-light rounded-2xl hover:bg-status-info/10 hover:border-status-info/30 transition-all group">
+<div class="w-12 h-12 rounded-full bg-status-info/10 flex items-center justify-center text-status-info mb-3 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">person_add</span>
+</div>
+<span class="font-bold text-on-surface">Import Contacts</span>
+<p class="text-caption text-text-secondary-light mt-1">CSV or API sync</p>
+</button>
+<button class="flex flex-col items-center justify-center p-6 border border-border-light rounded-2xl hover:bg-tertiary-container/10 hover:border-tertiary/30 transition-all group">
+<div class="w-12 h-12 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary mb-3 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">account_tree</span>
+</div>
+<span class="font-bold text-on-surface">Create Bot Flow</span>
+<p class="text-caption text-text-secondary-light mt-1">Design automation</p>
+</button>
+<button class="flex flex-col items-center justify-center p-6 border border-border-light rounded-2xl hover:bg-primary/10 hover:border-primary/30 transition-all group">
+<div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center text-on-primary-container mb-3 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">inbox</span>
+</div>
+<span class="font-bold text-on-surface">Open Inbox</span>
+<p class="text-caption text-text-secondary-light mt-1">Reply to users</p>
+</button>
+</div>
+<!-- Secondary Quick Action items -->
+<div class="mt-6 flex flex-wrap gap-3">
+<button class="px-4 py-2 text-body-sm font-bold border border-border-light rounded-full hover:bg-surface-container transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-base">download</span> Export Daily Logs
+                    </button>
+<button class="px-4 py-2 text-body-sm font-bold border border-border-light rounded-full hover:bg-surface-container transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-base">settings_ethernet</span> API Integrations
+                    </button>
+<button class="px-4 py-2 text-body-sm font-bold border border-border-light rounded-full hover:bg-surface-container transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-base">verified</span> Manage Templates
+                    </button>
+</div>
+</div>
+</div>
+<!-- Footer / Credits Section -->
+<footer class="mt-gutter text-center py-base border-t border-border-light/30">
+<p class="text-caption text-text-secondary-light">© 2024 WA Business Marketing Suite. All systems operational. Version 4.2.1-stable</p>
+</footer>
+</main>
+<script>
+        // Micro-interaction for refreshing stats
+        document.addEventListener('DOMContentLoaded', () => {
+            const statCards = document.querySelectorAll('.glass-panel');
+            statCards.forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    card.style.transform = 'translateY(-4px)';
+                    card.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.05)';
+                    card.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.style.transform = 'translateY(0)';
+                    card.style.boxShadow = 'none';
+                });
+            });
+        });
+    </script>
+</body></html>

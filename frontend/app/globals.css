@@ -5,23 +5,23 @@
 
 @layer base {
   :root {
-    --bg-primary: #ffffff;
+    --bg-primary: #f5faff;
     --bg-secondary: #f0f2f5;
     --bg-card: #ffffff;
-    --text-primary: #111b21;
-    --text-secondary: #667781;
+    --text-primary: #131d23;
+    --text-secondary: #546068;
     --border-color: #e9edef;
     --accent: #00a884;
-    --accent-hover: #008069;
+    --accent-hover: #006b53;
     --wa-green: #00a884;
-    --wa-green-dark: #008069;
+    --wa-green-dark: #006b53;
     --wa-panel: #ffffff;
-    --wa-panel-header: #f0f2f5;
+    --wa-panel-header: #e5eff8;
     --wa-chat-bg: #efeae2;
     --wa-bubble-out: #d9fdd3;
     --wa-bubble-in: #ffffff;
     --wa-input: #f0f2f5;
-    --wa-hover: #f5f6f6;
+    --wa-hover: #eaf5fe;
     --wa-border: #e9edef;
     --wa-search: #f0f2f5;
     --wa-sidebar: #ffffff;
@@ -30,10 +30,10 @@
   .dark {
     --bg-primary: #0b141a;
     --bg-secondary: #111b21;
-    --bg-card: #202c33;
+    --bg-card: #111b21;
     --text-primary: #e9edef;
     --text-secondary: #8696a0;
-    --border-color: #233138;
+    --border-color: #313d45;
     --accent: #00a884;
     --accent-hover: #06cf9c;
     --wa-green: #00a884;
@@ -45,7 +45,7 @@
     --wa-bubble-in: #202c33;
     --wa-input: #2a3942;
     --wa-hover: #202c33;
-    --wa-border: #233138;
+    --wa-border: #313d45;
     --wa-search: #202c33;
     --wa-sidebar: #111b21;
     --wa-unread: #00a884;
@@ -58,23 +58,43 @@
 @layer components {
   /* ========== GLASS & STAT CARDS ========== */
   .glass-card {
-    @apply bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-wa;
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(233, 237, 239, 0.5);
+    @apply rounded-2xl shadow-wa backdrop-blur-[12px] transition-all duration-300;
+  }
+  .dark .glass-card {
+    background-color: rgba(17, 27, 33, 0.8);
+    border-color: rgba(49, 61, 69, 0.5);
   }
   .stat-card {
-    @apply glass-card p-6 hover:shadow-wa-md hover:-translate-y-0.5 transition-all duration-300;
+    @apply glass-card p-6 hover:shadow-wa-md hover:-translate-y-0.5 hover:border-wa-green/30 transition-all duration-300;
+  }
+  .stat-card:hover {
+    background-color: rgba(255, 255, 255, 0.9);
+  }
+  .dark .stat-card:hover {
+    background-color: rgba(17, 27, 33, 0.9);
   }
 
   /* ========== BUTTONS ========== */
   .btn-primary {
-    @apply bg-wa-green hover:bg-wa-green-dark text-white font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 shadow-lg shadow-wa-green/20 hover:shadow-wa-green/30 active:scale-[0.98];
+    @apply bg-wa-green hover:bg-wa-green-dark text-white font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 shadow-lg hover:scale-[1.02] active:scale-[0.98];
   }
   .btn-secondary {
-    @apply bg-wa-panel-header dark:bg-wa-dark-panel-header hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium px-6 py-2.5 rounded-xl transition-all duration-200;
+    background-color: rgba(229, 239, 248, 0.8);
+    @apply text-wa-text-secondary font-medium px-6 py-2.5 rounded-xl transition-all duration-200 backdrop-blur-[8px];
+  }
+  .dark .btn-secondary {
+    background-color: rgba(32, 44, 51, 0.8);
   }
 
   /* ========== INPUT FIELDS ========== */
   .input-field {
-    @apply w-full px-4 py-3 bg-wa-search dark:bg-wa-dark-search border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-light focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all duration-200;
+    background-color: rgba(240, 242, 245, 0.5);
+    @apply w-full px-4 py-3 border border-wa-border rounded-xl text-wa-text-primary placeholder-wa-text-light focus:outline-none focus:ring-2 focus:ring-wa-green/20 focus:border-wa-green transition-all duration-200;
+  }
+  .dark .input-field {
+    background-color: rgba(32, 44, 51, 0.5);
   }
 
   /* ========== SIDEBAR ========== */
