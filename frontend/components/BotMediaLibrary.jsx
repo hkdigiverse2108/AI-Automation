@@ -24,6 +24,11 @@ export default function BotMediaLibrary({ botId }) {
   const [newNameText, setNewNameText] = useState('');
   const [renamingLoading, setRenamingLoading] = useState(false);
 
+  // Register virtual asset state
+  const [registeringAssetId, setRegisteringAssetId] = useState(null);
+  const [registerKeyText, setRegisterKeyText] = useState('');
+  const [registeringLoading, setRegisteringLoading] = useState(false);
+
   // Copy status per asset key
   const [copiedKey, setCopiedKey] = useState(null);
 
@@ -33,6 +38,29 @@ export default function BotMediaLibrary({ botId }) {
 
   // Drag and drop state
   const [dragActive, setDragActive] = useState(false);
+
+  const handleRegisterVirtual = async (fileUrl) => {
+    if (!registerKeyText.trim()) return;
+    setRegisteringLoading(true);
+    const registerToast = toast.loading('Registering canvas image as media asset...');
+
+    try {
+      const { data } = await api.post(`/media/bot/${botId}/register-virtual`, {
+        fileUrl,
+        assetKey: registerKeyText.trim().toUpperCase()
+      });
+      if (data.success) {
+        toast.success(data.message, { id: registerToast });
+        setRegisteringAssetId(null);
+        setRegisterKeyText('');
+        fetchAssets();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Registration failed', { id: registerToast });
+    } finally {
+      setRegisteringLoading(false);
+    }
+  };
 
   const fetchAssets = async () => {
     setLoading(true);
@@ -411,12 +439,18 @@ export default function BotMediaLibrary({ botId }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filteredAssets.map((asset) => {
                 const isRenaming = renamingAssetId === asset._id;
+                const isRegistering = registeringAssetId === asset._id;
+                const isVirtual = asset.isVirtual;
                 const isUsed = asset.usageCount > 0;
                 
                 return (
                   <div 
                     key={asset._id} 
-                    className="bg-white dark:bg-[#111b21] border border-wa-border dark:border-wa-dark-border rounded-xl p-3.5 shadow-sm flex flex-col justify-between hover:scale-[1.01] hover:shadow-md transition-all duration-200"
+                    className={`bg-white dark:bg-[#111b21] border rounded-xl p-3.5 shadow-sm flex flex-col justify-between hover:scale-[1.01] hover:shadow-md transition-all duration-200 ${
+                      isVirtual 
+                        ? 'border-amber-200 dark:border-amber-900/40 bg-amber-50/5 dark:bg-amber-950/5' 
+                        : 'border-wa-border dark:border-wa-dark-border'
+                    }`}
                   >
                     
                     {/* Media Card Top Section (Preview & Description) */}
@@ -440,28 +474,35 @@ export default function BotMediaLibrary({ botId }) {
                             <ExternalLink className="w-4 h-4" />
                           </button>
                           
-                          {/* Replacement Cloud uploader */}
-                          <label 
-                            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-                            title="Replace image file"
-                          >
-                            <UploadCloud className="w-4 h-4" />
-                            <input 
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                if (e.target.files && e.target.files[0]) {
-                                  handleReplaceFile(asset._id, e.target.files[0]);
-                                }
-                              }}
-                              className="hidden"
-                            />
-                          </label>
+                          {/* Replacement Cloud uploader — only for registered database assets */}
+                          {!isVirtual && (
+                            <label 
+                              className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                              title="Replace image file"
+                            >
+                              <UploadCloud className="w-4 h-4" />
+                              <input 
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) {
+                                    handleReplaceFile(asset._id, e.target.files[0]);
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
                         </div>
-
+ 
                         {/* Usage Counter Badge */}
                         <div className="absolute top-2 right-2">
-                          {isUsed ? (
+                          {isVirtual ? (
+                            <span className="px-2 py-0.5 bg-amber-500/90 text-white text-[9px] font-extrabold uppercase rounded shadow-md tracking-wider flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                              DIRECT LINK ({asset.usageCount})
+                            </span>
+                          ) : isUsed ? (
                             <span className="px-2 py-0.5 bg-emerald-500/90 text-white text-[9px] font-extrabold uppercase rounded shadow-md tracking-wider flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                               IN USE ({asset.usageCount})
@@ -473,10 +514,62 @@ export default function BotMediaLibrary({ botId }) {
                           )}
                         </div>
                       </div>
-
+ 
                       {/* Key Name Input or Text */}
                       <div className="space-y-1">
-                        {isRenaming ? (
+                        {isVirtual ? (
+                          isRegistering ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                placeholder="e.g. HERO_BANNER"
+                                value={registerKeyText}
+                                onChange={(e) => setRegisterKeyText(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
+                                className="w-full text-xs font-bold px-2 py-1 border border-wa-green bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white rounded-lg focus:outline-none uppercase"
+                              />
+                              <button
+                                onClick={() => handleRegisterVirtual(asset.fileUrl)}
+                                disabled={registeringLoading}
+                                className="p-1 text-wa-green hover:bg-wa-green/10 rounded-lg shrink-0"
+                                title="Confirm registration"
+                              >
+                                {registeringLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-4 h-4" />}
+                              </button>
+                              <button
+                                onClick={() => setRegisteringAssetId(null)}
+                                className="p-1 text-red-500 hover:bg-red-50 rounded-lg shrink-0"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-mono font-bold text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50 uppercase tracking-wide">
+                                Unregistered Link
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setRegisteringAssetId(asset._id);
+                                  const existing = assets.filter(a => !a.isVirtual);
+                                  let maxNum = 0;
+                                  existing.forEach(a => {
+                                    const match = a.assetKey.match(/^IMG_(\d+)$/i);
+                                    if (match) {
+                                      const num = parseInt(match[1], 10);
+                                      if (num > maxNum) maxNum = num;
+                                    }
+                                  });
+                                  setRegisterKeyText(`IMG_${String(maxNum + 1).padStart(3, '0')}`);
+                                }}
+                                className="px-2 py-1 bg-wa-green hover:bg-wa-green-hover text-white text-[9px] font-extrabold uppercase rounded-lg flex items-center gap-1 shadow-sm transition-all shrink-0"
+                                title="Register as clean Asset Key in library"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                <span>Register Key</span>
+                              </button>
+                            </div>
+                          )
+                        ) : isRenaming ? (
                           <div className="flex items-center gap-1.5">
                             <input
                               type="text"
@@ -529,30 +622,36 @@ export default function BotMediaLibrary({ botId }) {
                           {asset.fileName}
                         </p>
                       </div>
-
+ 
                     </div>
-
+ 
                     {/* Media Card Bottom Details & Actions */}
                     <div className="border-t border-wa-border dark:border-wa-dark-border mt-3 pt-3 flex items-center justify-between text-[10px] text-wa-text-light">
                       <div className="space-y-0.5">
-                        <p>Size: <span className="font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary">{formatSize(asset.fileSize)}</span></p>
-                        <p>Uploaded: <span className="font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary">{new Date(asset.createdAt).toLocaleDateString()}</span></p>
+                        <p>Size: <span className="font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary">{isVirtual ? 'Unregistered' : formatSize(asset.fileSize)}</span></p>
+                        <p>Source: <span className="font-semibold text-amber-600 dark:text-amber-400">{isVirtual ? 'Used on Canvas' : 'Media Library'}</span></p>
                       </div>
                       
-                      <button
-                        onClick={() => handleDeleteAsset(asset)}
-                        className={`p-1.5 rounded-lg border transition-all ${
-                          isUsed
-                            ? 'opacity-40 cursor-not-allowed border-gray-100 dark:border-gray-900 text-gray-400'
-                            : 'border-red-100 hover:border-red-200 dark:border-red-950 dark:hover:border-red-900/50 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20'
-                        }`}
-                        disabled={isUsed}
-                        title={isUsed ? 'Cannot delete an active asset' : 'Delete asset'}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {isVirtual ? (
+                        <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400" title="Image is active on canvas. Register key to convert it.">
+                          <Info className="w-4 h-4" />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleDeleteAsset(asset)}
+                          className={`p-1.5 rounded-lg border transition-all ${
+                            isUsed
+                              ? 'opacity-40 cursor-not-allowed border-gray-100 dark:border-gray-900 text-gray-400'
+                              : 'border-red-100 hover:border-red-200 dark:border-red-950 dark:hover:border-red-900/50 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20'
+                          }`}
+                          disabled={isUsed}
+                          title={isUsed ? 'Cannot delete an active asset' : 'Delete asset'}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
-
+ 
                   </div>
                 );
               })}

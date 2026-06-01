@@ -30,7 +30,7 @@ const upload = multer({
 
 router.use(verifyToken);
 
-// 1. GET /api/media/bot/:botId — list all assets for a bot
+// 1. GET /api/media/bot/:botId — list all assets for a bot (including direct/virtual canvas images)
 router.get('/bot/:botId', async (req, res) => {
   try {
     const { botId } = req.params;
@@ -43,19 +43,53 @@ router.get('/bot/:botId', async (req, res) => {
     
     // We scan nodes in current flow to get live counts of usage
     const nodeUsageMap = {};
+    const virtualAssets = [];
+    
     for (const node of flow.nodes) {
       if (node.type === 'message' || node.type === 'question') {
         const msg = node.data?.message;
         if (msg?.type === 'image') {
           const key = msg.assetKey || msg.mediaUrl;
-          if (key && !key.startsWith('http') && !key.startsWith('/uploads')) {
-            nodeUsageMap[key] = (nodeUsageMap[key] || 0) + 1;
+          if (key) {
+            const isDirectUrl = key.startsWith('http://') || key.startsWith('https://') || key.startsWith('/uploads/');
+            if (!isDirectUrl) {
+              nodeUsageMap[key] = (nodeUsageMap[key] || 0) + 1;
+            } else {
+              // This is a direct canvas image used directly in the bot!
+              // Let's add it as a virtual unregistered asset so it is displayed dynamically in the media library
+              const existingVirtual = virtualAssets.find(v => v.fileUrl === key);
+              if (existingVirtual) {
+                existingVirtual.usageCount++;
+                existingVirtual.nodes.push({ id: node.id, type: node.type, label: msg.text || msg.caption || 'Image Node' });
+              } else {
+                let fileName = 'direct-canvas-image';
+                try {
+                  const urlObj = new URL(key.startsWith('/') ? `http://localhost${key}` : key);
+                  fileName = path.basename(urlObj.pathname) || 'direct-canvas-image';
+                } catch (_) {}
+
+                virtualAssets.push({
+                  _id: `virtual_${node.id}`,
+                  botId,
+                  assetKey: 'UNREGISTERED',
+                  fileName,
+                  fileUrl: key,
+                  fileType: 'image/png',
+                  fileSize: 0,
+                  usageCount: 1,
+                  status: 'used',
+                  isVirtual: true,
+                  nodes: [{ id: node.id, type: node.type, label: msg.text || msg.caption || 'Image Node' }],
+                  createdAt: flow.updatedAt || new Date()
+                });
+              }
+            }
           }
         }
       }
     }
 
-    // Update the usageCounts in database if they don't match
+    // Update the usageCounts of registered database assets if they don't match
     for (const asset of assets) {
       const liveCount = nodeUsageMap[asset.assetKey] || 0;
       if (asset.usageCount !== liveCount) {
@@ -65,7 +99,9 @@ router.get('/bot/:botId', async (req, res) => {
       }
     }
 
-    res.json({ success: true, data: { assets } });
+    const allAssets = [...assets, ...virtualAssets];
+
+    res.json({ success: true, data: { assets: allAssets } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch media assets' });
   }
@@ -373,6 +409,92 @@ router.post('/bot/:botId/scan-sync', async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ success: false, error: 'Migration scan failed: ' + error.message });
+  }
+});
+
+// 7. POST /api/media/bot/:botId/register-virtual — register a direct/virtual image as a central asset
+router.post('/bot/:botId/register-virtual', async (req, res) => {
+  try {
+    const { botId } = req.params;
+    let { fileUrl, assetKey } = req.body;
+
+    if (!fileUrl) {
+      return res.status(400).json({ success: false, error: 'File URL is required' });
+    }
+
+    const flow = await BotFlow.findOne({ _id: botId, userId: req.userId });
+    if (!flow) {
+      return res.status(404).json({ success: false, error: 'Bot flow not found' });
+    }
+
+    // Autogenerate or sanitize assetKey
+    if (!assetKey) {
+      const existing = await BotMediaAsset.find({ botId });
+      let maxNum = 0;
+      existing.forEach(a => {
+        const match = a.assetKey.match(/^IMG_(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      });
+      assetKey = `IMG_${String(maxNum + 1).padStart(3, '0')}`;
+    } else {
+      assetKey = assetKey.trim().toUpperCase().replace(/\s+/g, '_');
+      const duplicate = await BotMediaAsset.findOne({ botId, assetKey });
+      if (duplicate) {
+        return res.status(400).json({ success: false, error: `Asset key "${assetKey}" already exists.`, code: 'DUPLICATE_KEY' });
+      }
+    }
+
+    // Derive fileName from URL
+    let fileName = 'registered-asset';
+    try {
+      const urlObj = new URL(fileUrl.startsWith('/') ? `http://localhost${fileUrl}` : fileUrl);
+      fileName = path.basename(urlObj.pathname) || 'registered-asset';
+    } catch (_) {}
+
+    // Create the asset entry
+    const asset = await BotMediaAsset.create({
+      botId,
+      assetKey,
+      fileName,
+      fileUrl,
+      fileType: 'image/png',
+      fileSize: 0,
+      usageCount: 0, // will count next
+      status: 'used',
+      createdBy: req.userId
+    });
+
+    // Update all matching nodes in the BotFlow to reference the new key
+    let flowModified = false;
+    let registeredCount = 0;
+    flow.nodes = flow.nodes.map(node => {
+      if (node.type === 'message' || node.type === 'question') {
+        const msg = node.data?.message;
+        if (msg?.type === 'image' && msg.mediaUrl === fileUrl && !msg.assetKey) {
+          msg.assetKey = assetKey;
+          msg.mediaUrl = assetKey;
+          flowModified = true;
+          registeredCount++;
+        }
+      }
+      return node;
+    });
+
+    if (flowModified) {
+      flow.markModified('nodes');
+      await flow.save();
+    }
+
+    asset.usageCount = registeredCount;
+    asset.status = registeredCount > 0 ? 'used' : 'unused';
+    await asset.save();
+
+    res.status(201).json({ success: true, data: { asset }, message: `Successfully registered direct image as asset "${assetKey}" and updated ${registeredCount} flow nodes.` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Registration failed: ' + error.message });
   }
 });
 
