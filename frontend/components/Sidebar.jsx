@@ -113,22 +113,22 @@ export default function Sidebar({ isOpen, onClose }) {
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 lg:relative flex flex-col bg-wa-panel-header dark:bg-wa-dark-panel-header border-r border-wa-border dark:border-wa-dark-border shrink-0 z-50 lg:z-20 transition-all duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 lg:relative flex flex-col bg-white dark:bg-wa-dark-panel border-r border-wa-border dark:border-wa-dark-border shrink-0 z-50 lg:z-20 transition-all duration-300 ease-in-out shadow-sm ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${collapsed ? 'w-[68px]' : 'w-[280px] lg:w-[240px]'}`}
       >
         {/* Logo & Brand */}
         <div className={`flex items-center h-[60px] border-b border-wa-border dark:border-wa-dark-border shrink-0 ${collapsed ? 'justify-center px-2' : 'px-4 gap-3'}`}>
-          <div className="w-10 h-10 bg-gradient-to-br from-wa-green to-wa-green-light rounded-xl flex items-center justify-center shadow-lg shadow-wa-green/25 shrink-0">
+          <div className="w-10 h-10 bg-gradient-to-br from-wa-green to-wa-green-dark rounded-xl flex items-center justify-center shadow-lg shadow-wa-green/25 shrink-0">
             <MessageCircle className="w-5 h-5 text-white" />
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <h1 className="text-sm font-extrabold text-wa-text-primary dark:text-white tracking-tight leading-tight truncate">
-                WA Chatbox
+              <h1 className="text-sm font-extrabold text-wa-green dark:text-wa-green tracking-tight leading-tight truncate">
+                WA Marketing
               </h1>
               <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium leading-none mt-0.5">
-                Automation Platform
+                Business Suite
               </p>
             </div>
           )}

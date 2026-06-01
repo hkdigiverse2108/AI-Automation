@@ -73,14 +73,39 @@ export default function DashboardLayout({ children }) {
         </header>
 
         {/* Desktop notification bar - only visible on lg+ */}
-        <header className="hidden lg:flex items-center justify-end h-[48px] bg-wa-panel-header/50 dark:bg-wa-dark-panel-header/50 border-b border-wa-border/50 dark:border-wa-dark-border/50 px-6 shrink-0 z-10 backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <NotificationCenter />
-            <div className="flex items-center gap-2 pl-3 border-l border-wa-border dark:border-wa-dark-border">
-              <div className="w-7 h-7 rounded-full bg-wa-green/10 text-wa-green font-bold text-[10px] flex items-center justify-center border border-wa-green/20">
+        <header className="hidden lg:flex items-center justify-between h-16 bg-white/80 dark:bg-wa-dark-panel/80 border-b border-wa-border dark:border-wa-dark-border px-6 shrink-0 z-10 backdrop-blur-md shadow-sm">
+          {/* Left side: Premium Search Bar */}
+          <div className="flex items-center gap-4 flex-1 max-w-md">
+            <div className="relative w-full group">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-wa-text-secondary">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+              </span>
+              <input
+                className="w-full pl-9 pr-4 py-2 bg-wa-search/40 dark:bg-wa-dark-search/20 border border-wa-border/50 dark:border-wa-dark-border/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-wa-green/25 focus:border-wa-green transition-all text-xs"
+                placeholder="Search conversations, campaigns..."
+                type="text"
+              />
+            </div>
+          </div>
+
+          {/* Right side: Actions & User Info */}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4">
+              <NotificationCenter />
+            </div>
+            <div className="h-6 w-[1px] bg-wa-border dark:bg-wa-dark-border"></div>
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden xl:block">
+                <p className="text-xs font-bold text-wa-text-primary dark:text-white leading-tight">{user?.name || 'User'}</p>
+                <p className="text-[9px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-bold uppercase tracking-wider mt-0.5">
+                  {user?.role === 'superadmin' ? 'Super Admin' : user?.role === 'admin' ? 'Org Admin' : 'Agent'}
+                </p>
+              </div>
+              <div className="w-9 h-9 rounded-full bg-wa-green/10 text-wa-green font-extrabold text-sm flex items-center justify-center border border-wa-green/20 shadow-sm shrink-0">
                 {user?.name?.[0]?.toUpperCase() || 'U'}
               </div>
-              <span className="text-xs font-semibold text-wa-text-primary dark:text-white hidden xl:inline">{user?.name || 'User'}</span>
             </div>
           </div>
         </header>
