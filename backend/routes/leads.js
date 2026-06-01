@@ -196,6 +196,13 @@ router.get('/:id', ...validateObjectId('id'), async (req, res) => {
       return res.status(404).json({ success: false, error: 'Lead not found', code: 'NOT_FOUND' });
     }
 
+    const { getOekForUser, decryptContact, decryptMessage } = require('../services/oekService');
+    const rawOek = await getOekForUser(req.userId);
+
+    if (lead.contactId) {
+      lead.contactId = decryptContact(lead.contactId, rawOek);
+    }
+
     // Fetch conversation history
     const messages = await Message.find({ 
       userId: req.userId, 
@@ -204,11 +211,13 @@ router.get('/:id', ...validateObjectId('id'), async (req, res) => {
       .sort({ timestamp: 1 })
       .lean();
 
+    const decryptedMessages = messages.map((m) => decryptMessage(m, rawOek));
+
     res.json({
       success: true,
       data: {
         lead,
-        messages
+        messages: decryptedMessages
       }
     });
   } catch (error) {

@@ -43,7 +43,11 @@ router.get('/', async (req, res) => {
       Contact.countDocuments(query),
     ]);
 
-    res.json({ success: true, data: { contacts, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) } });
+    const { getOekForUser, decryptContact } = require('../services/oekService');
+    const rawOek = await getOekForUser(req.userId);
+    const decryptedContacts = contacts.map((c) => decryptContact(c, rawOek));
+
+    res.json({ success: true, data: { contacts: decryptedContacts, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch contacts', code: 'FETCH_ERROR' });
   }

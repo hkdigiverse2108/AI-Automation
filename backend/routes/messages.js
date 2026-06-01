@@ -153,8 +153,25 @@ router.get('/conversations', async (req, res) => {
       { $sort: { timestamp: -1 } },
       { $group: { _id: '$conversationId', lastMessage: { $first: '$$ROOT' } } },
     ]);
+
+    const { getOekForUser, decryptContact, decryptMessage } = require('../services/oekService');
+    const rawOek = await getOekForUser(userId);
+
+    // Decrypt conversations contacts
+    conversations.forEach((c) => {
+      if (c.contactId) {
+        c.contactId = decryptContact(c.contactId, rawOek);
+      }
+    });
+
     const msgMap = {};
-    lastMessages.forEach((m) => { msgMap[m._id.toString()] = m.lastMessage; });
+    lastMessages.forEach((m) => {
+      let msg = m.lastMessage;
+      if (msg) {
+        msg = decryptMessage(msg, rawOek);
+      }
+      msgMap[m._id.toString()] = msg;
+    });
 
     const data = conversations.map((c) => ({
       ...c,
@@ -202,6 +219,18 @@ router.get('/conversations/:id', ...validateObjectId('id'), async (req, res) => 
 
     messages.reverse();
 
+    const { getOekForUser, decryptContact, decryptMessage } = require('../services/oekService');
+    const rawOek = await getOekForUser(req.userId);
+
+    // Decrypt conversation contact
+    let conversationObj = conversation.toObject();
+    if (conversationObj.contactId) {
+      conversationObj.contactId = decryptContact(conversationObj.contactId, rawOek);
+    }
+
+    // Decrypt messages
+    const decryptedMessages = messages.map((m) => decryptMessage(m, rawOek));
+
     // Mark as read
     conversation.isRead = true;
     conversation.unreadCount = 0;
@@ -209,7 +238,7 @@ router.get('/conversations/:id', ...validateObjectId('id'), async (req, res) => 
 
     res.json({
       success: true,
-      data: { conversation: conversation.toObject(), messages },
+      data: { conversation: conversationObj, messages: decryptedMessages },
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch conversation', code: 'FETCH_ERROR' });
@@ -301,7 +330,14 @@ router.post('/conversations', async (req, res) => {
         .populate('assignedAgent', 'name email');
     }
 
-    res.json({ success: true, data: { conversation } });
+    const { getOekForUser, decryptContact } = require('../services/oekService');
+    const rawOek = await getOekForUser(userId);
+    let conversationObj = conversation.toObject();
+    if (conversationObj.contactId) {
+      conversationObj.contactId = decryptContact(conversationObj.contactId, rawOek);
+    }
+
+    res.json({ success: true, data: { conversation: conversationObj } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create conversation', code: 'CONVERSATION_CREATE_ERROR' });
   }
