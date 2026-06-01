@@ -88,9 +88,49 @@ async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'W
     </div>
   `;
 
-  // Send strictly via configured Nodemailer SMTP
+  // 1. Try sending via Resend API (HTTP Port 443) which is never blocked by cloud hosts like Render
+  if (apiKey) {
+    try {
+      logger.info(`Attempting to send onboarding email via Resend to ${toEmail}...`);
+      
+      // Resend does not allow sending from unverified public domains like @gmail.com.
+      // If env.FROM_EMAIL is a Gmail or public address, we must use the default Resend sandbox sender.
+      let fromSender = 'WA Chatbox <onboarding@resend.dev>';
+      if (env.FROM_EMAIL) {
+        const isPublicDomain = /@(gmail|yahoo|outlook|hotmail|live|icloud|aol)\.com$/i.test(env.FROM_EMAIL);
+        if (!isPublicDomain) {
+          fromSender = env.FROM_EMAIL;
+        } else {
+          logger.info(`FROM_EMAIL (${env.FROM_EMAIL}) is a public domain. Using Resend default sandbox sender 'onboarding@resend.dev' to avoid validation error.`);
+        }
+      }
+
+      const response = await axios.post(
+        'https://api.resend.com/emails',
+        {
+          from: fromSender,
+          to: toEmail,
+          subject: `Welcome to ${orgName} - Your Onboarding Credentials`,
+          html: htmlContent,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      logger.info(`Onboarding email successfully delivered via Resend. Message ID: ${response.data.id}`);
+      return true;
+    } catch (error) {
+      logger.error('Resend HTTP delivery failed. Falling back to SMTP...', error.response?.data || error.message);
+    }
+  }
+
+  // 2. Fallback to standard SMTP
   if (!transporter || !env.SMTP_USER || !env.SMTP_PASS) {
-    logger.error('SMTP credentials not configured. Skipping onboarding email.');
+    logger.error('SMTP credentials not configured and Resend failed. Skipping onboarding email.');
     return false;
   }
 
