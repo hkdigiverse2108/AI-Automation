@@ -76,59 +76,6 @@ export default function Home() {
     }
   ];
 
-  const pricingPlans = [
-    {
-      name: 'Starter',
-      price: '$29',
-      period: 'month',
-      desc: 'Perfect for small teams launching their first WhatsApp automation campaign.',
-      features: [
-        'Official WABA Cloud API linkage',
-        '1,000 Active Monthly Contacts',
-        '1 Active Visual Bot Flow',
-        'CSV Contact Import Utility',
-        'Standard shared agent inbox',
-        '24/7 Server Uptime'
-      ],
-      cta: 'Get Started Free',
-      popular: false
-    },
-    {
-      name: 'Professional',
-      price: '$79',
-      period: 'month',
-      desc: 'Highly recommended for growing companies seeking visual flows & AI tools.',
-      features: [
-        'Official WABA Cloud API linkage',
-        '10,000 Active Monthly Contacts',
-        'Unlimited Bot Flows & Media',
-        'Smart Contact Scoring & Segments',
-        'Multi-agent Handoff & Takeovers',
-        'Real-time Slack/Web socket alerts',
-        'Google & Microsoft 2FA TOTP'
-      ],
-      cta: 'Start 14-day Free Trial',
-      popular: true
-    },
-    {
-      name: 'Enterprise',
-      price: '$199',
-      period: 'month',
-      desc: 'Dedicated infrastructure designed for high-volume marketing suites.',
-      features: [
-        'Dedicated high-throughput API lines',
-        'Unlimited Active Contacts',
-        'Dedicated custom OpenAI assistants',
-        'Custom raw webhook integrations',
-        'Dedicated success manager',
-        'SSO & Custom domain support',
-        'Priority 1-hour support SLA'
-      ],
-      cta: 'Contact Enterprise Sales',
-      popular: false
-    }
-  ];
-
   const faqs = [
     {
       q: 'Do I need an official WhatsApp Business Cloud API account?',
@@ -172,7 +119,6 @@ export default function Home() {
         </div>
         <nav className="hidden md:flex items-center gap-8 text-xs font-semibold text-slate-300">
           <a href="#features" className="hover:text-white transition-colors">Features</a>
-          <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
           <a href="#faq" className="hover:text-white transition-colors">FAQs</a>
           <a href="#mockup" className="hover:text-white transition-colors">Console Preview</a>
         </nav>
@@ -383,64 +329,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SAAS PRICING PLANS */}
-      <section id="pricing" className="max-w-6xl mx-auto px-6 py-16 border-t border-white/5 relative z-10">
-        <div className="text-center max-w-2xl mx-auto mb-14">
-          <h3 className="font-extrabold text-xs uppercase text-wa-green tracking-widest mb-2">Transparent Plans</h3>
-          <h2 className="text-3xl font-extrabold tracking-tight">Flexible SaaS Pricing</h2>
-          <p className="text-sm text-slate-400 mt-2">Pick the perfect plan to automate your WhatsApp marketing workflows.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-          {pricingPlans.map((plan, i) => (
-            <div 
-              key={i} 
-              className={`p-8 rounded-2xl border flex flex-col justify-between transition-all duration-300 relative ${
-                plan.popular 
-                  ? 'bg-slate-900 border-wa-green shadow-xl shadow-wa-green/5 hover:bg-slate-900/90 scale-100 md:scale-[1.03] z-10' 
-                  : 'bg-slate-900/30 border-white/5 hover:border-white/10 hover:bg-slate-900/50'
-              }`}
-            >
-              {plan.popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-wa-green text-white font-extrabold text-[9px] uppercase tracking-widest px-3.5 py-1 rounded-full shadow">
-                  Most Popular
-                </span>
-              )}
-              
-              <div>
-                <h4 className="font-extrabold text-lg text-white mb-2">{plan.name}</h4>
-                <p className="text-xs text-slate-400 leading-relaxed mb-6">{plan.desc}</p>
-                <div className="flex items-baseline gap-1 mb-8">
-                  <span className="text-3xl md:text-4xl font-extrabold text-white font-mono">{plan.price}</span>
-                  <span className="text-slate-500 text-xs font-medium">/{plan.period}</span>
-                </div>
-
-                <div className="h-px bg-white/5 mb-8" />
-
-                <ul className="space-y-3.5 mb-8">
-                  {plan.features.map((feat, fIdx) => (
-                    <li key={fIdx} className="flex items-start gap-2.5 text-xs text-slate-300">
-                      <Check className="w-4 h-4 text-wa-green shrink-0 mt-0.5" />
-                      <span>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <Link 
-                href="/register" 
-                className={`w-full text-center py-3.5 rounded-xl text-xs font-bold transition-all shadow ${
-                  plan.popular 
-                    ? 'bg-wa-green hover:bg-wa-green-hover text-white hover:scale-[1.01]' 
-                    : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'
-                }`}
-              >
-                {plan.cta}
-              </Link>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* FAQS SECTION */}
       <section id="faq" className="max-w-4xl mx-auto px-6 py-16 border-t border-white/5 relative z-10">
