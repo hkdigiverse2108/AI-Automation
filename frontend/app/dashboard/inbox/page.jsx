@@ -201,9 +201,11 @@ export default function InboxPage() {
       ];
 
   return (
-    <div className="flex h-[calc(100vh-1px)] -m-6 lg:-m-8 animate-fade-in">
+    <div className="flex h-[calc(100vh-1px)] -m-6 lg:-m-8 animate-fade-in relative overflow-hidden">
       {/* Left Panel — WhatsApp Web Conversation List */}
-      <div className="w-[420px] border-r border-wa-border dark:border-wa-dark-border flex flex-col bg-wa-panel dark:bg-wa-dark-panel shrink-0">
+      <div className={`w-full lg:w-[420px] border-r border-wa-border dark:border-wa-dark-border flex flex-col bg-wa-panel dark:bg-wa-dark-panel shrink-0 ${
+        currentConversation ? 'hidden lg:flex' : 'flex'
+      }`}>
         {/* Header */}
         <div className="wa-header flex items-center justify-between h-[60px] border-b border-wa-border dark:border-wa-dark-border px-4">
           <div className="flex items-center gap-3">
@@ -399,9 +401,15 @@ export default function InboxPage() {
       </div>
 
       {/* Right Panel — Chat */}
-      <div className="flex-1 wa-chat-pattern">
+      <div className={`flex-1 wa-chat-pattern ${
+        currentConversation ? 'flex' : 'hidden lg:flex'
+      } flex-col h-full min-w-0`}>
         {currentConversation ? (
-          <ChatWindow conversation={currentConversation} messages={messages} />
+          <ChatWindow 
+            conversation={currentConversation} 
+            messages={messages} 
+            onBack={() => useConversationStore.setState({ currentConversation: null })} 
+          />
         ) : (
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-sm">

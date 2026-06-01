@@ -5,7 +5,7 @@ import api from '../lib/api';
 import {
   Send, Paperclip, Smile, Check, CheckCheck, User, Bot, Sparkles,
   Phone, MoreVertical, Search, Mic, Image, FileText, Camera,
-  UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, CheckSquare, Save, Trash2, Mail, Loader2, MessageSquare
+  UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, CheckSquare, Save, Trash2, Mail, Loader2, MessageSquare, ChevronLeft
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -59,7 +59,7 @@ const resolveMediaUrl = (url) => {
   return url;
 };
 
-export default function ChatWindow({ conversation, messages }) {
+export default function ChatWindow({ conversation, messages, onBack }) {
   // Guard: If no conversation is loaded, show empty state
   if (!conversation?._id) {
     return (
@@ -587,35 +587,46 @@ export default function ChatWindow({ conversation, messages }) {
         
         {/* HEADER */}
         <div className="wa-header h-[60px] flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0 bg-wa-panel dark:bg-wa-dark-panel relative z-20">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setShowSidebar(!showSidebar)}>
-            <div className={`w-9 h-9 rounded-full ${avatarClass} flex items-center justify-center font-bold text-xs shrink-0 shadow-sm`}>
-              {initials}
-            </div>
-            <div>
-              <h3 className="font-semibold text-sm text-wa-text-primary dark:text-white leading-tight">
-                {contact.name || 'Unknown Contact'}
-              </h3>
-              <p className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex items-center gap-1.5 mt-0.5">
-                <Phone className="w-3 h-3" />
-                <span className="font-mono">{contact.phone || ''}</span>
-                {isLocked ? (
-                  <>
-                    <span className="text-slate-400">·</span>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30 font-bold uppercase tracking-wider">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                      <span>Assigned to {conversation.assignedAgent?.name || 'Agent'}</span>
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-slate-400">·</span>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30 font-bold uppercase tracking-wider font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0 animate-pulse" />
-                      <span>AI Handling</span>
-                    </span>
-                  </>
-                )}
-              </p>
+          <div className="flex items-center gap-2 md:gap-3 cursor-pointer">
+            {onBack && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); onBack(); }} 
+                className="lg:hidden p-1.5 rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-wa-text-secondary dark:text-wa-dark-text-secondary transition-colors"
+                title="Back to chats"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <div className="flex items-center gap-2 md:gap-3" onClick={() => setShowSidebar(!showSidebar)}>
+              <div className={`w-9 h-9 rounded-full ${avatarClass} flex items-center justify-center font-bold text-xs shrink-0 shadow-sm`}>
+                {initials}
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm text-wa-text-primary dark:text-white leading-tight">
+                  {contact.name || 'Unknown Contact'}
+                </h3>
+                <p className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex items-center gap-1.5 mt-0.5">
+                  <Phone className="w-3 h-3" />
+                  <span className="font-mono">{contact.phone || ''}</span>
+                  {isLocked ? (
+                    <>
+                      <span className="text-slate-400">·</span>
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30 font-bold uppercase tracking-wider">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                        <span>Assigned to {conversation.assignedAgent?.name || 'Agent'}</span>
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-slate-400">·</span>
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30 font-bold uppercase tracking-wider font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0 animate-pulse" />
+                        <span>AI Handling</span>
+                      </span>
+                    </>
+                  )}
+                </p>
+              </div>
             </div>
           </div>
 

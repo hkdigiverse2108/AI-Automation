@@ -440,7 +440,7 @@ export default function ContactTable() {
       {/* Table view */}
       <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="hidden sm:table w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-wa-border dark:border-wa-dark-border text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary bg-wa-bg dark:bg-wa-dark-header/40">
                 <th className="px-6 py-4 w-10">
@@ -593,6 +593,134 @@ export default function ContactTable() {
               )}
             </tbody>
           </table>
+
+          {/* Card view on mobile */}
+          <div className="sm:hidden block divide-y divide-wa-border dark:divide-wa-dark-border">
+            {loading ? (
+              <div className="px-6 py-12 text-center text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                <div className="flex justify-center items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-wa-green" />
+                  <span className="font-medium">Loading contacts...</span>
+                </div>
+              </div>
+            ) : contacts.length === 0 ? (
+              <div className="px-6 py-12 text-center text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium">
+                No contacts found matching your criteria.
+              </div>
+            ) : (
+              contacts.map((contact) => {
+                const isChecked = selectedIds.includes(contact._id);
+                const avatarClass = getAvatarBg(contact.name);
+                const initials = contact.name ? contact.name.substring(0, 2).toUpperCase() : 'C';
+
+                return (
+                  <div 
+                    key={contact._id} 
+                    className={`p-4 space-y-3 transition-colors ${isChecked ? 'bg-wa-green/5 dark:bg-wa-green/5' : ''}`}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-full ${avatarClass} flex items-center justify-center font-bold text-xs shrink-0 shadow-sm`}>
+                          {initials}
+                        </div>
+                        <div>
+                          <span className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary block hover:underline cursor-pointer" onClick={() => openEditModal(contact)}>
+                            {contact.name}
+                          </span>
+                          <span className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider font-mono">
+                            ID: {contact._id.substring(contact._id.length - 6)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => handleSelectRow(contact._id)}
+                          className="text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-green transition-colors"
+                        >
+                          {isChecked ? (
+                            <CheckSquare className="w-5 h-5 text-wa-green" />
+                          ) : (
+                            <Square className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Contact Details Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary/60">Phone</span>
+                        <span className="font-mono text-wa-text-primary dark:text-wa-dark-text-primary font-medium">{contact.phone}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary/60">Email</span>
+                        <span className="text-wa-text-secondary dark:text-wa-dark-text-secondary truncate block">{contact.email || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary/60">Source</span>
+                        <span className="capitalize text-wa-text-secondary dark:text-wa-dark-text-secondary">{contact.source}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary/60">Status</span>
+                        {contact.optedOut ? (
+                          <span className="text-red-500 font-semibold">Opted Out</span>
+                        ) : (
+                          <span className="text-wa-green font-semibold">Active</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Tags */}
+                    {contact.tags && contact.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {contact.tags.map(t => {
+                          const tagStyles = getTagColorClass(t);
+                          return (
+                            <span 
+                              key={t} 
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${tagStyles.badge}`}
+                            >
+                              <span className={`w-1 h-1 rounded-full ${tagStyles.dot}`} />
+                              <span>{t}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Footer Actions */}
+                    <div className="flex items-center justify-between pt-2 border-t border-wa-border/40 dark:border-wa-dark-border/20">
+                      <span className="text-[10px] text-wa-text-light">Actions</span>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => handleMessageContact(contact._id)}
+                          className="p-2 text-wa-green hover:bg-wa-green/10 rounded-xl transition-all duration-200"
+                          title="Message Contact"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => openEditModal(contact)}
+                          className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-xl transition-all duration-200"
+                          title="Edit Contact"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteContact(contact._id)}
+                          className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all duration-200"
+                          title="Delete Contact"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* Pagination controls */}
