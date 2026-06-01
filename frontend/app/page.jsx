@@ -123,11 +123,8 @@ export default function Home() {
           <a href="#mockup" className="hover:text-white transition-colors">Console Preview</a>
         </nav>
         <div className="flex items-center gap-4">
-          <Link href="/login" className="text-xs font-bold text-slate-300 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5">
-            Sign In
-          </Link>
-          <Link href="/register" className="bg-wa-green hover:bg-wa-green-hover text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-wa-green/15 hover:scale-[1.02] active:scale-[0.98]">
-            Get Started Free
+          <Link href="/login" className="bg-wa-green hover:bg-wa-green-hover text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-wa-green/15 hover:scale-[1.02] active:scale-[0.98]">
+            Login Console
           </Link>
         </div>
       </header>
