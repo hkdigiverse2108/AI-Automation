@@ -78,6 +78,16 @@ router.put('/read-all', verifyToken, async (req, res) => {
   }
 });
 
+// DELETE /api/notifications/delete-all — Delete all notifications for the user
+router.delete('/delete-all', verifyToken, async (req, res) => {
+  try {
+    await Notification.deleteMany({ user: req.user._id });
+    res.json({ success: true, message: 'All notifications deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // DELETE /api/notifications/:id — Delete a notification
 router.delete('/:id', verifyToken, async (req, res) => {
   try {

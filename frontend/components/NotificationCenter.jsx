@@ -125,6 +125,15 @@ export default function NotificationCenter() {
     } catch {}
   };
 
+  const deleteAllNotifications = async () => {
+    if (!confirm('Are you sure you want to delete all notifications? This action cannot be undone.')) return;
+    try {
+      await api.delete('/notifications/delete-all');
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch {}
+  };
+
   const deleteNotification = async (id) => {
     try {
       await api.delete(`/notifications/${id}`);
@@ -180,6 +189,15 @@ export default function NotificationCenter() {
                   title="Mark all as read"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={deleteAllNotifications}
+                  className="p-1.5 rounded-lg text-wa-text-secondary hover:text-red-500 hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                  title="Delete all notifications"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               )}
               <button
