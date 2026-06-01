@@ -118,7 +118,7 @@ export default function Sidebar({ isOpen, onClose }) {
         } ${collapsed ? 'w-[68px]' : 'w-[280px] lg:w-[240px]'}`}
       >
         {/* Logo & Brand */}
-        <div className={`flex items-center h-[60px] border-b border-wa-border dark:border-wa-dark-border shrink-0 ${collapsed ? 'justify-center px-2' : 'px-4 gap-3'}`}>
+        <div className={`flex items-center h-12 border-b border-wa-border dark:border-wa-dark-border shrink-0 ${collapsed ? 'justify-center px-2' : 'px-4 gap-3'}`}>
           <div className="w-10 h-10 bg-gradient-to-br from-wa-green to-wa-green-dark rounded-xl flex items-center justify-center shadow-lg shadow-wa-green/25 shrink-0">
             <MessageCircle className="w-5 h-5 text-white" />
           </div>

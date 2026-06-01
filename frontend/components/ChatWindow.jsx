@@ -586,7 +586,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
       <div className="flex-1 flex flex-col h-full min-w-0 bg-wa-bg/15 dark:bg-wa-dark-bg/10 relative">
         
         {/* HEADER */}
-        <div className="wa-header h-[60px] flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0 relative z-20">
+        <div className="wa-header h-[52px] flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0 relative z-20">
           <div className="flex items-center gap-2 md:gap-3 cursor-pointer">
             {onBack && (
               <button 
@@ -602,34 +602,35 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                 {initials}
               </div>
               <div>
-                <h3 className="font-semibold text-sm text-wa-text-primary dark:text-white leading-tight">
-                  {contact.name || 'Unknown Contact'}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-sm text-wa-text-primary dark:text-white leading-tight">
+                    {contact.name || 'Unknown Contact'}
+                  </h3>
+                  {conversation?.status && (
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
+                      conversation.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
+                      conversation.status === 'human' ? 'bg-blue-50 text-blue-705 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30' :
+                      conversation.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
+                      'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
+                    }`}>
+                      <span className={`w-1 h-1 rounded-full shrink-0 ${
+                        conversation.status === 'bot' ? 'bg-purple-500' :
+                        conversation.status === 'human' ? 'bg-blue-500' :
+                        conversation.status === 'ai' ? 'bg-emerald-500' :
+                        'bg-slate-400'
+                      }`} />
+                      <span>{conversation.status}</span>
+                    </span>
+                  )}
+                </div>
                 <p className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex items-center gap-1.5 mt-0.5">
-                  <Phone className="w-3 h-3" />
-                  <span className="font-mono">{contact.phone || ''}</span>
-                  {conversation?.status === 'human' ? (
+                  <Phone className="w-3 h-3 text-wa-text-light shrink-0" />
+                  <span className="font-mono leading-none">{contact.phone || ''}</span>
+                  {conversation?.status === 'human' && conversation.assignedAgent?.name && (
                     <>
-                      <span className="text-slate-400">·</span>
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30 font-bold uppercase tracking-wider">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                        <span>Assigned to {conversation.assignedAgent?.name || 'Agent'}</span>
-                      </span>
-                    </>
-                  ) : conversation?.status === 'bot' ? (
-                    <>
-                      <span className="text-slate-400">·</span>
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30 font-bold uppercase tracking-wider">
-                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
-                        <span>Bot Handling</span>
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-slate-400">·</span>
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-705 border border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 font-bold uppercase tracking-wider font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
-                        <span>AI Handling</span>
+                      <span className="text-slate-300 dark:text-slate-700">•</span>
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold leading-none">
+                        Assigned to {conversation.assignedAgent.name}
                       </span>
                     </>
                   )}

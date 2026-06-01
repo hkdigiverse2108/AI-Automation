@@ -51,14 +51,14 @@ export default function DashboardLayout({ children }) {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile top header - only visible on screen < lg (1024px) */}
-        <header className="flex lg:hidden items-center justify-between h-[60px] bg-wa-panel-header dark:bg-wa-dark-panel-header border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0 z-10">
+        <header className="flex lg:hidden items-center justify-between h-12 bg-wa-panel-header dark:bg-wa-dark-panel-header px-4 shrink-0 z-10">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
               className="p-1.5 rounded-lg text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
               title="Open menu"
             >
-              <Menu className="w-6 h-6" />
+              <Menu className="w-5 h-5" />
             </button>
             <span className="font-extrabold text-sm text-wa-text-primary dark:text-white tracking-tight">
               WA Chatbox
@@ -73,7 +73,7 @@ export default function DashboardLayout({ children }) {
         </header>
 
         {/* Desktop notification bar - only visible on lg+ */}
-        <header className="hidden lg:flex items-center justify-between h-16 bg-white/80 dark:bg-wa-dark-panel/80 border-b border-wa-border dark:border-wa-dark-border px-6 shrink-0 z-10 backdrop-blur-md shadow-sm">
+        <header className="hidden lg:flex items-center justify-between h-12 bg-white/80 dark:bg-wa-dark-panel/80 border-b border-wa-border dark:border-wa-dark-border px-6 shrink-0 z-10 backdrop-blur-md shadow-sm">
           {/* Left side: Premium Search Bar */}
           <div className="flex items-center gap-4 flex-1 max-w-md">
             <div className="relative w-full group">
@@ -83,7 +83,7 @@ export default function DashboardLayout({ children }) {
                 </svg>
               </span>
               <input
-                className="w-full pl-9 pr-4 py-2 bg-wa-search/40 dark:bg-wa-dark-search/20 border border-wa-border/50 dark:border-wa-dark-border/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-wa-green/25 focus:border-wa-green transition-all text-xs"
+                className="w-full pl-9 pr-4 py-1.5 bg-wa-search/40 dark:bg-wa-dark-search/20 border border-wa-border/50 dark:border-wa-dark-border/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-wa-green/25 focus:border-wa-green transition-all text-xs"
                 placeholder="Search conversations, campaigns..."
                 type="text"
               />
@@ -103,7 +103,7 @@ export default function DashboardLayout({ children }) {
                   {user?.role === 'superadmin' ? 'Super Admin' : user?.role === 'admin' ? 'Org Admin' : 'Agent'}
                 </p>
               </div>
-              <div className="w-9 h-9 rounded-full bg-wa-green/10 text-wa-green font-extrabold text-sm flex items-center justify-center border border-wa-green/20 shadow-sm shrink-0">
+              <div className="w-8 h-8 rounded-full bg-wa-green/10 text-wa-green font-extrabold text-sm flex items-center justify-center border border-wa-green/20 shadow-sm shrink-0">
                 {user?.name?.[0]?.toUpperCase() || 'U'}
               </div>
             </div>
@@ -111,9 +111,15 @@ export default function DashboardLayout({ children }) {
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto focus:outline-none">
-          <div className="p-4 sm:p-6 lg:p-8">{children}</div>
-        </main>
+        {pathname === '/dashboard/inbox' || pathname.startsWith('/dashboard/inbox/') ? (
+          <main className="flex-1 overflow-hidden focus:outline-none">
+            {children}
+          </main>
+        ) : (
+          <main className="flex-1 overflow-y-auto focus:outline-none">
+            <div className="p-4 sm:p-6 lg:p-8">{children}</div>
+          </main>
+        )}
       </div>
     </div>
   );

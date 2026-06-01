@@ -201,13 +201,13 @@ export default function InboxPage() {
       ];
 
   return (
-    <div className="flex h-[calc(100vh-60px)] lg:h-[calc(100vh-48px)] -m-6 lg:-m-8 animate-fade-in relative overflow-hidden">
+    <div className="flex h-full w-full animate-fade-in relative overflow-hidden">
       {/* Left Panel — WhatsApp Web Conversation List */}
       <div className={`w-full lg:w-[420px] border-r border-wa-border dark:border-wa-dark-border flex flex-col bg-wa-panel dark:bg-wa-dark-panel shrink-0 ${
         currentConversation ? 'hidden lg:flex' : 'flex'
       }`}>
         {/* Header */}
-        <div className="wa-header flex items-center justify-between h-[60px] border-b border-wa-border dark:border-wa-dark-border px-4">
+        <div className="wa-header flex items-center justify-between h-[52px] border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold text-wa-text-primary dark:text-wa-dark-text-primary">
               Chats
@@ -236,22 +236,22 @@ export default function InboxPage() {
         </div>
 
         {/* Search Bar */}
-        <div className={`px-3 py-2 transition-all duration-200 ${showSearch ? 'max-h-14 opacity-100' : 'max-h-14 opacity-100'}`}>
+        <div className="px-3 py-1.5 shrink-0">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-wa-text-light" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-wa-text-light" />
             <input
               ref={searchRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-[7px] bg-wa-search dark:bg-wa-dark-search rounded-lg text-sm text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-light focus:outline-none transition-colors"
+              className="w-full pl-9 pr-4 py-1.5 bg-wa-search dark:bg-wa-dark-search rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-light border border-wa-border/50 dark:border-wa-dark-border/20 focus:outline-none focus:ring-2 focus:ring-wa-green/20 focus:border-wa-green transition-colors"
               placeholder="Search or start new chat"
             />
           </div>
         </div>
 
         {/* Filter Tabs — WhatsApp Web style */}
-        <div className="flex items-center gap-1.5 px-3 pb-2">
+        <div className="flex items-center gap-1.5 px-3 pb-1.5 shrink-0">
           {filterTabs.map((tab) => {
             const isActive = filter === tab.key;
             let activeClass = 'bg-wa-green/15 text-wa-green dark:bg-wa-green/20 dark:text-wa-green-light';
