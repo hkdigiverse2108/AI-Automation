@@ -64,9 +64,9 @@ export default function BotFlowCanvas({ flow, onSave }) {
         toast.success('Image attached successfully!', { id: toastId });
         
         // Fetch fresh list of assets
-        const assetsRes = await api.get(`/media/bot/${flow._id}`);
-        if (assetsRes.data.success) {
-          setAssets(assetsRes.data.assets);
+        const { data: assetsData } = await api.get(`/media/bot/${flow._id}`);
+        if (assetsData.success) {
+          setAssets(assetsData.data.assets);
         }
 
         // Update the selected node to image type
