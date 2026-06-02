@@ -75,6 +75,15 @@ export const useConversationStore = create((set, get) => ({
   },
 
   fetchMessages: async (conversationId) => {
+    // Optimistically mark as read in the conversations list for instant UI feedback
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c._id?.toString() === conversationId?.toString()
+          ? { ...c, unreadCount: 0, isRead: true }
+          : c
+      ),
+    }));
+
     try {
       const { data } = await api.get(`/messages/conversations/${conversationId}`);
       if (data.success) {

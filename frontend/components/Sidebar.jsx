@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAuthStore, useThemeStore } from '../lib/store';
+import { useAuthStore, useThemeStore, useConversationStore } from '../lib/store';
 import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Bot, FileText,
   Settings, LogOut, Sun, Moon, MessageCircle, Shield,
@@ -52,6 +52,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
   const { dark, toggle } = useThemeStore();
+  const hasUnread = useConversationStore((state) => state.conversations.some(c => c.unreadCount > 0));
   const [collapsed, setCollapsed] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [hoveredItem, setHoveredItem] = useState(null);
@@ -170,6 +171,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <div className="space-y-0.5">
                 {section.items.map(({ href, label, icon: Icon, badge, onClick }) => {
                   const isActive = href !== '#logout' && (pathname === href || (href !== '/dashboard' && pathname.startsWith(href)));
+                  const showBadge = href === '/dashboard/inbox' ? hasUnread : badge;
                   const itemContent = (
                     <>
                       {/* Active indicator */}
@@ -184,7 +186,7 @@ export default function Sidebar({ isOpen, onClose }) {
                       )}
 
                       {/* Inbox badge */}
-                      {badge && (
+                      {showBadge && (
                         <span className={`bg-wa-green rounded-full border-2 border-wa-panel-header dark:border-wa-dark-panel-header animate-pulse-dot ${
                           collapsed
                             ? 'absolute -top-0.5 -right-0.5 w-2.5 h-2.5'
