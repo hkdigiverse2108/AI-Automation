@@ -188,8 +188,22 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
         lastMessageAt: new Date(),
         organization_id: adminUser ? adminUser.organizationId : null,
       });
-    } else if (!conversation.organization_id && adminUser) {
-      conversation.organization_id = adminUser.organizationId;
+    } else {
+      if (!conversation.organization_id && adminUser) {
+        conversation.organization_id = adminUser.organizationId;
+      }
+      // Session timeout check: If the last message was more than 1 hour ago, reset the workflow state
+      if (conversation.status === 'bot' && conversation.lastMessageAt) {
+        const timeDiff = Date.now() - new Date(conversation.lastMessageAt).getTime();
+        const oneHourMs = 60 * 60 * 1000;
+        if (timeDiff > oneHourMs) {
+          logger.info(`Session timeout (> 1 hour) for contact ${contact.phone}. Resetting bot flow state.`);
+          conversation.currentNodeId = null;
+          conversation.currentFlowId = null;
+          conversation.flowVariables = new Map();
+          conversation.markModified('flowVariables');
+        }
+      }
       await conversation.save();
     }
 
