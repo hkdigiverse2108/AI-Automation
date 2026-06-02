@@ -207,11 +207,7 @@ router.get('/conversations/:id', ...validateObjectId('id'), async (req, res) => 
 
     const limit = parseInt(req.query.limit, 10) || 100;
     const before = req.query.before;
-    const msgQuery = {
-      conversationId: conversation._id,
-      userId: req.userId,
-      deletedFor: { $nin: [req.user._id] }
-    };
+    const msgQuery = { conversationId: conversation._id, userId: req.userId };
     if (before) {
       msgQuery.timestamp = { $lt: new Date(before) };
     }
@@ -950,136 +946,6 @@ router.get('/stats', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch stats', code: 'STATS_ERROR' });
-  }
-});
-
-// PUT /messages/:id — edit an outbound human message
-router.put('/:id', ...validateObjectId('id'), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { text } = req.body;
-    const userId = req.userId;
-
-    if (!text) {
-      return res.status(400).json({ success: false, error: 'Text content is required', code: 'MISSING_TEXT' });
-    }
-
-    const message = await Message.findOne({ _id: id, userId });
-    if (!message) {
-      return res.status(404).json({ success: false, error: 'Message not found', code: 'NOT_FOUND' });
-    }
-
-    if (message.sentBy !== 'human') {
-      return res.status(403).json({ success: false, error: 'Only human agent messages can be edited', code: 'FORBIDDEN' });
-    }
-
-    message.content.text = text;
-    await message.save();
-
-    // Log the action
-    await AuditLog.log({
-      userId: req.userId,
-      actorId: req.user._id,
-      actorName: req.user.name,
-      action: 'AGENT_MESSAGE_EDITED',
-      resource: 'Message',
-      resourceId: message._id.toString(),
-      newValue: { text },
-      ip: req.ip,
-      userAgent: req.headers['user-agent']
-    });
-
-    // Emit via Socket.io to update other clients
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`user_${userId}`).emit('message_updated', {
-        message: message.toObject(),
-        conversationId: message.conversationId
-      });
-    }
-
-    res.json({ success: true, data: { message: message.toObject() }, message: 'Message updated' });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to edit message', code: 'EDIT_ERROR' });
-  }
-});
-
-// DELETE /messages/:id — delete an outbound human message
-router.delete('/:id', ...validateObjectId('id'), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.userId;
-    const mode = req.query.mode || 'forEveryone'; // 'forMe' | 'forEveryone'
-
-    const message = await Message.findOne({ _id: id, userId });
-    if (!message) {
-      return res.status(404).json({ success: false, error: 'Message not found', code: 'NOT_FOUND' });
-    }
-
-    const conversationId = message.conversationId;
-
-    if (mode === 'forMe') {
-      // Soft-delete: just hide from this user's view
-      const actorId = req.user._id;
-      if (!message.deletedFor.some((uid) => uid.toString() === actorId.toString())) {
-        message.deletedFor.push(actorId);
-        await message.save();
-      }
-
-      await AuditLog.log({
-        userId: req.userId,
-        actorId: req.user._id,
-        actorName: req.user.name,
-        action: 'AGENT_MESSAGE_DELETED_FOR_ME',
-        resource: 'Message',
-        resourceId: id,
-        ip: req.ip,
-        userAgent: req.headers['user-agent']
-      });
-
-      // Emit only to this specific user's socket so the message hides in their UI
-      const io = req.app.get('io');
-      if (io) {
-        io.to(`user_${userId}`).emit('message_deleted_for_me', {
-          messageId: id,
-          conversationId,
-          deletedBy: req.user._id
-        });
-      }
-
-      return res.json({ success: true, message: 'Message deleted for you' });
-    }
-
-    // mode === 'forEveryone' — hard delete (only human messages)
-    if (message.sentBy !== 'human') {
-      return res.status(403).json({ success: false, error: 'Only human agent messages can be deleted for everyone', code: 'FORBIDDEN' });
-    }
-
-    await Message.deleteOne({ _id: id });
-
-    await AuditLog.log({
-      userId: req.userId,
-      actorId: req.user._id,
-      actorName: req.user.name,
-      action: 'AGENT_MESSAGE_DELETED',
-      resource: 'Message',
-      resourceId: id,
-      ip: req.ip,
-      userAgent: req.headers['user-agent']
-    });
-
-    // Emit via Socket.io to remove it on ALL client screens
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`user_${userId}`).emit('message_deleted', {
-        messageId: id,
-        conversationId
-      });
-    }
-
-    res.json({ success: true, message: 'Message deleted for everyone' });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to delete message', code: 'DELETE_ERROR' });
   }
 });
 

@@ -5,7 +5,7 @@ import api from '../lib/api';
 import {
   Send, Paperclip, Smile, Check, CheckCheck, User, Bot, Sparkles,
   Phone, MoreVertical, Search, Mic, Image, FileText, Camera,
-  UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, CheckSquare, Save, Trash2, Mail, Loader2, MessageSquare, ChevronLeft, ChevronDown, EyeOff, Users
+  UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, Trash2, Mail, Loader2, MessageSquare, ChevronLeft
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -98,9 +98,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactCardName, setContactCardName] = useState('');
   const [contactCardPhone, setContactCardPhone] = useState('');
-  const [activeMsgDropdown, setActiveMsgDropdown] = useState(null);
-  const [editingMsgId, setEditingMsgId] = useState(null);
-  const [editVal, setEditVal] = useState('');
+
 
   const handleFileUpload = async (e, forcedType = null) => {
     const file = e.target.files?.[0];
@@ -187,55 +185,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     }
   };
 
-  const handleSaveEdit = async (messageId) => {
-    if (!editVal.trim()) return;
-    try {
-      const { data } = await api.put(`/messages/${messageId}`, { text: editVal });
-      if (data.success) {
-        useConversationStore.setState((state) => ({
-          messages: state.messages.map((m) =>
-            m._id === messageId ? { ...m, content: { ...m.content, text: editVal } } : m
-          ),
-        }));
-        setEditingMsgId(null);
-        toast.success('Message updated');
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to edit message');
-    }
-  };
 
-  const handleDeleteForMe = async (messageId) => {
-    const confirmed = await confirm('This message will be removed from your view only. Other agents will still see it.', 'Delete for Me');
-    if (!confirmed) return;
-    try {
-      const { data } = await api.delete(`/messages/${messageId}?mode=forMe`);
-      if (data.success) {
-        useConversationStore.setState((state) => ({
-          messages: state.messages.filter((m) => m._id !== messageId),
-        }));
-        toast.success('Message deleted for you');
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to delete message');
-    }
-  };
-
-  const handleDeleteForEveryone = async (messageId) => {
-    const confirmed = await confirm('This message will be permanently deleted for all users. This action cannot be undone.', 'Delete for Everyone');
-    if (!confirmed) return;
-    try {
-      const { data } = await api.delete(`/messages/${messageId}?mode=forEveryone`);
-      if (data.success) {
-        useConversationStore.setState((state) => ({
-          messages: state.messages.filter((m) => m._id !== messageId),
-        }));
-        toast.success('Message deleted for everyone');
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to delete message');
-    }
-  };
 
   // CRM Sidebar toggle
   const [showSidebar, setShowSidebar] = useState(false);
@@ -797,60 +747,6 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                     <div className={`${isOut ? 'chat-bubble-out' : 'chat-bubble-in'} relative group`}>
                       {!isOut && msg.sentBy && <SentByLabel sentBy={msg.sentBy} />}
                       
-                      {isOut && msg.sentBy === 'human' && (
-                        <div className="absolute top-1.5 right-1.5 msg-hover-actions z-20">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveMsgDropdown(activeMsgDropdown === msg._id ? null : msg._id);
-                            }}
-                            className="p-0.5 rounded hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors text-wa-text-secondary"
-                            title="Message options"
-                          >
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          </button>
-                          {activeMsgDropdown === msg._id && (
-                            <div className="absolute right-0 top-full mt-1 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-wa-lg z-30 py-1 min-w-[170px] animate-slide-up">
-                              {msg.type === 'text' && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingMsgId(msg._id);
-                                    setEditVal(msg.content?.text || '');
-                                    setActiveMsgDropdown(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-xs text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors flex items-center gap-2"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5 text-wa-text-secondary" /> Edit
-                                </button>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteForMe(msg._id);
-                                  setActiveMsgDropdown(null);
-                                }}
-                                className="w-full text-left px-3 py-2 text-xs text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors flex items-center gap-2"
-                              >
-                                <EyeOff className="w-3.5 h-3.5 text-wa-text-secondary" /> Delete for me
-                              </button>
-                              {msg.sentBy === 'human' && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteForEveryone(msg._id);
-                                    setActiveMsgDropdown(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center gap-2"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-red-500" /> Delete for everyone
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      
                       {msg.type === 'image' && msg.content?.mediaUrl && (
                         <div className="mb-1.5 max-w-sm rounded-lg overflow-hidden border border-wa-border dark:border-wa-dark-border shadow-sm">
                           <img 
@@ -927,34 +823,9 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
                       {/* Display text or caption if exists, or if type is text */}
                       {(msg.type === 'text' || (!msg.content?.mediaUrl && (msg.content?.text || msg.content?.caption))) && (
-                        editingMsgId === msg._id ? (
-                          <div className="flex flex-col gap-2 min-w-[220px] py-1">
-                            <textarea
-                              value={editVal}
-                              onChange={(e) => setEditVal(e.target.value)}
-                              className="w-full text-xs px-2.5 py-1.5 bg-wa-search dark:bg-wa-dark-search border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white placeholder-wa-text-secondary focus:outline-none resize-none font-sans scrollbar-thin"
-                              rows={2}
-                            />
-                            <div className="flex justify-end gap-1.5">
-                              <button
-                                onClick={() => setEditingMsgId(null)}
-                                className="px-2.5 py-1 text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover rounded-lg transition-colors"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                onClick={() => handleSaveEdit(msg._id)}
-                                className="px-2.5 py-1 text-[10px] font-bold text-white bg-wa-green hover:bg-wa-green-hover rounded-lg shadow-sm transition-colors"
-                              >
-                                Save
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
                           <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap text-wa-text-primary dark:text-wa-dark-text-primary">
                             {msg.content?.text || msg.content?.caption}
                           </p>
-                        )
                       )}
 
                       <div className="flex items-center gap-1 mt-1 justify-end">

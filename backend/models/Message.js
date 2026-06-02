@@ -33,8 +33,7 @@ const messageSchema = new mongoose.Schema(
     campaignId: { type: mongoose.Schema.Types.ObjectId },
     errorDetails: { type: String },
     timestamp: { type: Date, default: Date.now },
-    isEncrypted: { type: Boolean, default: false },
-    deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+    isEncrypted: { type: Boolean, default: false }
   },
   { timestamps: true, strict: true }
 );

@@ -92,29 +92,6 @@ export default function InboxPage() {
       updateMessageStatus(data.messageId, data.status);
     });
 
-    socket.on('message_updated', (data) => {
-      useConversationStore.setState((state) => ({
-        messages: state.messages.map((m) =>
-          m._id === data.message._id ? data.message : m
-        ),
-      }));
-    });
-
-    socket.on('message_deleted', (data) => {
-      useConversationStore.setState((state) => ({
-        messages: state.messages.filter((m) => m._id !== data.messageId),
-      }));
-    });
-
-    socket.on('message_deleted_for_me', (data) => {
-      // Only hide from the user who triggered the delete
-      if (data.deletedBy === user?._id) {
-        useConversationStore.setState((state) => ({
-          messages: state.messages.filter((m) => m._id !== data.messageId),
-        }));
-      }
-    });
-
     socket.on('conversation_assigned', (data) => {
       // Re-fetch conversations list to update items
       const params = { search: debouncedSearch || undefined };
@@ -152,9 +129,6 @@ export default function InboxPage() {
     return () => {
       socket.off('new_message');
       socket.off('message_status');
-      socket.off('message_updated');
-      socket.off('message_deleted');
-      socket.off('message_deleted_for_me');
       socket.off('conversation_assigned');
       socket.off('conversation_ai_updated');
     };
