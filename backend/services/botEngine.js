@@ -542,6 +542,67 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
 
       const varName = currentNode.data?.variable;
       if (varName) {
+        // Variable-based format validation (for free text question inputs)
+        const textVal = (content.text || '').toLowerCase().trim();
+        const questionText = msgData?.text || msgData?.body || msgData?.caption || '';
+        const hasGujarati = (str) => /[\u0A80-\u0AFF]/.test(str);
+        const isGuj = hasGujarati(questionText) || hasGujarati(varName);
+
+        // Phone number validation
+        if (varName.toLowerCase().includes('phone') || varName.toLowerCase().includes('mobile')) {
+          const cleanedPhone = textVal.replace(/[+\s\-]/g, '');
+          const isPhoneValid = /^\d{8,15}$/.test(cleanedPhone);
+          
+          if (!isPhoneValid) {
+            let errorText = "Please enter a valid phone number (digits only, e.g., 9876543210).";
+            if (isGuj) {
+              errorText = "કૃપા કરીને સાચો ફોન નંબર દાખલ કરો (ફક્ત અંકો, જેમ કે 9876543210).";
+            }
+            await sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, errorText, 'bot', io);
+            await executeNode(userId, conversation, contact, flow, currentNode, phoneNumberId, token, io, content);
+            return;
+          }
+        }
+
+        // Integer numbers validation (adults, children, guests, etc.)
+        if (
+          varName.toLowerCase().includes('adult') || 
+          varName.toLowerCase().includes('children') || 
+          varName.toLowerCase().includes('guest') ||
+          varName.toLowerCase().includes('qty') ||
+          varName.toLowerCase().includes('count')
+        ) {
+          const isNumValid = /^\d+$/.test(textVal);
+          
+          if (!isNumValid) {
+            let errorText = "Please enter a valid number (e.g., 2).";
+            if (isGuj) {
+              errorText = "કૃપા કરીને સાચી સંખ્યા દાખલ કરો (જેમ કે 2).";
+            }
+            await sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, errorText, 'bot', io);
+            await executeNode(userId, conversation, contact, flow, currentNode, phoneNumberId, token, io, content);
+            return;
+          }
+        }
+
+        // Date validation
+        if (varName.toLowerCase().includes('date') || varName.toLowerCase().includes('time')) {
+          const dateKeywords = ['today', 'tomorrow', 'tonight', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+          const hasDigit = /\d/.test(textVal);
+          const hasDateKeyword = dateKeywords.some(kw => textVal.includes(kw));
+          const isDateValid = hasDigit || hasDateKeyword;
+
+          if (!isDateValid) {
+            let errorText = "Please enter a valid date (e.g., 12/04/2026 or 'tomorrow').";
+            if (isGuj) {
+              errorText = "કૃપા કરીને સાચી તારીખ દાખલ કરો (જેમ કે 12/04/2026 અથવા 'આવતીકાલે').";
+            }
+            await sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, errorText, 'bot', io);
+            await executeNode(userId, conversation, contact, flow, currentNode, phoneNumberId, token, io, content);
+            return;
+          }
+        }
+
         if (varName === 'features') {
           const selectionId = content.text;
           const selectionTitle = content.interactive?.title || selectionId;
