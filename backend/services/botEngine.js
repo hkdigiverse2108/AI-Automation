@@ -469,6 +469,77 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
 
     // If current node is a question and we got a reply, save the variable, then advance
     if (currentNode.type === 'question' && !isNew && content.text) {
+      // 1. Gather all valid choices from the question message configuration
+      const validChoices = [];
+      const msgData = currentNode.data?.message;
+      if (msgData?.type === 'buttons' && msgData.buttons) {
+        for (const btn of msgData.buttons) {
+          if (btn.id) validChoices.push(btn.id.toLowerCase().trim());
+          if (btn.title) validChoices.push(btn.title.toLowerCase().trim());
+        }
+      } else if (msgData?.type === 'list' && msgData.sections) {
+        for (const section of msgData.sections) {
+          if (section.rows) {
+            for (const row of section.rows) {
+              if (row.id) validChoices.push(row.id.toLowerCase().trim());
+              if (row.title) validChoices.push(row.title.toLowerCase().trim());
+            }
+          }
+        }
+      }
+
+      // 2. Gather all valid edge labels or conditions
+      const validEdges = [];
+      if (currentNode.edges) {
+        for (const e of currentNode.edges) {
+          const edgeLabel = (e.label || '').toLowerCase().trim();
+          const condVal = (e.condition?.value || '').toLowerCase().trim();
+          if (edgeLabel && edgeLabel !== 'default') {
+            const parts = edgeLabel.split(',').map(s => s.trim());
+            for (const p of parts) {
+              if (p) validEdges.push(p);
+            }
+          }
+          if (condVal) validEdges.push(condVal);
+        }
+      }
+
+      // 3. We only validate if there are explicit choices or multiple conditional edges
+      const needsValidation = validChoices.length > 0 || (currentNode.edges && currentNode.edges.length > 1);
+
+      if (needsValidation) {
+        const textVal = (content.text || '').toLowerCase().trim();
+        const titleVal = (content.interactive?.title || '').toLowerCase().trim();
+        const idVal = (content.interactive?.id || '').toLowerCase().trim();
+
+        const hasMatch = (val) => {
+          if (!val) return false;
+          if (validChoices.includes(val) || validEdges.includes(val)) return true;
+          if (validChoices.some(c => c.includes(val) || val.includes(c))) return true;
+          if (validEdges.some(e => e.includes(val) || val.includes(e))) return true;
+          return false;
+        };
+
+        const isInputValid = hasMatch(idVal) || hasMatch(textVal) || hasMatch(titleVal);
+
+        if (!isInputValid) {
+          // Send validation error message
+          const questionText = msgData?.text || msgData?.body || msgData?.caption || '';
+          const hasGujarati = (str) => /[\u0A80-\u0AFF]/.test(str);
+
+          let errorText = "Invalid option. Please choose one of the available choices.";
+          if (hasGujarati(questionText) || validChoices.some(hasGujarati) || validEdges.some(hasGujarati)) {
+            errorText = "કૃપા કરીને આપેલા વિકલ્પોમાંથી એક પસંદ કરો.";
+          }
+
+          await sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, errorText, 'bot', io);
+
+          // Re-send the question node
+          await executeNode(userId, conversation, contact, flow, currentNode, phoneNumberId, token, io, content);
+          return;
+        }
+      }
+
       const varName = currentNode.data?.variable;
       if (varName) {
         if (varName === 'features') {
