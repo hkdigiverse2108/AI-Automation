@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 import { ScoreBadge } from './ContactScoreCard';
+import { useConfirmStore } from '../lib/store';
 
 // Helper to generate a soft color class based on user initials
 const getAvatarBg = (name) => {
@@ -44,6 +45,7 @@ const getTagColorClass = (tag) => {
 
 export default function ContactTable() {
   const router = useRouter();
+  const confirm = useConfirmStore(state => state.confirm);
   const [contacts, setContacts] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -238,7 +240,7 @@ export default function ContactTable() {
   };
 
   const handleDeleteContact = async (id) => {
-    if (!confirm('Are you sure you want to delete this contact?')) return;
+    if (!await confirm('Are you sure you want to delete this contact?')) return;
     try {
       const { data } = await api.delete(`/contacts/${id}`);
       if (data.success) {
@@ -253,7 +255,7 @@ export default function ContactTable() {
   // Bulk Delete implementation
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (!confirm(`Are you sure you want to delete the ${selectedIds.length} selected contacts?`)) return;
+    if (!await confirm(`Are you sure you want to delete the ${selectedIds.length} selected contacts?`)) return;
     
     setLoading(true);
     try {

@@ -8,6 +8,7 @@ import {
 import api from '../lib/api';
 import { useRouter } from 'next/navigation';
 import { getSocket } from '../lib/socket';
+import { useConfirmStore } from '../lib/store';
 
 const TYPE_CONFIG = {
   system: { icon: Shield, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
@@ -31,6 +32,7 @@ function timeAgo(dateStr) {
 }
 
 export default function NotificationCenter() {
+  const confirm = useConfirmStore((state) => state.confirm);
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -126,7 +128,8 @@ export default function NotificationCenter() {
   };
 
   const deleteAllNotifications = async () => {
-    if (!confirm('Are you sure you want to delete all notifications? This action cannot be undone.')) return;
+    const confirmed = await confirm('Are you sure you want to delete all notifications? This action cannot be undone.', 'Delete All Notifications');
+    if (!confirmed) return;
     try {
       await api.delete('/notifications/delete-all');
       setNotifications([]);

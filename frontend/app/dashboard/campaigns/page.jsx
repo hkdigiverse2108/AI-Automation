@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import api from '../../../lib/api';
 import CampaignForm from '../../../components/CampaignForm';
+import { useConfirmStore } from '../../../lib/store';
 
 export default function CampaignsPage() {
+  const confirm = useConfirmStore((state) => state.confirm);
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -73,7 +75,8 @@ export default function CampaignsPage() {
   };
 
   const handleDeleteCampaign = async (id) => {
-    if (!confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
+    const confirmed = await confirm('Are you sure you want to delete this campaign? This action cannot be undone.', 'Delete Campaign');
+    if (!confirmed) {
       return;
     }
     try {

@@ -4,8 +4,10 @@ import ContactTable from '../../../components/ContactTable';
 import api from '../../../lib/api';
 import { toast } from 'react-hot-toast';
 import { Tag as TagIcon, Users, Play, Plus, Trash2, X, Sparkles, Loader2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useConfirmStore } from '../../../lib/store';
 
 export default function ContactsPage() {
+  const confirm = useConfirmStore((state) => state.confirm);
   const [activeTab, setActiveTab] = useState('contacts'); // 'contacts', 'tags', 'rules'
   
   // Tags and Rules states
@@ -71,7 +73,8 @@ export default function ContactsPage() {
   };
 
   const handleDeleteTag = async (name) => {
-    if (!confirm(`Are you sure you want to delete tag "${name}"? This will remove it from all contacts.`)) return;
+    const confirmed = await confirm(`Are you sure you want to delete tag "${name}"? This will remove it from all contacts.`, 'Delete Tag');
+    if (!confirmed) return;
 
     try {
       const { data } = await api.delete(`/tags/${name}`);
@@ -121,7 +124,8 @@ export default function ContactsPage() {
   };
 
   const handleDeleteRule = async (id) => {
-    if (!confirm('Are you sure you want to delete this rule?')) return;
+    const confirmed = await confirm('Are you sure you want to delete this rule?', 'Delete Auto-Tag Rule');
+    if (!confirmed) return;
 
     try {
       const { data } = await api.delete(`/tags/rules/${id}`);

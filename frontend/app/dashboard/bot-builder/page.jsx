@@ -10,8 +10,10 @@ import api from '../../../lib/api';
 import BotFlowCanvas from '../../../components/BotFlowCanvas';
 import FlowSimulatorPanel from '../../../components/FlowSimulatorPanel';
 import BotMediaLibrary from '../../../components/BotMediaLibrary';
+import { useConfirmStore } from '../../../lib/store';
 
 export default function BotBuilderPage() {
+  const confirm = useConfirmStore((state) => state.confirm);
   const [flows, setFlows] = useState([]);
   const [currentFlow, setCurrentFlow] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -111,7 +113,8 @@ export default function BotBuilderPage() {
 
   const handleDeleteFlow = async () => {
     if (!currentFlow || currentFlow._id === 'new_flow') return;
-    if (!confirm(`Are you sure you want to delete the flow "${currentFlow.name}"? This action cannot be undone.`)) {
+    const confirmed = await confirm(`Are you sure you want to delete the flow "${currentFlow.name}"? This action cannot be undone.`, 'Delete Bot Flow');
+    if (!confirmed) {
       return;
     }
     

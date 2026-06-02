@@ -7,8 +7,10 @@ import {
   Clock, Activity, Inbox, MessageSquare
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { useConfirmStore } from '../../../lib/store';
 
 export default function TeamPage() {
+  const confirm = useConfirmStore(state => state.confirm);
   const [agents, setAgents] = useState([]);
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -167,7 +169,7 @@ export default function TeamPage() {
   };
 
   const handleDeleteAgent = async (id) => {
-    if (!confirm('Are you sure you want to delete this agent?')) return;
+    if (!await confirm('Are you sure you want to delete this agent?')) return;
     try {
       const { data } = await api.delete(`/team/agents/${id}`);
       if (data.success) {
@@ -234,7 +236,7 @@ export default function TeamPage() {
   };
 
   const handleDeleteRule = async (id) => {
-    if (!confirm('Are you sure you want to delete this rule?')) return;
+    if (!await confirm('Are you sure you want to delete this rule?')) return;
     try {
       const { data } = await api.delete(`/team/rules/${id}`);
       if (data.success) {

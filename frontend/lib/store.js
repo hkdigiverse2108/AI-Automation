@@ -185,3 +185,23 @@ export const useThemeStore = create((set) => ({
     }
   }
 }));
+
+export const useConfirmStore = create((set) => ({
+  isOpen: false,
+  message: '',
+  title: 'Confirm Action',
+  resolve: null,
+  confirm: (message, title = 'Confirm Action') => {
+    return new Promise((resolve) => {
+      set({
+        isOpen: true,
+        message,
+        title,
+        resolve: (val) => {
+          set({ isOpen: false });
+          resolve(val);
+        }
+      });
+    });
+  }
+}));

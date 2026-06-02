@@ -1,6 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { useConversationStore, useAuthStore } from '../lib/store';
+import { useConversationStore, useAuthStore, useConfirmStore } from '../lib/store';
 import api from '../lib/api';
 import {
   Send, Paperclip, Smile, Check, CheckCheck, User, Bot, Sparkles,
@@ -60,6 +60,8 @@ const resolveMediaUrl = (url) => {
 };
 
 export default function ChatWindow({ conversation, messages, onBack }) {
+  const confirm = useConfirmStore(state => state.confirm);
+  
   // Guard: If no conversation is loaded, show empty state
   if (!conversation?._id) {
     return (
@@ -505,7 +507,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
   const handleDeleteChat = async () => {
     if (!conversation?._id) return;
-    if (window.confirm("Are you sure you want to delete this chat? This will permanently delete all messages in this conversation.")) {
+    if (await confirm("Are you sure you want to delete this chat? This will permanently delete all messages in this conversation.")) {
       try {
         const result = await deleteConversation(conversation._id);
         if (result.success) {

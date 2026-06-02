@@ -8,7 +8,7 @@ import {
   Globe, Wifi, Radio, Sliders, Server, MessageSquare, Facebook, Instagram, AlertCircle, XCircle
 } from 'lucide-react';
 import api from '../../../lib/api';
-import { useAuthStore } from '../../../lib/store';
+import { useAuthStore, useConfirmStore } from '../../../lib/store';
 
 // Pre-defined premium SVG avatars
 const AVATAR_OPTIONS = [
@@ -21,6 +21,7 @@ const AVATAR_OPTIONS = [
 ];
 
 export default function SettingsPage() {
+  const confirm = useConfirmStore(state => state.confirm);
   const { user, checkAuth } = useAuthStore();
   const [activeTab, setActiveTab] = useState('profile');
 
@@ -169,7 +170,7 @@ export default function SettingsPage() {
   };
 
   const handleDisconnectConnection = async (type) => {
-    if (!confirm(`Are you sure you want to disconnect your active ${type.toUpperCase()} integration? This will suspend all real-time operations, but your saved credentials will remain intact.`)) {
+    if (!await confirm(`Are you sure you want to disconnect your active ${type.toUpperCase()} integration? This will suspend all real-time operations, but your saved credentials will remain intact.`)) {
       return;
     }
     setDisconnectingConnection(prev => ({ ...prev, [type]: true }));
@@ -248,7 +249,7 @@ export default function SettingsPage() {
   };
 
   const handleRevokeApiKey = async () => {
-    if (!confirm('Are you sure you want to revoke your developer API Key? External integrations will lose access.')) return;
+    if (!await confirm('Are you sure you want to revoke your developer API Key? External integrations will lose access.')) return;
     setRevokingApiKey(true);
     try {
       const { data } = await api.delete('/auth/api-key');

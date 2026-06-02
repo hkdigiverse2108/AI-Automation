@@ -5,8 +5,10 @@ import {
   Clock, Plus, Trash2, Edit3, X, Sparkles, Loader2, Play, Users, FileText, CheckCircle2, History, AlertCircle
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { useConfirmStore } from '../../../lib/store';
 
 export default function SequencesPage() {
+  const confirm = useConfirmStore((state) => state.confirm);
   const [sequences, setSequences] = useState([]);
   const [executions, setExecutions] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -146,7 +148,8 @@ export default function SequencesPage() {
   };
 
   const handleDeleteSequence = async (id) => {
-    if (!confirm('Are you sure you want to delete this sequence? This will cancel all running executions.')) return;
+    const confirmed = await confirm('Are you sure you want to delete this sequence? This will cancel all running executions.', 'Delete Drip Sequence');
+    if (!confirmed) return;
     try {
       const { data } = await api.delete(`/sequences/${id}`);
       if (data.success) {

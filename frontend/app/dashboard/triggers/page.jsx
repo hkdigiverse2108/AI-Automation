@@ -6,8 +6,10 @@ import {
   ToggleLeft, ToggleRight, AlertCircle, FileText, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { useConfirmStore } from '../../../lib/store';
 
 export default function TriggersPage() {
+  const confirm = useConfirmStore(state => state.confirm);
   const [triggers, setTriggers] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -143,7 +145,7 @@ export default function TriggersPage() {
   };
 
   const handleDeleteTrigger = async (id) => {
-    if (!confirm('Are you sure you want to delete this reply trigger?')) return;
+    if (!await confirm('Are you sure you want to delete this reply trigger?')) return;
     try {
       const { data } = await api.delete(`/triggers/${id}`);
       if (data.success) {

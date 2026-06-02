@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 import { toast } from 'react-hot-toast';
+import { useConfirmStore } from '../lib/store';
 
 export default function BotMediaLibrary({ botId }) {
+  const confirm = useConfirmStore(state => state.confirm);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -199,7 +201,7 @@ export default function BotMediaLibrary({ botId }) {
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete asset "${asset.assetKey}"?`)) {
+    if (!await confirm(`Are you sure you want to delete asset "${asset.assetKey}"?`)) {
       return;
     }
 

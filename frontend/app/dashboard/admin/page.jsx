@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuthStore } from '../../../lib/store';
+import { useAuthStore, useConfirmStore } from '../../../lib/store';
 import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 import {
@@ -12,6 +12,7 @@ import {
 
 export default function AdminPanel() {
   const { user } = useAuthStore();
+  const confirm = useConfirmStore((state) => state.confirm);
   const [activeTab, setActiveTab] = useState('organizations'); // health, queues, organizations
   const [healthData, setHealthData] = useState(null);
   const [organizations, setOrganizations] = useState([]);
@@ -230,7 +231,8 @@ export default function AdminPanel() {
   };
 
   const handleToggleOrgSuspension = async (orgId, currentStatus) => {
-    if (!confirm(`Are you sure you want to ${currentStatus === 'active' ? 'suspend' : 'activate'} this organization?`)) return;
+    const confirmed = await confirm(`Are you sure you want to ${currentStatus === 'active' ? 'suspend' : 'activate'} this organization?`, 'Toggle Organization Status');
+    if (!confirmed) return;
     setActionLoading(true);
     try {
       const nextStatus = currentStatus === 'active' ? 'suspended' : 'active';
@@ -247,7 +249,8 @@ export default function AdminPanel() {
   };
 
   const handleDeleteOrg = async (orgId) => {
-    if (!confirm('Are you sure you want to permanently delete this organization? All related user accounts will be suspended.')) return;
+    const confirmed = await confirm('Are you sure you want to permanently delete this organization? All related user accounts will be suspended.', 'Delete Organization');
+    if (!confirmed) return;
     setActionLoading(true);
     try {
       const { data } = await api.delete(`/admin/organizations/${orgId}`);

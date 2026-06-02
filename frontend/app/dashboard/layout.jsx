@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '../../lib/store';
 import Sidebar from '../../components/Sidebar';
 import NotificationCenter from '../../components/NotificationCenter';
+import ConfirmModal from '../../components/ConfirmModal';
 import { Menu } from 'lucide-react';
 
 export default function DashboardLayout({ children }) {
@@ -120,6 +121,7 @@ export default function DashboardLayout({ children }) {
             <div className="p-4 sm:p-6 lg:p-8">{children}</div>
           </main>
         )}
+        <ConfirmModal />
       </div>
     </div>
   );

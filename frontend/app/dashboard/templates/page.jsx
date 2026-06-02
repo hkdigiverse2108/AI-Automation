@@ -6,8 +6,10 @@ import {
   Clock, AlertTriangle, X, Loader2, Sparkles, LayoutGrid, List, Search, ChevronLeft, ChevronRight, Edit3, Image, Settings
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { useConfirmStore } from '../../../lib/store';
 
 export default function TemplatesPage() {
+  const confirm = useConfirmStore(state => state.confirm);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -221,7 +223,7 @@ export default function TemplatesPage() {
   };
 
   const handleDeleteTemplate = async (id) => {
-    if (!confirm('Delete this template?')) return;
+    if (!await confirm('Delete this template?')) return;
     try {
       const { data } = await api.delete(`/templates/${id}`);
       if (data.success) { toast.success('Template deleted'); fetchTemplates(); }
