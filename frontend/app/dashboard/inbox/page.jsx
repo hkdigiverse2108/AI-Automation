@@ -106,6 +106,15 @@ export default function InboxPage() {
       }));
     });
 
+    socket.on('message_deleted_for_me', (data) => {
+      // Only hide from the user who triggered the delete
+      if (data.deletedBy === user?._id) {
+        useConversationStore.setState((state) => ({
+          messages: state.messages.filter((m) => m._id !== data.messageId),
+        }));
+      }
+    });
+
     socket.on('conversation_assigned', (data) => {
       // Re-fetch conversations list to update items
       const params = { search: debouncedSearch || undefined };
@@ -145,6 +154,7 @@ export default function InboxPage() {
       socket.off('message_status');
       socket.off('message_updated');
       socket.off('message_deleted');
+      socket.off('message_deleted_for_me');
       socket.off('conversation_assigned');
       socket.off('conversation_ai_updated');
     };

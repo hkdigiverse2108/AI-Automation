@@ -5,7 +5,7 @@ import api from '../lib/api';
 import {
   Send, Paperclip, Smile, Check, CheckCheck, User, Bot, Sparkles,
   Phone, MoreVertical, Search, Mic, Image, FileText, Camera,
-  UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, CheckSquare, Save, Trash2, Mail, Loader2, MessageSquare, ChevronLeft, ChevronDown
+  UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, CheckSquare, Save, Trash2, Mail, Loader2, MessageSquare, ChevronLeft, ChevronDown, EyeOff, Users
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -205,16 +205,32 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     }
   };
 
-  const handleDeleteMsg = async (messageId) => {
-    const confirmed = await confirm('Are you sure you want to delete this message? This action cannot be undone.', 'Delete Message');
+  const handleDeleteForMe = async (messageId) => {
+    const confirmed = await confirm('This message will be removed from your view only. Other agents will still see it.', 'Delete for Me');
     if (!confirmed) return;
     try {
-      const { data } = await api.delete(`/messages/${messageId}`);
+      const { data } = await api.delete(`/messages/${messageId}?mode=forMe`);
       if (data.success) {
         useConversationStore.setState((state) => ({
           messages: state.messages.filter((m) => m._id !== messageId),
         }));
-        toast.success('Message deleted');
+        toast.success('Message deleted for you');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to delete message');
+    }
+  };
+
+  const handleDeleteForEveryone = async (messageId) => {
+    const confirmed = await confirm('This message will be permanently deleted for all users. This action cannot be undone.', 'Delete for Everyone');
+    if (!confirmed) return;
+    try {
+      const { data } = await api.delete(`/messages/${messageId}?mode=forEveryone`);
+      if (data.success) {
+        useConversationStore.setState((state) => ({
+          messages: state.messages.filter((m) => m._id !== messageId),
+        }));
+        toast.success('Message deleted for everyone');
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to delete message');
@@ -794,7 +810,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                             <ChevronDown className="w-3.5 h-3.5" />
                           </button>
                           {activeMsgDropdown === msg._id && (
-                            <div className="absolute right-0 top-full mt-1 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-wa-lg z-30 py-1 min-w-[120px] animate-slide-up">
+                            <div className="absolute right-0 top-full mt-1 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-wa-lg z-30 py-1 min-w-[170px] animate-slide-up">
                               {msg.type === 'text' && (
                                 <button
                                   onClick={(e) => {
@@ -811,13 +827,25 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDeleteMsg(msg._id);
+                                  handleDeleteForMe(msg._id);
                                   setActiveMsgDropdown(null);
                                 }}
-                                className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center gap-2"
+                                className="w-full text-left px-3 py-2 text-xs text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors flex items-center gap-2"
                               >
-                                <Trash2 className="w-3.5 h-3.5 text-red-500" /> Delete
+                                <EyeOff className="w-3.5 h-3.5 text-wa-text-secondary" /> Delete for me
                               </button>
+                              {msg.sentBy === 'human' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteForEveryone(msg._id);
+                                    setActiveMsgDropdown(null);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center gap-2"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-red-500" /> Delete for everyone
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
