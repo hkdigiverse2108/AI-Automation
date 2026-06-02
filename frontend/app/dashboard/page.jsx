@@ -69,28 +69,29 @@ export default function DashboardPage() {
     value: d.count
   }));
 
-  // Resolve dummy items if arrays are empty to look beautiful
-  const chartData = dailyData.length ? dailyData : [
-    { date: 'Mon', messages: 1200 },
-    { date: 'Tue', messages: 1900 },
-    { date: 'Wed', messages: 3200 },
-    { date: 'Thu', messages: 2800 },
-    { date: 'Fri', messages: 4500 },
-    { date: 'Sat', messages: 1500 },
-    { date: 'Sun', messages: 1800 },
-  ];
+  // Resolve items from database stats
+  const chartData = dailyData.length ? dailyData : Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return {
+      date: d.toISOString().slice(5, 10),
+      messages: 0
+    };
+  });
 
   const donutData = statusData.length ? statusData : [
-    { name: 'Resolved', value: 780 },
-    { name: 'Pending', value: 300 },
-    { name: 'Failed', value: 120 },
+    { name: 'Resolved', value: 0 },
+    { name: 'Bot', value: 0 },
+    { name: 'Human', value: 0 },
+    { name: 'AI', value: 0 },
+    { name: 'Waiting', value: 0 }
   ];
 
   const progressSources = sourceData.length ? sourceData : [
-    { name: 'Organic Search', count: 542 },
-    { name: 'Instagram Ads', count: 381 },
-    { name: 'Facebook Posts', count: 219 },
-    { name: 'Direct Link', count: 94 },
+    { name: 'Website', count: 0 },
+    { name: 'Instagram', count: 0 },
+    { name: 'Facebook', count: 0 },
+    { name: 'Direct Link', count: 0 },
   ];
 
   const maxSourceCount = Math.max(...progressSources.map(s => s.count), 1);

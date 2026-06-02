@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, requireRole } = require('../middleware/auth');
+const mongoose = require('mongoose');
+const { verifyToken } = require('../middleware/auth');
 const Message = require('../models/Message');
 const Contact = require('../models/Contact');
 const Conversation = require('../models/Conversation');
@@ -9,7 +10,7 @@ const Campaign = require('../models/Campaign');
 // GET /api/analytics/overview — Aggregated dashboard metrics
 router.get('/overview', verifyToken, async (req, res) => {
   try {
-    const orgId = req.organizationId;
+    const userId = req.userId;
     const now = new Date();
     const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
@@ -25,18 +26,18 @@ router.get('/overview', verifyToken, async (req, res) => {
       readCount,
       repliedCount,
     ] = await Promise.all([
-      Contact.countDocuments({ organization: orgId }),
-      Contact.countDocuments({ organization: orgId, createdAt: { $gte: thirtyDaysAgo } }),
-      Conversation.countDocuments({ organization: orgId }),
-      Message.countDocuments({ organization: orgId }),
-      Message.countDocuments({ organization: orgId, direction: 'outbound', createdAt: { $gte: sevenDaysAgo } }),
-      Message.countDocuments({ organization: orgId, direction: 'inbound', createdAt: { $gte: sevenDaysAgo } }),
-      Message.countDocuments({ organization: orgId, direction: 'outbound', status: { $in: ['delivered', 'read'] } }),
-      Message.countDocuments({ organization: orgId, direction: 'outbound', status: 'read' }),
-      Message.countDocuments({ organization: orgId, direction: 'inbound' }),
+      Contact.countDocuments({ userId, isDeleted: { $ne: true } }),
+      Contact.countDocuments({ userId, isDeleted: { $ne: true }, createdAt: { $gte: thirtyDaysAgo } }),
+      Conversation.countDocuments({ userId }),
+      Message.countDocuments({ userId }),
+      Message.countDocuments({ userId, direction: 'outbound', createdAt: { $gte: sevenDaysAgo } }),
+      Message.countDocuments({ userId, direction: 'inbound', createdAt: { $gte: sevenDaysAgo } }),
+      Message.countDocuments({ userId, direction: 'outbound', status: { $in: ['delivered', 'read'] } }),
+      Message.countDocuments({ userId, direction: 'outbound', status: 'read' }),
+      Message.countDocuments({ userId, direction: 'inbound' }),
     ]);
 
-    const totalSent = await Message.countDocuments({ organization: orgId, direction: 'outbound' });
+    const totalSent = await Message.countDocuments({ userId, direction: 'outbound' });
     const deliveryRate = totalSent > 0 ? Math.round((deliveredCount / totalSent) * 100) : 0;
     const readRate = totalSent > 0 ? Math.round((readCount / totalSent) * 100) : 0;
     const replyRate = totalSent > 0 ? Math.round((repliedCount / totalSent) * 100) : 0;
@@ -63,12 +64,12 @@ router.get('/overview', verifyToken, async (req, res) => {
 // GET /api/analytics/message-trends — Time-series message data
 router.get('/message-trends', verifyToken, async (req, res) => {
   try {
-    const orgId = req.organizationId;
+    const userId = req.userId;
     const days = parseInt(req.query.days) || 30;
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const pipeline = [
-      { $match: { organization: orgId, createdAt: { $gte: since } } },
+      { $match: { userId: new mongoose.Types.ObjectId(userId), createdAt: { $gte: since } } },
       {
         $group: {
           _id: {
@@ -109,12 +110,12 @@ router.get('/message-trends', verifyToken, async (req, res) => {
 // GET /api/analytics/contact-growth — Contact acquisition over time
 router.get('/contact-growth', verifyToken, async (req, res) => {
   try {
-    const orgId = req.organizationId;
+    const userId = req.userId;
     const days = parseInt(req.query.days) || 30;
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const pipeline = [
-      { $match: { organization: orgId, createdAt: { $gte: since } } },
+      { $match: { userId: new mongoose.Types.ObjectId(userId), isDeleted: { $ne: true }, createdAt: { $gte: since } } },
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
@@ -128,7 +129,7 @@ router.get('/contact-growth', verifyToken, async (req, res) => {
 
     // Build cumulative series
     let cumulative = 0;
-    const beforeCount = await Contact.countDocuments({ organization: orgId, createdAt: { $lt: since } });
+    const beforeCount = await Contact.countDocuments({ userId, isDeleted: { $ne: true }, createdAt: { $lt: since } });
     cumulative = beforeCount;
 
     const result = [];
@@ -148,25 +149,31 @@ router.get('/contact-growth', verifyToken, async (req, res) => {
 // GET /api/analytics/campaign-performance — Campaign metrics breakdown
 router.get('/campaign-performance', verifyToken, async (req, res) => {
   try {
-    const orgId = req.organizationId;
+    const userId = req.userId;
 
-    const campaigns = await Campaign.find({ organization: orgId })
+    const campaigns = await Campaign.find({ userId })
       .sort({ createdAt: -1 })
       .limit(20)
       .lean();
 
-    const performance = campaigns.map(c => ({
-      name: c.name,
-      status: c.status,
-      totalRecipients: c.totalRecipients || 0,
-      sent: c.sentCount || 0,
-      delivered: c.deliveredCount || 0,
-      read: c.readCount || 0,
-      failed: c.failedCount || 0,
-      deliveryRate: c.sentCount > 0 ? Math.round(((c.deliveredCount || 0) / c.sentCount) * 100) : 0,
-      readRate: c.sentCount > 0 ? Math.round(((c.readCount || 0) / c.sentCount) * 100) : 0,
-      createdAt: c.createdAt,
-    }));
+    const performance = campaigns.map(c => {
+      const sent = c.stats?.sent || 0;
+      const delivered = c.stats?.delivered || 0;
+      const read = c.stats?.read || 0;
+      const failed = c.stats?.failed || 0;
+      return {
+        name: c.name,
+        status: c.status,
+        totalRecipients: c.audience?.totalCount || 0,
+        sent,
+        delivered,
+        read,
+        failed,
+        deliveryRate: sent > 0 ? Math.round((delivered / sent) * 100) : 0,
+        readRate: sent > 0 ? Math.round((read / sent) * 100) : 0,
+        createdAt: c.createdAt,
+      };
+    });
 
     res.json({ success: true, data: { campaigns: performance } });
   } catch (err) {
@@ -177,12 +184,12 @@ router.get('/campaign-performance', verifyToken, async (req, res) => {
 // GET /api/analytics/hourly-activity — Active hours heatmap data
 router.get('/hourly-activity', verifyToken, async (req, res) => {
   try {
-    const orgId = req.organizationId;
+    const userId = req.userId;
     const days = parseInt(req.query.days) || 30;
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const pipeline = [
-      { $match: { organization: orgId, createdAt: { $gte: since } } },
+      { $match: { userId: new mongoose.Types.ObjectId(userId), createdAt: { $gte: since } } },
       {
         $group: {
           _id: {
@@ -219,15 +226,15 @@ router.get('/hourly-activity', verifyToken, async (req, res) => {
 // GET /api/analytics/conversation-stats — Bot vs Human ratio & status breakdown
 router.get('/conversation-stats', verifyToken, async (req, res) => {
   try {
-    const orgId = req.organizationId;
+    const userId = req.userId;
 
     const [byStatus, bySource] = await Promise.all([
       Conversation.aggregate([
-        { $match: { organization: orgId } },
+        { $match: { userId: new mongoose.Types.ObjectId(userId) } },
         { $group: { _id: '$status', count: { $sum: 1 } } }
       ]),
       Conversation.aggregate([
-        { $match: { organization: orgId } },
+        { $match: { userId: new mongoose.Types.ObjectId(userId) } },
         { $group: { _id: '$source', count: { $sum: 1 } } }
       ]),
     ]);
