@@ -38,7 +38,7 @@ try {
  * @param {string} orgName - Associated organization name.
  * @returns {Promise<boolean>} - True if sent successfully.
  */
-async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'WhatsApp Platform') {
+async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'Ajnabh Connect') {
   const apiKey = env.RESEND_API_KEY;
   const roleLabel = role === 'admin' ? 'Organization Administrator' : 'Support Agent / Telecaller';
   const loginUrl = env.FRONTEND_URL || 'http://localhost:3000';
@@ -97,7 +97,7 @@ async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'W
         'https://api.brevo.com/v3/smtp/email',
         {
           sender: {
-            name: 'WA Chatbox',
+            name: 'Ajnabh Connect',
             email: env.FROM_EMAIL || env.SMTP_USER || 'princegajera0506@gmail.com',
           },
           to: [
@@ -132,7 +132,7 @@ async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'W
       
       // Resend does not allow sending from unverified public domains like @gmail.com.
       // If env.FROM_EMAIL is a Gmail or public address, we must use the default Resend sandbox sender.
-      let fromSender = 'WA Chatbox <onboarding@resend.dev>';
+      let fromSender = 'Ajnabh Connect <onboarding@resend.dev>';
       if (env.FROM_EMAIL) {
         const isPublicDomain = /@(gmail|yahoo|outlook|hotmail|live|icloud|aol)\.com$/i.test(env.FROM_EMAIL);
         if (!isPublicDomain) {

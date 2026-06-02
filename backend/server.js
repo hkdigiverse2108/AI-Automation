@@ -125,7 +125,7 @@ mountRoutes('/api'); // Legacy support
 
 // Health check
 app.get(['/api/health', '/api/v1/health'], (_req, res) => {
-  res.json({ success: true, message: 'WhatsApp Platform API is running', timestamp: new Date() });
+  res.json({ success: true, message: 'Ajnabh Connect API is running', timestamp: new Date() });
 });
 
 // 404 handler

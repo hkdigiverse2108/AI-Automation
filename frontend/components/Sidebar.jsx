@@ -125,10 +125,10 @@ export default function Sidebar({ isOpen, onClose }) {
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <h1 className="text-sm font-extrabold text-wa-green dark:text-wa-green tracking-tight leading-tight truncate">
-                WA Marketing
+                Ajnabh Connect
               </h1>
               <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium leading-none mt-0.5">
-                Business Suite
+                Enterprise Suite
               </p>
             </div>
           )}

@@ -78,8 +78,8 @@ export default function LoginPage() {
             <MessageCircle className="w-6 h-6 text-wa-green fill-wa-green/10" />
           </div>
           <div>
-            <h1 className="font-bold text-lg text-white">WA Business</h1>
-            <p className="text-[10px] text-white/80 font-bold uppercase tracking-wider">Marketing Suite</p>
+            <h1 className="font-bold text-lg text-white">Ajnabh Connect</h1>
+            <p className="text-[10px] text-white/80 font-bold uppercase tracking-wider">Enterprise Suite</p>
           </div>
         </div>
 

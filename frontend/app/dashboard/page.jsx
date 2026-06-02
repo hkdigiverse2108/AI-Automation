@@ -373,7 +373,7 @@ export default function DashboardPage() {
       {/* Footer / Credits Section */}
       <footer className="mt-8 text-center py-4 border-t border-wa-border/30">
         <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium">
-          © 2026 WA Business Marketing Suite. All systems operational. Version 4.2.1-stable
+          © 2026 Ajnabh Connect Enterprise Suite. All systems operational. Version 4.2.1-stable
         </p>
       </footer>
     </div>

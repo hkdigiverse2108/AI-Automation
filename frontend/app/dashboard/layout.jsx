@@ -61,7 +61,7 @@ export default function DashboardLayout({ children }) {
               <Menu className="w-5 h-5" />
             </button>
             <span className="font-extrabold text-sm text-wa-text-primary dark:text-white tracking-tight">
-              WA Chatbox
+              Ajnabh Connect
             </span>
           </div>
           <div className="flex items-center gap-2">
