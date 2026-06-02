@@ -1183,6 +1183,10 @@ async function sendReplyForTrigger(userId, conversation, contact, trigger, phone
 
       const result = await whatsapp.sendTemplateMessage(phoneNumberId, token, contact.phone, tmpl.name, 'en', []);
       if (result.success) {
+        // Resolve template text for visual chat bubbles
+        const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+        const templateText = bodyComp ? bodyComp.text : '';
+
         // Save message
         const message = await Message.create({
           userId,
@@ -1190,7 +1194,10 @@ async function sendReplyForTrigger(userId, conversation, contact, trigger, phone
           contactId: contact._id,
           direction: 'outbound',
           type: 'template',
-          content: { template: { name: tmpl.name, variables: [] } },
+          content: {
+            text: templateText || `[Template: ${tmpl.name}]`,
+            template: { name: tmpl.name, variables: [] }
+          },
           status: 'sent',
           metaMessageId: result.data?.messages?.[0]?.id,
           sentBy: 'system',

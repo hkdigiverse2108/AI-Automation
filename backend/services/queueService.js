@@ -78,6 +78,27 @@ function getCampaignQueue(userId) {
       if (result.success) {
         await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.sent': 1 } });
 
+        // Resolve template text for visual chat bubbles
+        let templateText = '';
+        try {
+          const Template = require('../models/Template');
+          const tmpl = await Template.findOne({ userId: jobUserId, name: templateName });
+          if (tmpl) {
+            const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+            if (bodyComp && bodyComp.text) {
+              templateText = bodyComp.text;
+              if (variables && variables.length > 0) {
+                templateText = templateText.replace(/\{\{([0-9]+)\}\}/g, (_, num) => {
+                  const idx = parseInt(num, 10) - 1;
+                  return variables[idx] !== undefined ? variables[idx] : `{{${num}}}`;
+                });
+              }
+            }
+          }
+        } catch (err) {
+          logger.error(`Error looking up template for log text: ${err.message}`);
+        }
+
         // Save outbound message
         let conversation = await Conversation.findOne({ userId: jobUserId, contactId: contact._id });
         const isNewConversation = !conversation;
@@ -91,7 +112,10 @@ function getCampaignQueue(userId) {
           contactId: contact._id,
           direction: 'outbound',
           type: 'template',
-          content: { template: { name: templateName, variables } },
+          content: {
+            text: templateText || `[Template: ${templateName}]`,
+            template: { name: templateName, variables }
+          },
           status: 'sent',
           metaMessageId: result.data?.messages?.[0]?.id,
           sentBy: 'system',
@@ -439,6 +463,22 @@ async function processDueSequences() {
 
         if (result.success) {
           msgStatus = 'sent';
+
+          // Resolve template text for visual chat bubbles
+          let templateText = '';
+          try {
+            const Template = require('../models/Template');
+            const tmpl = await Template.findOne({ userId: exec.userId, name: msgStep.templateName });
+            if (tmpl) {
+              const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+              if (bodyComp && bodyComp.text) {
+                templateText = bodyComp.text;
+              }
+            }
+          } catch (err) {
+            logger.error(`Error looking up template for sequence text: ${err.message}`);
+          }
+
           // Save outbound message
           const message = await Message.create({
             userId: exec.userId,
@@ -446,7 +486,10 @@ async function processDueSequences() {
             contactId: contact._id,
             direction: 'outbound',
             type: 'template',
-            content: { template: { name: msgStep.templateName, variables: [] } },
+            content: {
+              text: templateText || `[Template: ${msgStep.templateName}]`,
+              template: { name: msgStep.templateName, variables: [] }
+            },
             status: 'sent',
             metaMessageId: result.data?.messages?.[0]?.id,
             sentBy: 'system',
