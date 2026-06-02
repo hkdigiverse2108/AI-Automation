@@ -766,7 +766,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                       )}
 
                       {msg.type === 'audio' && msg.content?.mediaUrl && (
-                        <div className="mb-1.5 p-2 rounded-xl bg-wa-panel-header/50 dark:bg-wa-dark-panel-header/35 border border-wa-border dark:border-wa-dark-border flex items-center gap-2 min-w-[260px] max-w-sm shadow-sm">
+                        <div className="mb-1.5 p-2 rounded-xl bg-wa-panel-header dark:bg-wa-dark-panel-header border border-wa-border dark:border-wa-dark-border flex items-center gap-2 min-w-[260px] max-w-sm shadow-sm">
                           <audio 
                             src={resolveMediaUrl(msg.content.mediaUrl)} 
                             controls 
@@ -786,7 +786,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                       )}
 
                       {msg.type === 'document' && msg.content?.mediaUrl && (
-                        <div className="mb-1.5 p-2.5 rounded-xl bg-wa-panel-header/50 dark:bg-wa-dark-panel-header/35 border border-wa-border dark:border-wa-dark-border flex items-center gap-2 max-w-sm">
+                        <div className="mb-1.5 p-2.5 rounded-xl bg-wa-panel-header dark:bg-wa-dark-panel-header border border-wa-border dark:border-wa-dark-border flex items-center gap-2 max-w-sm">
                           <FileText className="w-5 h-5 text-purple-500 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <span className="block text-xs font-semibold text-wa-text-primary dark:text-white truncate">
@@ -805,7 +805,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                       )}
 
                       {msg.type === 'contact' && (
-                        <div className="mb-1.5 p-3 rounded-xl bg-wa-panel-header/50 dark:bg-wa-dark-panel-header/35 border border-wa-border dark:border-wa-dark-border flex items-center gap-2 max-w-sm">
+                        <div className="mb-1.5 p-3 rounded-xl bg-wa-panel-header dark:bg-wa-dark-panel-header border border-wa-border dark:border-wa-dark-border flex items-center gap-2 max-w-sm">
                           <UserCircle className="w-6 h-6 text-blue-500 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <span className="block text-xs font-bold text-wa-text-primary dark:text-white leading-tight truncate">

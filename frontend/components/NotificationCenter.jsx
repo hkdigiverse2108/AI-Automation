@@ -174,7 +174,7 @@ export default function NotificationCenter() {
           className="absolute right-0 top-[calc(100%+8px)] w-[380px] max-h-[520px] bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden animate-slide-up"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-wa-border dark:border-wa-dark-border bg-wa-panel-header/50 dark:bg-wa-dark-panel-header/50">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-wa-border dark:border-wa-dark-border bg-wa-panel-header dark:bg-wa-dark-panel-header">
             <div className="flex items-center gap-2">
               <Bell className="w-4 h-4 text-wa-green" />
               <h3 className="text-sm font-bold text-wa-text-primary dark:text-white">Notifications</h3>

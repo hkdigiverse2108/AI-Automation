@@ -159,12 +159,12 @@ export default function Sidebar({ isOpen, onClose }) {
             <div key={section.title}>
               {/* Section Title */}
               {!collapsed && (
-                <p className="text-[10px] font-bold text-wa-text-secondary/60 dark:text-wa-dark-text-secondary/60 uppercase tracking-[0.12em] mb-1.5 px-2.5">
+                <p className="text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary opacity-60 uppercase tracking-[0.12em] mb-1.5 px-2.5">
                   {section.title}
                 </p>
               )}
               {collapsed && (
-                <div className="h-px bg-wa-border/50 dark:bg-wa-dark-border/50 mx-2 mb-1.5" />
+                <div className="h-px bg-wa-border dark:bg-wa-dark-border opacity-50 mx-2 mb-1.5" />
               )}
 
               <div className="space-y-0.5">

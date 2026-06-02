@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuthStore } from '../../lib/store';
+import { useAuthStore, useThemeStore } from '../../lib/store';
 import Sidebar from '../../components/Sidebar';
 import NotificationCenter from '../../components/NotificationCenter';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -9,12 +9,14 @@ import { Menu } from 'lucide-react';
 
 export default function DashboardLayout({ children }) {
   const { isAuthenticated, loading, checkAuth, user } = useAuthStore();
+  const { init: initTheme } = useThemeStore();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     checkAuth();
+    initTheme();
   }, []);
 
   // Auto-close mobile sidebar drawer on navigation change
@@ -74,7 +76,7 @@ export default function DashboardLayout({ children }) {
         </header>
 
         {/* Desktop notification bar - only visible on lg+ */}
-        <header className="hidden lg:flex items-center justify-between h-12 bg-white/80 dark:bg-wa-dark-panel/80 border-b border-wa-border dark:border-wa-dark-border px-6 shrink-0 z-10 backdrop-blur-md shadow-sm">
+        <header className="hidden lg:flex items-center justify-between h-12 bg-white dark:bg-wa-dark-panel-header border-b border-wa-border dark:border-wa-dark-border px-6 shrink-0 z-10 shadow-sm">
           {/* Left side: Premium Search Bar */}
           <div className="flex items-center gap-4 flex-1 max-w-md">
             <div className="relative w-full group">
@@ -84,7 +86,7 @@ export default function DashboardLayout({ children }) {
                 </svg>
               </span>
               <input
-                className="w-full pl-9 pr-4 py-1.5 bg-wa-search/40 dark:bg-wa-dark-search/20 border border-wa-border/50 dark:border-wa-dark-border/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-wa-green/25 focus:border-wa-green transition-all text-xs"
+                className="w-full pl-9 pr-4 py-1.5 bg-wa-search dark:bg-wa-dark-search border border-wa-border dark:border-wa-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-wa-green/25 focus:border-wa-green transition-all text-xs text-wa-text-primary dark:text-white placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary"
                 placeholder="Search conversations, campaigns..."
                 type="text"
               />
