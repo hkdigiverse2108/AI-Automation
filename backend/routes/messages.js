@@ -949,4 +949,100 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// PUT /messages/:id — edit an outbound human message
+router.put('/:id', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text } = req.body;
+    const userId = req.userId;
+
+    if (!text) {
+      return res.status(400).json({ success: false, error: 'Text content is required', code: 'MISSING_TEXT' });
+    }
+
+    const message = await Message.findOne({ _id: id, userId });
+    if (!message) {
+      return res.status(404).json({ success: false, error: 'Message not found', code: 'NOT_FOUND' });
+    }
+
+    if (message.sentBy !== 'human') {
+      return res.status(403).json({ success: false, error: 'Only human agent messages can be edited', code: 'FORBIDDEN' });
+    }
+
+    message.content.text = text;
+    await message.save();
+
+    // Log the action
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user._id,
+      actorName: req.user.name,
+      action: 'AGENT_MESSAGE_EDITED',
+      resource: 'Message',
+      resourceId: message._id.toString(),
+      newValue: { text },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    // Emit via Socket.io to update other clients
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user_${userId}`).emit('message_updated', {
+        message: message.toObject(),
+        conversationId: message.conversationId
+      });
+    }
+
+    res.json({ success: true, data: { message: message.toObject() }, message: 'Message updated' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to edit message', code: 'EDIT_ERROR' });
+  }
+});
+
+// DELETE /messages/:id — delete an outbound human message
+router.delete('/:id', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const message = await Message.findOne({ _id: id, userId });
+    if (!message) {
+      return res.status(404).json({ success: false, error: 'Message not found', code: 'NOT_FOUND' });
+    }
+
+    if (message.sentBy !== 'human') {
+      return res.status(403).json({ success: false, error: 'Only human agent messages can be deleted', code: 'FORBIDDEN' });
+    }
+
+    const conversationId = message.conversationId;
+    await Message.deleteOne({ _id: id });
+
+    // Log the action
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user._id,
+      actorName: req.user.name,
+      action: 'AGENT_MESSAGE_DELETED',
+      resource: 'Message',
+      resourceId: id,
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    // Emit via Socket.io to remove it on client sides
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user_${userId}`).emit('message_deleted', {
+        messageId: id,
+        conversationId
+      });
+    }
+
+    res.json({ success: true, message: 'Message deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to delete message', code: 'DELETE_ERROR' });
+  }
+});
+
 module.exports = router;
