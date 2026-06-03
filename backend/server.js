@@ -130,6 +130,11 @@ app.get(['/api/health', '/api/v1/health'], (_req, res) => {
   res.json({ success: true, message: 'Ajnabh Connect API is running', timestamp: new Date() });
 });
 
+// Root path handler for Render deploy health check
+app.get('/', (_req, res) => {
+  res.status(200).json({ success: true, message: 'WhatsApp Marketing API Server is active' });
+});
+
 // 404 handler
 app.use((_req, res) => {
   res.status(404).json({ success: false, error: 'Route not found', code: 'NOT_FOUND' });
