@@ -16,6 +16,21 @@ function formatMessageDate(date) {
   return format(date, 'MM/dd/yyyy');
 }
 
+function formatRelativeTime(date) {
+  if (!date) return '';
+  try {
+    const d = new Date(date);
+    const str = formatDistanceToNow(d);
+    if (str.includes('less than a minute')) {
+      return 'just now';
+    }
+    return str.replace('about ', '').replace('almost ', '') + ' ago';
+  } catch (e) {
+    return '';
+  }
+}
+
+
 // Helper to generate a soft avatar background color
 const getAvatarBg = (name) => {
   if (!name) return 'bg-wa-green/10 text-wa-green';
@@ -602,7 +617,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
         
         {/* HEADER */}
         <div className="wa-header h-[52px] flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0 relative z-20">
-          <div className="flex items-center gap-2 md:gap-3 cursor-pointer">
+          <div className="flex items-center gap-2 md:gap-3 cursor-pointer min-w-0 flex-1">
             {onBack && (
               <button 
                 onClick={(e) => { e.stopPropagation(); onBack(); }} 
@@ -612,13 +627,13 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                 <ChevronLeft className="w-5 h-5" />
               </button>
             )}
-            <div className="flex items-center gap-2 md:gap-3" onClick={() => setShowSidebar(!showSidebar)}>
+            <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1" onClick={() => setShowSidebar(!showSidebar)}>
               <div className={`w-9 h-9 rounded-full ${avatarClass} flex items-center justify-center font-bold text-xs shrink-0 shadow-sm`}>
                 {initials}
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-sm text-wa-text-primary dark:text-white leading-tight">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap min-w-0">
+                  <h3 className="font-semibold text-sm text-wa-text-primary dark:text-white leading-tight truncate">
                     {contact.name || 'Unknown Contact'}
                   </h3>
                   {conversation?.status && (
@@ -655,28 +670,28 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                     )
                   )}
                 </div>
-                <div className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex flex-wrap items-center gap-1.5 mt-0.5">
+                <div className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex flex-wrap sm:flex-nowrap items-center gap-1.5 mt-0.5 min-w-0">
                   <Phone className="w-3 h-3 text-wa-text-light shrink-0" />
-                  <span className="font-mono leading-none mr-1.5">{contact.phone || ''}</span>
+                  <span className="font-mono leading-none mr-1.5 shrink-0">{contact.phone || ''}</span>
                   {conversation?.status === 'human' && conversation.assignedAgent?.name && (
                     <>
-                      <span className="text-slate-300 dark:text-slate-700 font-bold">•</span>
+                      <span className="text-slate-300 dark:text-slate-700 font-bold shrink-0">•</span>
                       {conversation.lock_status ? (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 min-w-0 shrink-0">
                           <div className="w-4 h-4 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-[8px] uppercase shrink-0 border border-blue-500/20">
                             {conversation.assignedAgent.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
                           </div>
-                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold leading-none font-bold">
+                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold leading-none font-bold truncate">
                             {conversation.assignedAgent.name}
                           </span>
                           {conversation.assigned_at && (
-                            <span className="text-[9px] text-wa-text-light dark:text-wa-dark-text-secondary font-medium ml-1">
-                              ({formatDistanceToNow(new Date(conversation.assigned_at))} ago)
+                            <span className="text-[9px] text-wa-text-light dark:text-wa-dark-text-secondary font-medium ml-1 shrink-0">
+                              ({formatRelativeTime(conversation.assigned_at)})
                             </span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold leading-none animate-pulse">
+                        <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold leading-none animate-pulse truncate">
                           Assigned to {conversation.assignedAgent.name} (Pending Takeover)
                         </span>
                       )}
