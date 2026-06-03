@@ -27,6 +27,45 @@ export default function BotBuilderPage() {
   const [simVars, setSimVars] = useState({});
   const [testing, setTesting] = useState(false);
 
+  // Template Library state
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  const fetchTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const { data } = await api.get('/flows/templates');
+      if (data.success) {
+        setTemplates(data.data.templates);
+      }
+    } catch (err) {
+      toast.error('Failed to load pre-built templates');
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isLibraryOpen) {
+      fetchTemplates();
+    }
+  }, [isLibraryOpen]);
+
+  const handleImportTemplate = (template) => {
+    const importedFlow = {
+      _id: 'new_flow',
+      name: template.name,
+      description: template.description,
+      trigger: { ...template.trigger },
+      nodes: JSON.parse(JSON.stringify(template.nodes))
+    };
+    setCurrentFlow(importedFlow);
+    setIsLibraryOpen(false);
+    setActiveTab('builder');
+    toast.success(`${template.name} loaded into the builder. Click "Save" to save it.`);
+  };
+
   const fetchFlows = async (selectId = null) => {
     setLoading(true);
     try {
@@ -168,6 +207,13 @@ export default function BotBuilderPage() {
               <span>Simulate Flow</span>
             </button>
           )}
+          <button 
+            onClick={() => setIsLibraryOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-wa-border dark:border-wa-dark-border text-wa-text-primary dark:text-wa-dark-text-primary bg-white dark:bg-wa-dark-panel hover:bg-wa-bg dark:hover:bg-wa-dark-header rounded-xl text-sm font-semibold transition-all duration-200"
+          >
+            <Sparkles className="w-4.5 h-4.5 text-amber-500 fill-amber-500/20" />
+            <span>Workflow Library</span>
+          </button>
           <button 
             onClick={handleCreateNewFlow}
             className="flex items-center gap-2 px-4 py-2 text-white bg-wa-green hover:bg-wa-green-hover rounded-xl text-sm font-semibold shadow-md transition-all duration-200"
@@ -314,6 +360,80 @@ export default function BotBuilderPage() {
             <button onClick={handleCreateNewFlow} className="px-5 py-2.5 text-xs text-white bg-wa-green hover:bg-wa-green-hover rounded-xl shadow-md font-semibold transition-all duration-200">
               Create First Flow
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Workflow Library Modal */}
+      {isLibraryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
+          <div className="relative bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-wa-border dark:border-wa-dark-border bg-wa-bg/30 dark:bg-wa-dark-header/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center shadow-inner">
+                  <Sparkles className="w-5.5 h-5.5 fill-amber-500/20" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-wa-text-primary dark:text-white">Workflow Library / વર્કફ્લો લાઇબ્રેરી</h3>
+                  <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary">Deploy premium pre-built chatbot campaigns in seconds.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsLibraryOpen(false)}
+                className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-wa-bg dark:hover:bg-wa-dark-header text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary dark:hover:text-white transition-colors"
+              >
+                <X className="w-5.5 h-5.5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 p-6 overflow-y-auto space-y-6">
+              {loadingTemplates ? (
+                <div className="h-48 flex flex-col items-center justify-center gap-2 text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                  <Loader2 className="w-8 h-8 animate-spin text-wa-green" />
+                  <span className="text-sm font-semibold">Loading library templates...</span>
+                </div>
+              ) : templates.length === 0 ? (
+                <div className="h-48 flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary text-sm">
+                  No templates available.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {templates.map((tpl, i) => (
+                    <div key={i} className="flex flex-col bg-wa-bg/40 dark:bg-wa-dark-header/20 border border-wa-border dark:border-wa-dark-border rounded-2xl p-5 hover:border-wa-green/40 hover:shadow-lg hover:scale-[1.01] transition-all duration-300">
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className="w-12 h-12 bg-wa-green/10 text-wa-green rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+                          <Bot className="w-6.5 h-6.5" />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-wa-text-primary dark:text-white text-base leading-snug">{tpl.name}</h4>
+                          <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary leading-relaxed">{tpl.description}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 pt-4 border-t border-wa-border/50 dark:border-wa-dark-border/50 flex items-center justify-between gap-4">
+                        <div className="text-[10px] bg-wa-green/10 text-wa-green font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg">
+                          {tpl.nodes.length} Steps
+                        </div>
+                        <button
+                          onClick={() => handleImportTemplate(tpl)}
+                          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-wa-green hover:bg-wa-green-hover rounded-xl shadow-md transition-all duration-200"
+                        >
+                          <span>Import & Customize</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-wa-border dark:border-wa-dark-border bg-wa-bg/30 dark:bg-wa-dark-header/30 flex items-center justify-end text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary">
+              Need custom workflows? Build them in the visual canvas.
+            </div>
           </div>
         </div>
       )}
