@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import {
   CreditCard, Clock, CheckCircle, AlertTriangle, Upload, Download,
   IndianRupee, Calendar, FileText, ArrowRight, Loader2, XCircle,
-  Shield, Zap, Bot, MessageSquare, Users, BarChart3, Megaphone, RefreshCw
+  Shield, Zap, Bot, MessageSquare, Users, BarChart3, Megaphone, RefreshCw, Eye
 } from 'lucide-react';
 
 export default function SubscriptionPage() {
@@ -484,7 +484,23 @@ export default function SubscriptionPage() {
                         <span className="capitalize">{p.paymentMethod?.replace('_', ' ')}</span>
                       </td>
                       <td className="px-5 py-3 font-mono text-xs text-wa-text-secondary">{p.transactionId || p.razorpayPaymentId || '-'}</td>
-                      <td className="px-5 py-3">{statusBadge(p.status)}</td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          {statusBadge(p.status)}
+                          {p.status === 'rejected' && (
+                            <div className="relative group flex items-center">
+                              <button className="p-1 text-wa-text-secondary hover:text-wa-green transition-colors rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover" aria-label="View rejection reason">
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <div className="absolute bottom-full right-0 mb-2 w-52 p-2.5 bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur border border-white/10 text-white text-xs rounded-lg shadow-lg opacity-0 scale-95 invisible group-hover:opacity-100 group-hover:scale-100 group-hover:visible transition-all duration-200 pointer-events-none z-50">
+                                <span className="font-semibold block border-b border-white/10 pb-1 mb-1 text-center">Rejection Reason</span>
+                                <span className="text-[11px] text-slate-300 block break-words leading-normal">{p.rejectionReason || 'No reason provided'}</span>
+                                <div className="absolute top-full right-4 -mt-1 border-4 border-transparent border-t-slate-900/95 dark:border-t-slate-800/95" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
