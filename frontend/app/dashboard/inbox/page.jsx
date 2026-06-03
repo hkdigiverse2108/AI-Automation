@@ -32,9 +32,17 @@ export default function InboxPage() {
   const { conversations, fetchConversations, fetchMessages, currentConversation, messages, addMessage, updateMessageStatus } = useConversationStore();
 
   const sortedConversations = [...conversations].sort((a, b) => {
+    // 1. Prioritize conversations awaiting human response
+    const aAwaiting = (a.status === 'human' && !a.lock_status) ? 1 : 0;
+    const bAwaiting = (b.status === 'human' && !b.lock_status) ? 1 : 0;
+    if (aAwaiting !== bAwaiting) return bAwaiting - aAwaiting;
+
+    // 2. Secondary priority based on urgency/sentiment
     const aPriority = (a.urgency === 'critical' || a.sentiment === 'angry') ? 2 : (a.urgency === 'high' || a.sentiment === 'frustrated') ? 1 : 0;
     const bPriority = (b.urgency === 'critical' || b.sentiment === 'angry') ? 2 : (b.urgency === 'high' || b.sentiment === 'frustrated') ? 1 : 0;
     if (aPriority !== bPriority) return bPriority - aPriority;
+
+    // 3. Tertiary priority by recency
     return new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0);
   });
 
@@ -319,11 +327,17 @@ export default function InboxPage() {
             const isActive = selectedId === conv._id;
             const hasUnread = conv.unreadCount > 0;
 
+            const isAwaitingHuman = conv.status === 'human' && !conv.lock_status;
+
             return (
               <button
                 key={conv._id}
                 onClick={() => selectConversation(conv)}
-                className={`w-full text-left flex items-center gap-3 px-3 py-3 transition-colors duration-100 border-b border-wa-border/50 dark:border-wa-dark-border/50 ${
+                className={`w-full text-left flex items-center gap-3 px-3 py-3 transition-colors duration-100 border-b border-wa-border/50 dark:border-wa-dark-border/50 relative overflow-hidden ${
+                  isAwaitingHuman
+                    ? 'border-l-[4px] border-l-amber-500 bg-amber-500/5 dark:bg-amber-500/10'
+                    : ''
+                } ${
                   isActive
                     ? 'bg-wa-hover dark:bg-wa-dark-hover'
                     : 'hover:bg-wa-hover/60 dark:hover:bg-wa-dark-hover/60'
@@ -337,27 +351,44 @@ export default function InboxPage() {
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 font-medium">
                       <span className="font-medium text-[15px] text-wa-text-primary dark:text-wa-dark-text-primary truncate">
                         {contact.name || contact.phone || 'Unknown'}
                       </span>
                       {conv.status && (
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
-                          conv.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
-                          conv.status === 'human' ? 'bg-blue-50 text-blue-705 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30' :
-                          conv.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
-                          conv.status === 'waiting' ? 'bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse' :
-                          'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
-                        }`}>
-                          <span className={`w-1 h-1 rounded-full shrink-0 ${
-                            conv.status === 'bot' ? 'bg-purple-500' :
-                            conv.status === 'human' ? 'bg-blue-500' :
-                            conv.status === 'ai' ? 'bg-emerald-500' :
-                            conv.status === 'waiting' ? 'bg-amber-500' :
-                            'bg-slate-400'
-                          }`} />
-                          <span>{conv.status}</span>
-                        </span>
+                        conv.status === 'human' ? (
+                          conv.lock_status ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-blue-50 text-blue-705 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
+                              <span className="w-1 h-1 rounded-full bg-blue-500 shrink-0" />
+                              <span>{`Handled by ${conv.assignedAgent?.name || 'Agent'}`}</span>
+                            </span>
+                          ) : conv.assignedAgent ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-indigo-50 text-indigo-705 border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30 animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                              <span>Assigned to Human</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                              <span>Needs Human Reply</span>
+                            </span>
+                          )
+                        ) : (
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
+                            conv.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
+                            conv.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
+                            conv.status === 'waiting' ? 'bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse' :
+                            'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
+                          }`}>
+                            <span className={`w-1 h-1 rounded-full shrink-0 ${
+                              conv.status === 'bot' ? 'bg-purple-500' :
+                              conv.status === 'ai' ? 'bg-emerald-500' :
+                              conv.status === 'waiting' ? 'bg-amber-500' :
+                              'bg-slate-400'
+                            }`} />
+                            <span>{conv.status}</span>
+                          </span>
+                        )
                       )}
 
                       {/* Sentiment Badge */}
@@ -389,19 +420,26 @@ export default function InboxPage() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2 mt-0.5">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      {BadgeIcon && (
-                        <BadgeIcon className={`w-3.5 h-3.5 shrink-0 ${
-                          conv.status === 'bot' ? 'text-purple-500' :
-                          conv.status === 'human' ? 'text-blue-500' :
-                          conv.status === 'ai' ? 'text-emerald-500' :
-                          conv.status === 'waiting' ? 'text-amber-500' :
-                          'text-wa-text-light'
-                        }`} />
+                    <div className="flex flex-col min-w-0 flex-1">
+                      {conv.assignedAgent && (
+                        <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-semibold mb-0.5">
+                          Assigned To: {conv.assignedAgent.name}
+                        </p>
                       )}
-                      <p className="text-[13px] text-wa-text-secondary dark:text-wa-dark-text-secondary truncate">
-                        {conv.lastMessage?.content?.text || '[media]'}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        {BadgeIcon && (
+                          <BadgeIcon className={`w-3.5 h-3.5 shrink-0 ${
+                            conv.status === 'bot' ? 'text-purple-500' :
+                            conv.status === 'human' ? 'text-blue-500' :
+                            conv.status === 'ai' ? 'text-emerald-500' :
+                            conv.status === 'waiting' ? 'text-amber-500' :
+                            'text-wa-text-light'
+                          }`} />
+                        )}
+                        <p className="text-[13px] text-wa-text-secondary dark:text-wa-dark-text-secondary truncate">
+                          {conv.lastMessage?.content?.text || '[media]'}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {hasUnread && (

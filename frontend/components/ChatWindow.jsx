@@ -7,7 +7,7 @@ import {
   Phone, MoreVertical, Search, Mic, Image, FileText, Camera,
   UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, Trash2, Mail, Loader2, MessageSquare, ChevronLeft
 } from 'lucide-react';
-import { format, isToday, isYesterday, isSameDay } from 'date-fns';
+import { format, isToday, isYesterday, isSameDay, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
 function formatMessageDate(date) {
@@ -622,34 +622,67 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                     {contact.name || 'Unknown Contact'}
                   </h3>
                   {conversation?.status && (
-                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
-                      conversation.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
-                      conversation.status === 'human' ? 'bg-blue-50 text-blue-705 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30' :
-                      conversation.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
-                      'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
-                    }`}>
-                      <span className={`w-1 h-1 rounded-full shrink-0 ${
-                        conversation.status === 'bot' ? 'bg-purple-500' :
-                        conversation.status === 'human' ? 'bg-blue-500' :
-                        conversation.status === 'ai' ? 'bg-emerald-500' :
-                        'bg-slate-400'
-                      }`} />
-                      <span>{conversation.status}</span>
-                    </span>
+                    conversation.status === 'human' ? (
+                      conversation.lock_status ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-blue-50 text-blue-705 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
+                          <span className="w-1 h-1 rounded-full bg-blue-500 shrink-0" />
+                          <span>{`Handled by ${conversation.assignedAgent?.name || 'Agent'}`}</span>
+                        </span>
+                      ) : conversation.assignedAgent ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-indigo-50 text-indigo-705 border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30 animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                          <span>Assigned to Human</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                          <span>Needs Human Reply</span>
+                        </span>
+                      )
+                    ) : (
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
+                        conversation.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
+                        conversation.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
+                        'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
+                      }`}>
+                        <span className={`w-1 h-1 rounded-full shrink-0 ${
+                          conversation.status === 'bot' ? 'bg-purple-500' :
+                          conversation.status === 'ai' ? 'bg-emerald-500' :
+                          'bg-slate-400'
+                        }`} />
+                        <span>{conversation.status}</span>
+                      </span>
+                    )
                   )}
                 </div>
-                <p className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex items-center gap-1.5 mt-0.5">
+                <div className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex flex-wrap items-center gap-1.5 mt-0.5">
                   <Phone className="w-3 h-3 text-wa-text-light shrink-0" />
-                  <span className="font-mono leading-none">{contact.phone || ''}</span>
+                  <span className="font-mono leading-none mr-1.5">{contact.phone || ''}</span>
                   {conversation?.status === 'human' && conversation.assignedAgent?.name && (
                     <>
-                      <span className="text-slate-300 dark:text-slate-700">•</span>
-                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold leading-none">
-                        Assigned to {conversation.assignedAgent.name}
-                      </span>
+                      <span className="text-slate-300 dark:text-slate-700 font-bold">•</span>
+                      {conversation.lock_status ? (
+                        <div className="flex items-center gap-1">
+                          <div className="w-4 h-4 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-[8px] uppercase shrink-0 border border-blue-500/20">
+                            {conversation.assignedAgent.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                          </div>
+                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold leading-none font-bold">
+                            {conversation.assignedAgent.name}
+                          </span>
+                          {conversation.assigned_at && (
+                            <span className="text-[9px] text-wa-text-light dark:text-wa-dark-text-secondary font-medium ml-1">
+                              ({formatDistanceToNow(new Date(conversation.assigned_at))} ago)
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold leading-none animate-pulse">
+                          Assigned to {conversation.assignedAgent.name} (Pending Takeover)
+                        </span>
+                      )}
                     </>
                   )}
-                </p>
+                </div>
               </div>
             </div>
           </div>

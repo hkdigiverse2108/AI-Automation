@@ -205,6 +205,40 @@ router.get('/conversations/:id', ...validateObjectId('id'), async (req, res) => 
       }
     }
 
+    const assignedId = conversation.assigned_agent_id || conversation.assignedAgent;
+    const isAssignedToMe = assignedId && assignedId.toString() === req.user._id.toString();
+    const isUnassigned = !assignedId;
+
+    if (conversation.status === 'human' && !conversation.lock_status && (isAssignedToMe || isUnassigned)) {
+      conversation.lock_status = true;
+      conversation.assigned_at = new Date();
+      if (isUnassigned) {
+        conversation.assignedAgent = req.user._id;
+        conversation.assigned_agent_id = req.user._id;
+      }
+      await conversation.save();
+
+      // Emit conversation_assigned socket event to sync all sessions
+      const io = req.app.get('io');
+      if (io) {
+        const roomId = req.user.ownerId ? `user_${req.user.ownerId}` : `user_${req.userId}`;
+        io.to(roomId).emit('conversation_assigned', {
+          conversationId: conversation._id,
+          assignedAgent: {
+            _id: req.user._id,
+            name: req.user.name,
+            email: req.user.email
+          },
+          assigned_agent_id: req.user._id,
+          lock_status: true,
+          takeover_status: 'human',
+          status: 'human'
+        });
+      }
+      
+      await conversation.populate('assignedAgent', 'name email');
+    }
+
     // Mark conversation and its unread messages as read
     conversation.isRead = true;
     conversation.unreadCount = 0;
