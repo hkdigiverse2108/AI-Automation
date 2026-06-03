@@ -86,6 +86,9 @@ export default function InboxPage() {
 
     socket.on('new_message', (data) => {
       addMessage(data.message);
+      if (data.message && data.message.direction === 'inbound' && useConversationStore.getState().currentConversation?._id?.toString() === data.message.conversationId?.toString()) {
+        api.post(`/messages/conversations/${data.message.conversationId}/read`).catch(() => {});
+      }
     });
 
     socket.on('message_status', (data) => {
@@ -105,6 +108,20 @@ export default function InboxPage() {
       if (useConversationStore.getState().currentConversation?._id === data.conversationId) {
         fetchMessages(data.conversationId);
       }
+    });
+
+    socket.on('conversation_read', (data) => {
+      useConversationStore.setState((state) => ({
+        conversations: state.conversations.map((c) =>
+          c._id?.toString() === data.conversationId?.toString()
+            ? { ...c, unreadCount: 0, isRead: true }
+            : c
+        ),
+        currentConversation:
+          state.currentConversation?._id?.toString() === data.conversationId?.toString()
+            ? { ...state.currentConversation, unreadCount: 0, isRead: true }
+            : state.currentConversation
+      }));
     });
 
     socket.on('conversation_ai_updated', (data) => {
@@ -130,6 +147,7 @@ export default function InboxPage() {
       socket.off('new_message');
       socket.off('message_status');
       socket.off('conversation_assigned');
+      socket.off('conversation_read');
       socket.off('conversation_ai_updated');
     };
   }, [debouncedSearch, filter, user]);

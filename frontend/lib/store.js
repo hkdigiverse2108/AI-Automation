@@ -92,14 +92,39 @@ export const useConversationStore = create((set, get) => ({
     } catch {}
   },
 
+  markConversationAsRead: async (conversationId) => {
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c._id?.toString() === conversationId?.toString()
+          ? { ...c, unreadCount: 0, isRead: true }
+          : c
+      ),
+      currentConversation:
+        state.currentConversation?._id?.toString() === conversationId?.toString()
+          ? { ...state.currentConversation, unreadCount: 0, isRead: true }
+          : state.currentConversation
+    }));
+
+    try {
+      await api.post(`/messages/conversations/${conversationId}/read`);
+    } catch (err) {
+      console.error('Failed to mark conversation as read:', err.message);
+    }
+  },
+
   addMessage: (message) => {
     set((state) => {
       const isActiveConv = state.currentConversation?._id?.toString() === message.conversationId?.toString();
       
       // Check if message already exists to prevent duplicates
       const messageExists = state.messages.some(m => m._id === message._id);
+      
+      const adjustedMessage = (isActiveConv && message.direction === 'inbound')
+        ? { ...message, status: 'read' }
+        : message;
+
       const msgs = isActiveConv && !messageExists
-        ? [...state.messages, message]
+        ? [...state.messages, adjustedMessage]
         : state.messages;
 
       let exists = false;
@@ -108,7 +133,7 @@ export const useConversationStore = create((set, get) => ({
           exists = true;
           return {
             ...c,
-            lastMessage: message,
+            lastMessage: adjustedMessage,
             lastMessageAt: message.timestamp || new Date().toISOString(),
             unreadCount: isActiveConv ? 0 : (c.unreadCount || 0) + (message.direction === 'inbound' ? 1 : 0),
             isRead: isActiveConv ? true : (message.direction === 'outbound' ? true : false),

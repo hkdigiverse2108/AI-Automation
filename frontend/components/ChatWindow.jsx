@@ -206,7 +206,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   const [templateSearch, setTemplateSearch] = useState('');
   const quickRepliesRef = useRef(null);
 
-  const { sendMessage, fetchConversations, fetchMessages, deleteConversation } = useConversationStore();
+  const { sendMessage, fetchConversations, fetchMessages, deleteConversation, markConversationAsRead } = useConversationStore();
   const { user } = useAuthStore();
 
   const isAgent = user?.role === 'agent';
@@ -477,6 +477,16 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     await saveCrmField({ optedOut: nextStatus });
   };
 
+  const handleMarkRead = async () => {
+    try {
+      await markConversationAsRead(conversation._id);
+      toast.success('Conversation marked as read');
+      setShowDropdown(false);
+    } catch {
+      toast.error('Failed to mark as read');
+    }
+  };
+
   const handleAssign = async () => {
     try {
       await api.post(`/messages/conversations/${conversation._id}/assign`);
@@ -704,6 +714,11 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                   <button onClick={handleResolve} className="wa-dropdown-item w-full">
                     <Check className="w-4 h-4 text-wa-green" /> Resolve
                   </button>
+                  {!conversation.isRead && (
+                    <button onClick={handleMarkRead} className="wa-dropdown-item w-full">
+                      <CheckCheck className="w-4 h-4 text-blue-500" /> Mark as Read
+                    </button>
+                  )}
                   <div className="border-t border-wa-border dark:border-wa-dark-border my-1"></div>
                   <button onClick={handleDeleteChat} className="wa-dropdown-item w-full text-red-500 hover:text-red-650 hover:bg-red-50/50 dark:hover:bg-red-950/20">
                     <Trash2 className="w-4 h-4 text-red-500" /> Delete Chat

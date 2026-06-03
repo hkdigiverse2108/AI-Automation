@@ -276,8 +276,12 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
 
 
 
-    // Mark as read on WhatsApp
-    if (messageData.id) {
+    // Mark as read on WhatsApp (only if not assigned to a human)
+    const isHuman = conversation.status === 'human' || 
+                    conversation.takeover_status === 'human' || 
+                    conversation.assignedAgent || 
+                    conversation.assigned_agent_id;
+    if (messageData.id && !isHuman) {
       whatsapp.markAsRead(phoneNumberId, token, messageData.id).catch(() => {});
     }
 

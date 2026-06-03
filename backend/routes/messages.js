@@ -205,6 +205,38 @@ router.get('/conversations/:id', ...validateObjectId('id'), async (req, res) => 
       }
     }
 
+    // Mark conversation and its unread messages as read
+    conversation.isRead = true;
+    conversation.unreadCount = 0;
+    await conversation.save();
+
+    try {
+      const unreadMessages = await Message.find({
+        conversationId: conversation._id,
+        direction: 'inbound',
+        status: { $ne: 'read' }
+      });
+
+      if (unreadMessages.length > 0) {
+        const waAccount = await WhatsAppAccount.findOne({ userId: req.userId, isActive: true });
+        if (waAccount) {
+          const token = decryptField(waAccount.accessToken);
+          const phoneNumberId = waAccount.phoneNumberId;
+          for (const msg of unreadMessages) {
+            if (msg.metaMessageId) {
+              whatsapp.markAsRead(phoneNumberId, token, msg.metaMessageId).catch((err) => {
+                console.error(`Failed to mark message ${msg._id} as read on WhatsApp:`, err.message);
+              });
+            }
+            msg.status = 'read';
+            await msg.save();
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error marking unread messages as read on fetch:', err.message);
+    }
+
     const limit = parseInt(req.query.limit, 10) || 100;
     const before = req.query.before;
     const msgQuery = { conversationId: conversation._id, userId: req.userId };
@@ -231,17 +263,66 @@ router.get('/conversations/:id', ...validateObjectId('id'), async (req, res) => 
     // Decrypt messages
     const decryptedMessages = messages.map((m) => decryptMessage(m, rawOek));
 
-    // Mark as read
-    conversation.isRead = true;
-    conversation.unreadCount = 0;
-    await conversation.save();
-
     res.json({
       success: true,
       data: { conversation: conversationObj, messages: decryptedMessages },
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch conversation', code: 'FETCH_ERROR' });
+  }
+});
+
+// POST /messages/conversations/:id/read — explicitly mark conversation as read
+router.post('/conversations/:id/read', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const conversation = await Conversation.findOne({ _id: req.params.id, userId: req.userId });
+    if (!conversation) {
+      return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
+    }
+
+    conversation.isRead = true;
+    conversation.unreadCount = 0;
+    await conversation.save();
+
+    try {
+      const unreadMessages = await Message.find({
+        conversationId: conversation._id,
+        direction: 'inbound',
+        status: { $ne: 'read' }
+      });
+
+      if (unreadMessages.length > 0) {
+        const waAccount = await WhatsAppAccount.findOne({ userId: req.userId, isActive: true });
+        if (waAccount) {
+          const token = decryptField(waAccount.accessToken);
+          const phoneNumberId = waAccount.phoneNumberId;
+          for (const msg of unreadMessages) {
+            if (msg.metaMessageId) {
+              whatsapp.markAsRead(phoneNumberId, token, msg.metaMessageId).catch((err) => {
+                console.error(`Failed to mark message ${msg._id} as read on WhatsApp:`, err.message);
+              });
+            }
+            msg.status = 'read';
+            await msg.save();
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error marking unread messages as read on explicit POST:', err.message);
+    }
+
+    // Emit live update so client state is synced
+    const io = req.app.get('io');
+    if (io) {
+      const roomId = req.user.ownerId ? `user_${req.user.ownerId}` : `user_${req.userId}`;
+      io.to(roomId).emit('conversation_read', {
+        conversationId: conversation._id
+      });
+    }
+
+    res.json({ success: true, message: 'Conversation marked as read' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to mark conversation as read', code: 'READ_ERROR' });
   }
 });
 
