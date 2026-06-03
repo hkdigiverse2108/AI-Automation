@@ -34,7 +34,8 @@ export default function SubscriptionPage() {
       setPayments(paymentsRes.data.data);
     } catch (err) {
       if (err.response?.data?.code !== 'SUBSCRIPTION_EXPIRED') {
-        toast.error('Failed to load subscription data');
+        const errMsg = err.response?.data?.error || err.response?.data?.details || err.message || 'Failed to load subscription data';
+        toast.error(errMsg);
       }
       // Try fetching plans even if other requests fail
       try {
