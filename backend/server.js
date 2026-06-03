@@ -98,6 +98,7 @@ const chatLogsRoute = require('./routes/chat-logs');
 const analyticsRoute = require('./routes/analytics');
 const notificationsRoute = require('./routes/notifications');
 const mediaRoute = require('./routes/media');
+const subscriptionRoute = require('./routes/subscription');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
@@ -117,6 +118,7 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/chat-logs`, chatLogsRoute);
   app.use(`${prefix}/analytics`, analyticsRoute);
   app.use(`${prefix}/notifications`, notificationsRoute);
+  app.use(`${prefix}/subscription`, subscriptionRoute);
 };
 
 // Mount versioned API routes
@@ -162,6 +164,14 @@ async function startServer() {
       initQueues(io);
     } catch (err) {
       logger.warn('Redis/Bull queues not available:', err.message);
+    }
+
+    // Init subscription cron job
+    try {
+      const { startSubscriptionCron } = require('./services/subscriptionCron');
+      startSubscriptionCron();
+    } catch (err) {
+      logger.warn('Subscription cron failed to start:', err.message);
     }
 
     server.listen(env.PORT, () => {

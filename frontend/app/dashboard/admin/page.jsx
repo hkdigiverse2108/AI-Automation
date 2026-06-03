@@ -7,7 +7,8 @@ import {
   Shield, Activity, Database, Cpu, Layers, UserX, UserCheck,
   RefreshCw, Play, Pause, Trash2, Search, Users, CheckCircle2,
   XCircle, AlertCircle, HardDrive, Clock, Plus, Edit2, Lock,
-  Globe, Building, Mail, Phone, Calendar, Upload, ImageIcon, X, Loader2
+  Globe, Building, Mail, Phone, Calendar, Upload, ImageIcon, X, Loader2,
+  CreditCard, IndianRupee, CheckCircle, Ban, Eye
 } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -61,6 +62,14 @@ export default function AdminPanel() {
   const [resetEmail, setResetEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
+  // Subscription management states
+  const [subDashboard, setSubDashboard] = useState(null);
+  const [subOrgs, setSubOrgs] = useState([]);
+  const [pendingPayments, setPendingPayments] = useState([]);
+  const [planConfig, setPlanConfig] = useState(null);
+  const [planForm, setPlanForm] = useState({ monthlyPrice: 2000, taxPercentage: 0, gracePeriodDays: 0 });
+  const [subView, setSubView] = useState('dashboard'); // dashboard, config, payments, orgs
+
   // Fetch health stats
   const fetchHealth = useCallback(async () => {
     try {
@@ -91,7 +100,7 @@ export default function AdminPanel() {
     setError('');
     setMessage('');
     if (user?.role === 'superadmin') {
-      await Promise.all([fetchHealth(), fetchOrganizations()]);
+      await Promise.all([fetchHealth(), fetchOrganizations(), fetchSubscriptionData()]);
     }
     setLoading(false);
   }, [user, fetchHealth, fetchOrganizations]);
@@ -115,6 +124,47 @@ export default function AdminPanel() {
       toast.error(err.response?.data?.error || 'Failed to execute queue command.');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Fetch subscription management data
+  const fetchSubscriptionData = async () => {
+    try {
+      const [dashRes, orgsRes, pendingRes, configRes] = await Promise.all([
+        api.get('/subscription/admin/dashboard'),
+        api.get('/subscription/admin/organizations'),
+        api.get('/subscription/admin/pending-payments'),
+        api.get('/subscription/plans')
+      ]);
+      setSubDashboard(dashRes.data.data);
+      setSubOrgs(orgsRes.data.data);
+      setPendingPayments(pendingRes.data.data);
+      if (configRes.data.data) {
+        setPlanConfig(configRes.data.data);
+        setPlanForm({ monthlyPrice: configRes.data.data.monthlyPrice, taxPercentage: configRes.data.data.taxPercentage, gracePeriodDays: 0 });
+      }
+    } catch (err) {
+      console.error('Failed to fetch subscription data:', err.message);
+    }
+  };
+
+  const handleUpdatePlanConfig = async () => {
+    try {
+      await api.put('/subscription/admin/plan-config', planForm);
+      toast.success('Plan configuration updated');
+      fetchSubscriptionData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update config');
+    }
+  };
+
+  const handleVerifyPayment = async (paymentId, action, rejectionReason = '') => {
+    try {
+      await api.post(`/subscription/admin/verify/${paymentId}`, { action, rejectionReason });
+      toast.success(action === 'approve' ? 'Payment approved!' : 'Payment rejected');
+      fetchSubscriptionData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to verify payment');
     }
   };
 
@@ -420,6 +470,17 @@ export default function AdminPanel() {
         >
           <Layers className="w-4 h-4" />
           <span>Queues & Tasks</span>
+        </button>
+        <button
+          onClick={() => { setActiveTab('subscriptions'); fetchSubscriptionData(); }}
+          className={`px-5 py-3 font-semibold text-sm transition-colors border-b-2 -mb-[2px] flex items-center gap-2 ${
+            activeTab === 'subscriptions'
+              ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+              : 'border-transparent text-dark-500 hover:text-dark-800 dark:hover:text-dark-200'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Subscriptions{pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ''}</span>
         </button>
       </div>
 
@@ -810,9 +871,184 @@ export default function AdminPanel() {
                 </div>
               </div>
             )}
+
+            {/* 4. SUBSCRIPTIONS TAB */}
+            {activeTab === 'subscriptions' && (
+              <div className="space-y-6">
+                {/* Sub-navigation */}
+                <div className="flex gap-2 flex-wrap">
+                  {[{ id: 'dashboard', label: 'Dashboard' }, { id: 'orgs', label: 'Organizations' }, { id: 'config', label: 'Plan Config' }, { id: 'payments', label: `Pending (${pendingPayments.length})` }].map(v => (
+                    <button key={v.id} onClick={() => setSubView(v.id)}
+                      className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${subView === v.id ? 'bg-wa-green text-white' : 'bg-wa-search dark:bg-wa-dark-search text-wa-text-secondary hover:text-wa-text-primary'}`}
+                    >{v.label}</button>
+                  ))}
+                </div>
+
+                {/* Dashboard Stats */}
+                {subView === 'dashboard' && subDashboard && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { label: 'Total Orgs', value: subDashboard.totalOrgs, color: 'text-blue-600' },
+                      { label: 'Active Plans', value: subDashboard.activePlans, color: 'text-emerald-600' },
+                      { label: 'Expired', value: subDashboard.expiredPlans, color: 'text-red-600' },
+                      { label: 'Pending Payments', value: subDashboard.pendingPayments, color: 'text-amber-600' },
+                      { label: 'Monthly Revenue', value: `₹${(subDashboard.monthlyRevenue || 0).toLocaleString('en-IN')}`, color: 'text-emerald-600' },
+                      { label: 'Yearly Revenue', value: `₹${(subDashboard.yearlyRevenue || 0).toLocaleString('en-IN')}`, color: 'text-blue-600' },
+                      { label: 'Expiring Soon', value: subDashboard.expiringPlans || 0, color: 'text-amber-600' },
+                    ].map((stat, i) => (
+                      <div key={i} className="bg-white dark:bg-wa-dark-panel rounded-xl border border-wa-border dark:border-wa-dark-border p-4">
+                        <p className="text-xs text-wa-text-secondary font-medium mb-1">{stat.label}</p>
+                        <p className={`text-xl font-extrabold ${stat.color}`}>{stat.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Organizations with subscription details */}
+                {subView === 'orgs' && (
+                  <div className="bg-white dark:bg-wa-dark-panel rounded-xl border border-wa-border dark:border-wa-dark-border overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-wa-search dark:bg-wa-dark-search text-left text-xs font-semibold text-wa-text-secondary uppercase">
+                            <th className="px-4 py-3">Organization</th>
+                            <th className="px-4 py-3">Owner</th>
+                            <th className="px-4 py-3">Plan</th>
+                            <th className="px-4 py-3">Expiry</th>
+                            <th className="px-4 py-3">Remaining</th>
+                            <th className="px-4 py-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {subOrgs.map((org) => {
+                            const statusMap = {
+                              active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+                              expiring_soon: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                              expired: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                              pending: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                              trial: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+                            };
+                            return (
+                              <tr key={org._id} className="border-b border-wa-border dark:border-wa-dark-border hover:bg-wa-hover/50 dark:hover:bg-wa-dark-hover/50">
+                                <td className="px-4 py-3 font-semibold text-wa-text-primary dark:text-white">{org.name}</td>
+                                <td className="px-4 py-3">
+                                  <p className="text-wa-text-primary dark:text-white text-xs">{org.ownerName}</p>
+                                  <p className="text-wa-text-secondary text-xs">{org.ownerEmail}</p>
+                                </td>
+                                <td className="px-4 py-3 text-xs">{org.currentPlan}</td>
+                                <td className="px-4 py-3 text-xs text-wa-text-secondary">{org.subscriptionExpiryDate ? new Date(org.subscriptionExpiryDate).toLocaleDateString('en-IN') : '-'}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`text-xs font-bold ${org.remainingDays > 7 ? 'text-emerald-600' : org.remainingDays > 0 ? 'text-amber-600' : 'text-red-600'}`}>
+                                    {org.remainingDays} days
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusMap[org.subscriptionStatus] || statusMap.trial}`}>
+                                    {(org.subscriptionStatus || 'trial').replace('_', ' ')}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Plan Configuration */}
+                {subView === 'config' && (
+                  <div className="bg-white dark:bg-wa-dark-panel rounded-xl border border-wa-border dark:border-wa-dark-border p-6 max-w-lg">
+                    <h3 className="text-base font-bold text-wa-text-primary dark:text-white mb-4">Plan Pricing Configuration</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-wa-text-secondary mb-1">Monthly Price (₹)</label>
+                        <input type="number" value={planForm.monthlyPrice} onChange={e => setPlanForm(f => ({ ...f, monthlyPrice: parseInt(e.target.value) || 0 }))} className="w-full px-4 py-2.5 rounded-xl bg-wa-search dark:bg-wa-dark-search border border-wa-border dark:border-wa-dark-border text-sm text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-wa-text-secondary mb-1">Tax Percentage (%)</label>
+                        <input type="number" value={planForm.taxPercentage} onChange={e => setPlanForm(f => ({ ...f, taxPercentage: parseFloat(e.target.value) || 0 }))} className="w-full px-4 py-2.5 rounded-xl bg-wa-search dark:bg-wa-dark-search border border-wa-border dark:border-wa-dark-border text-sm text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-wa-text-secondary mb-1">Grace Period (Days after expiry)</label>
+                        <input type="number" value={planForm.gracePeriodDays} onChange={e => setPlanForm(f => ({ ...f, gracePeriodDays: parseInt(e.target.value) || 0 }))} className="w-full px-4 py-2.5 rounded-xl bg-wa-search dark:bg-wa-dark-search border border-wa-border dark:border-wa-dark-border text-sm text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30" />
+                      </div>
+
+                      {/* Preview */}
+                      <div className="mt-4 p-4 bg-wa-search dark:bg-wa-dark-search rounded-xl">
+                        <p className="text-xs font-semibold text-wa-text-secondary mb-2">Auto-calculated Prices:</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[1, 3, 6, 12].map(m => {
+                            const base = planForm.monthlyPrice * m;
+                            const tax = Math.round((base * planForm.taxPercentage) / 100);
+                            return (
+                              <div key={m} className="flex justify-between text-xs">
+                                <span className="text-wa-text-secondary">{m} Month{m > 1 ? 's' : ''}</span>
+                                <span className="font-bold text-wa-text-primary dark:text-white">₹{(base + tax).toLocaleString('en-IN')}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <button onClick={handleUpdatePlanConfig} className="w-full py-2.5 bg-wa-green hover:bg-wa-green-hover text-white font-semibold rounded-xl transition-colors text-sm">
+                        Save Configuration
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pending Payments */}
+                {subView === 'payments' && (
+                  <div className="space-y-4">
+                    {pendingPayments.length === 0 ? (
+                      <div className="text-center py-12 text-wa-text-secondary">
+                        <CheckCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                        <p className="text-sm">No pending payments to verify</p>
+                      </div>
+                    ) : (
+                      pendingPayments.map((p) => (
+                        <div key={p._id} className="bg-white dark:bg-wa-dark-panel rounded-xl border border-wa-border dark:border-wa-dark-border p-5">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-bold text-wa-text-primary dark:text-white">{p.organizationId?.name || 'Unknown Org'}</p>
+                              <p className="text-xs text-wa-text-secondary mt-1">{p.organizationId?.contactEmail} • {p.paymentMethod?.replace('_', ' ')}</p>
+                              <div className="mt-2 flex items-center gap-4 text-xs text-wa-text-secondary">
+                                <span>Plan: <strong>{p.planMonths} Month{p.planMonths > 1 ? 's' : ''}</strong></span>
+                                <span>Amount: <strong className="text-wa-text-primary dark:text-white">₹{p.totalAmount?.toLocaleString('en-IN')}</strong></span>
+                                <span>Ref: <strong>{p.transactionId || 'N/A'}</strong></span>
+                                <span>{new Date(p.createdAt).toLocaleDateString('en-IN')}</span>
+                              </div>
+                              {p.notes && <p className="text-xs text-wa-text-secondary mt-1 italic">Notes: {p.notes}</p>}
+                            </div>
+                            <div className="flex gap-2">
+                              {p.screenshot && (
+                                <a href={p.screenshot} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-blue-50 dark:bg-blue-950/30 text-blue-600 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-blue-100 transition-colors">
+                                  <Eye className="w-3.5 h-3.5" /> View Screenshot
+                                </a>
+                              )}
+                              <button onClick={() => handleVerifyPayment(p._id, 'approve')} className="px-3 py-2 bg-emerald-550 dark:bg-emerald-950/30 text-emerald-600 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-emerald-100 transition-colors">
+                                <CheckCircle className="w-3.5 h-3.5" /> Approve
+                              </button>
+                              <button onClick={async () => {
+                                const reason = prompt('Rejection reason:');
+                                if (reason) handleVerifyPayment(p._id, 'reject', reason);
+                              }} className="px-3 py-2 bg-red-50 dark:bg-red-950/30 text-red-600 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-red-100 transition-colors">
+                                <Ban className="w-3.5 h-3.5" /> Reject
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
+
 
       {/* CREATE/EDIT ORG MODAL */}
       {isOrgModalOpen && (

@@ -111,7 +111,29 @@ async function verifyToken(req, res, next) {
       const Organization = require('../models/Organization');
       const org = await Organization.findById(user.organizationId);
       if (org && (org.status === 'suspended' || org.status === 'inactive')) {
-        return res.status(403).json({ success: false, error: 'Your organization account has been suspended or is inactive', code: 'ORGANIZATION_SUSPENDED' });
+        // Allow subscription routes through even if org is inactive (so they can renew)
+        const reqPath = req.originalUrl || req.url || '';
+        const isSubscriptionRoute = reqPath.includes('/subscription');
+        const isAuthRoute = reqPath.includes('/auth');
+        if (!isSubscriptionRoute && !isAuthRoute) {
+          return res.status(403).json({ success: false, error: 'Your organization account has been suspended or is inactive', code: 'ORGANIZATION_SUSPENDED' });
+        }
+      }
+
+      // Subscription expiry check
+      if (org && org.subscriptionStatus === 'expired') {
+        const reqPath = req.originalUrl || req.url || '';
+        const isSubscriptionRoute = reqPath.includes('/subscription');
+        const isAuthRoute = reqPath.includes('/auth');
+        const isNotificationRoute = reqPath.includes('/notifications');
+        if (!isSubscriptionRoute && !isAuthRoute && !isNotificationRoute) {
+          return res.status(403).json({
+            success: false,
+            error: 'Your subscription has expired. Please renew to continue using the platform.',
+            code: 'SUBSCRIPTION_EXPIRED',
+            data: { expiryDate: org.subscriptionExpiryDate }
+          });
+        }
       }
     }
 

@@ -5,7 +5,7 @@ const notificationSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
   type: {
     type: String,
-    enum: ['system', 'campaign', 'contact', 'bot', 'team', 'message'],
+    enum: ['system', 'campaign', 'contact', 'bot', 'team', 'message', 'subscription'],
     default: 'system'
   },
   title: { type: String, required: true },

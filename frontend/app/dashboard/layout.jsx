@@ -5,7 +5,10 @@ import { useAuthStore, useThemeStore } from '../../lib/store';
 import Sidebar from '../../components/Sidebar';
 import NotificationCenter from '../../components/NotificationCenter';
 import ConfirmModal from '../../components/ConfirmModal';
-import { Menu } from 'lucide-react';
+import SubscriptionExpiredGate from '../../components/SubscriptionExpiredGate';
+import api from '../../lib/api';
+import { Menu, AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
 
 export default function DashboardLayout({ children }) {
   const { isAuthenticated, loading, checkAuth, user } = useAuthStore();
@@ -13,6 +16,9 @@ export default function DashboardLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [subscriptionExpired, setSubscriptionExpired] = useState(false);
+  const [subscriptionExpiryDate, setSubscriptionExpiryDate] = useState(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
 
   useEffect(() => {
     checkAuth();
@@ -34,6 +40,25 @@ export default function DashboardLayout({ children }) {
     }
   }, [loading, isAuthenticated, user, pathname, router]);
 
+  // Check subscription status
+  useEffect(() => {
+    if (!isAuthenticated || !user || user.role === 'superadmin') return;
+    api.get('/subscription/current').then(res => {
+      const data = res.data.data;
+      setSubscriptionStatus(data.subscriptionStatus);
+      setSubscriptionExpiryDate(data.subscriptionExpiryDate);
+      if (data.subscriptionStatus === 'expired') {
+        setSubscriptionExpired(true);
+      }
+    }).catch(err => {
+      if (err.response?.data?.code === 'SUBSCRIPTION_EXPIRED') {
+        setSubscriptionExpired(true);
+        setSubscriptionExpiryDate(err.response?.data?.data?.expiryDate);
+        setSubscriptionStatus('expired');
+      }
+    });
+  }, [isAuthenticated, user]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-wa-panel-header dark:bg-wa-dark-bg">
@@ -46,6 +71,12 @@ export default function DashboardLayout({ children }) {
   }
 
   if (!isAuthenticated) return null;
+
+  // Subscription expired gate — allow only /subscription route
+  const isSubscriptionPage = pathname === '/dashboard/subscription' || pathname.startsWith('/dashboard/subscription/');
+  if (subscriptionExpired && !isSubscriptionPage && user?.role !== 'superadmin') {
+    return <SubscriptionExpiredGate expiryDate={subscriptionExpiryDate} />;
+  }
 
   return (
     <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-wa-bg dark:bg-wa-dark-bg">
@@ -92,6 +123,15 @@ export default function DashboardLayout({ children }) {
               />
             </div>
           </div>
+
+          {/* Subscription expiry warning banner */}
+          {subscriptionStatus === 'expiring_soon' && user?.role !== 'superadmin' && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Subscription expiring soon</span>
+              <Link href="/dashboard/subscription" className="text-xs font-bold text-wa-green hover:underline ml-1">Renew</Link>
+            </div>
+          )}
 
           {/* Right side: Actions & User Info */}
           <div className="flex items-center gap-6">

@@ -75,7 +75,14 @@ const organizationSchema = new mongoose.Schema(
         oldOekEncrypted: { type: String }
       }],
       lastRotatedAt: { type: Date }
-    }
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ['active', 'expiring_soon', 'expired', 'pending', 'trial'],
+      default: 'trial'
+    },
+    subscriptionExpiryDate: { type: Date },
+    currentSubscriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' }
   },
   { timestamps: true }
 );

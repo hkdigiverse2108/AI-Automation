@@ -6,7 +6,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Bot, FileText,
   Settings, LogOut, Sun, Moon, MessageCircle, Shield,
   Users2, Clock, Zap, Terminal, PanelLeftClose, PanelLeft,
-  Building, Activity, Globe, Lock, X, BarChart3
+  Building, Activity, Globe, Lock, X, BarChart3, CreditCard
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
@@ -42,6 +42,7 @@ const navSections = [
   {
     title: 'System',
     items: [
+      { href: '/dashboard/subscription', label: 'Subscription', icon: CreditCard },
       { href: '/dashboard/chat-logs', label: 'Chat Logs', icon: Terminal },
       { href: '/dashboard/settings', label: 'Settings', icon: Settings },
     ]

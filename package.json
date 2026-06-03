@@ -15,5 +15,9 @@
     "runner"
   ],
   "author": "Antigravity",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "node-cron": "^4.2.1",
+    "razorpay": "^2.9.6"
+  }
 }

@@ -189,6 +189,61 @@ async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'A
   }
 }
 
+/**
+ * Send a generic email with custom subject and HTML body.
+ * Tries Brevo → Resend → SMTP in order.
+ */
+async function sendGenericEmail(toEmail, subject, htmlContent) {
+  // 1. Try Brevo
+  if (env.BREVO_API_KEY) {
+    try {
+      await axios.post('https://api.brevo.com/v3/smtp/email', {
+        sender: { name: 'Ajnabh Connect', email: env.FROM_EMAIL || env.SMTP_USER || 'noreply@ajnabh.com' },
+        to: [{ email: toEmail }],
+        subject,
+        htmlContent
+      }, {
+        headers: { 'accept': 'application/json', 'api-key': env.BREVO_API_KEY, 'content-type': 'application/json' }
+      });
+      return true;
+    } catch (err) {
+      logger.warn('Brevo generic email failed, trying next...', err.response?.data || err.message);
+    }
+  }
+
+  // 2. Try Resend
+  if (env.RESEND_API_KEY) {
+    try {
+      let fromSender = 'Ajnabh Connect <onboarding@resend.dev>';
+      if (env.FROM_EMAIL && !/^.*@(gmail|yahoo|outlook|hotmail|live|icloud|aol)\.com$/i.test(env.FROM_EMAIL)) {
+        fromSender = env.FROM_EMAIL;
+      }
+      await axios.post('https://api.resend.com/emails', {
+        from: fromSender, to: toEmail, subject, html: htmlContent
+      }, {
+        headers: { 'Authorization': `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' }
+      });
+      return true;
+    } catch (err) {
+      logger.warn('Resend generic email failed, trying SMTP...', err.response?.data || err.message);
+    }
+  }
+
+  // 3. SMTP fallback
+  if (transporter && env.SMTP_USER) {
+    try {
+      await transporter.sendMail({ from: env.FROM_EMAIL || env.SMTP_USER, to: toEmail, subject, html: htmlContent });
+      return true;
+    } catch (err) {
+      logger.error('SMTP generic email failed:', err.message);
+    }
+  }
+
+  logger.error(`Failed to send generic email to ${toEmail}`);
+  return false;
+}
+
 module.exports = {
   sendOnboardingEmail,
+  sendGenericEmail,
 };
