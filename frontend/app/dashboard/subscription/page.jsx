@@ -20,6 +20,7 @@ export default function SubscriptionPage() {
   const [paymentMode, setPaymentMode] = useState(null); // 'online' | 'offline'
   const [offlineForm, setOfflineForm] = useState({ transactionId: '', notes: '', screenshot: null });
   const [submitting, setSubmitting] = useState(false);
+  const [rejectionModal, setRejectionModal] = useState({ open: false, reason: '', invoice: '' });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -488,16 +489,14 @@ export default function SubscriptionPage() {
                         <div className="flex items-center gap-2">
                           {statusBadge(p.status)}
                           {p.status === 'rejected' && (
-                            <div className="relative group flex items-center">
-                              <button className="p-1 text-wa-text-secondary hover:text-wa-green transition-colors rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover" aria-label="View rejection reason">
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              <div className="absolute bottom-full right-0 mb-2 w-52 p-2.5 bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur border border-white/10 text-white text-xs rounded-lg shadow-lg opacity-0 scale-95 invisible group-hover:opacity-100 group-hover:scale-100 group-hover:visible transition-all duration-200 pointer-events-none z-50">
-                                <span className="font-semibold block border-b border-white/10 pb-1 mb-1 text-center">Rejection Reason</span>
-                                <span className="text-[11px] text-slate-300 block break-words leading-normal">{p.rejectionReason || 'No reason provided'}</span>
-                                <div className="absolute top-full right-4 -mt-1 border-4 border-transparent border-t-slate-900/95 dark:border-t-slate-800/95" />
-                              </div>
-                            </div>
+                            <button
+                              onClick={() => setRejectionModal({ open: true, reason: p.rejectionReason, invoice: p.invoiceNumber || 'Offline Payment' })}
+                              className="p-1 text-wa-text-secondary hover:text-wa-green transition-all rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover"
+                              title="Click to view rejection reason"
+                              aria-label="View rejection reason"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                           )}
                         </div>
                       </td>
@@ -507,6 +506,33 @@ export default function SubscriptionPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Rejection Reason Modal */}
+      {rejectionModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-wa-dark-panel rounded-2xl border border-wa-border dark:border-wa-dark-border max-w-sm w-full p-6 shadow-2xl animate-zoomIn text-center">
+            <div className="flex items-center gap-3 text-red-500 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-950/30 flex items-center justify-center">
+                <XCircle className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-bold text-wa-text-primary dark:text-white">Payment Rejected</h3>
+                <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono mt-0.5">{rejectionModal.invoice}</p>
+              </div>
+            </div>
+            <div className="bg-wa-search dark:bg-wa-dark-search rounded-xl p-4 border border-wa-border dark:border-wa-dark-border mb-5 text-left">
+              <p className="text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider mb-1.5">Reason for Rejection</p>
+              <p className="text-sm text-wa-text-primary dark:text-white leading-relaxed break-words font-medium">{rejectionModal.reason || 'No reason specified by administrator.'}</p>
+            </div>
+            <button
+              onClick={() => setRejectionModal({ open: false, reason: '', invoice: '' })}
+              className="w-full py-2.5 bg-wa-green hover:bg-wa-green-hover text-white font-semibold rounded-xl transition-colors text-sm shadow-sm"
+            >
+              Close
+            </button>
+          </div>
         </div>
       )}
     </div>
