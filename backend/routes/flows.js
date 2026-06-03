@@ -183,7 +183,7 @@ const PRE_BUILT_TEMPLATES = [
             body: "When would you like the visit?",
             sections: [
               {
-                title: "Visit Time / મુલાકાતનો સમય",
+                title: "Visit Time / મુલાકાત",
                 rows: [
                   { id: "time_tomorrow", title: "Tomorrow" },
                   { id: "time_this_week", title: "This Week" },
