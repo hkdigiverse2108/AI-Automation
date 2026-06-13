@@ -120,7 +120,7 @@ formatStdout(backendProc.stdout, '[Backend]', colors.magenta);
 formatStdout(backendProc.stderr, '[Backend][Error]', colors.red);
 
 // 4. Start Frontend
-const frontendEnv = { ...runnerEnv };
+const frontendEnv = { ...runnerEnv, NODE_ENV: 'production' };
 delete frontendEnv.PORT; // Delete backend's PORT to let Next.js use port 3000
 
 console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Building Next.js application (npm run build)...`);
