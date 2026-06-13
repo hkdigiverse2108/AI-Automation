@@ -105,9 +105,12 @@ function formatStdout(stream, prefix, colorCode) {
   });
 }
 
+let backendProc = null;
+let frontendProc = null;
+
 // 3. Start Backend
 console.log(`${colors.bold}${colors.magenta}[Backend]${colors.reset} Spawning Express API server (npm run dev)...`);
-const backendProc = spawn('npm', ['run', 'dev'], {
+backendProc = spawn('npm', ['run', 'dev'], {
   cwd: path.join(__dirname, 'backend'),
   shell: true,
   env: runnerEnv
@@ -117,18 +120,43 @@ formatStdout(backendProc.stdout, '[Backend]', colors.magenta);
 formatStdout(backendProc.stderr, '[Backend][Error]', colors.red);
 
 // 4. Start Frontend
-console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Spawning Next.js dev server (npm run dev)...`);
 const frontendEnv = { ...runnerEnv };
 delete frontendEnv.PORT; // Delete backend's PORT to let Next.js use port 3000
 
-const frontendProc = spawn('npm', ['run', 'dev'], {
+console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Building Next.js application (npm run build)...`);
+const buildProc = spawn('npm', ['run', 'build'], {
   cwd: path.join(__dirname, 'frontend'),
   shell: true,
   env: frontendEnv
 });
 
-formatStdout(frontendProc.stdout, '[Frontend]', colors.green);
-formatStdout(frontendProc.stderr, '[Frontend][Error]', colors.red);
+formatStdout(buildProc.stdout, '[Frontend-Build]', colors.green);
+formatStdout(buildProc.stderr, '[Frontend-Build][Error]', colors.red);
+
+buildProc.on('exit', (code) => {
+  if (code !== 0) {
+    console.log(`\n${colors.bold}${colors.red}❌ Frontend build failed with code ${code}. Halting startup...${colors.reset}`);
+    handleShutdown('Frontend Build Failure');
+    return;
+  }
+
+  console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Starting Next.js production server (npm run start)...`);
+  frontendProc = spawn('npm', ['run', 'start'], {
+    cwd: path.join(__dirname, 'frontend'),
+    shell: true,
+    env: frontendEnv
+  });
+
+  formatStdout(frontendProc.stdout, '[Frontend]', colors.green);
+  formatStdout(frontendProc.stderr, '[Frontend][Error]', colors.red);
+
+  frontendProc.on('exit', (code) => {
+    if (!shuttingDown) {
+      console.log(`\n${colors.bold}${colors.red}❌ Frontend service stopped unexpectedly with code ${code}${colors.reset}`);
+      handleShutdown('Frontend Crash');
+    }
+  });
+});
 
 // 5. Graceful shutdown handler
 let shuttingDown = false;
@@ -190,12 +218,5 @@ backendProc.on('exit', (code) => {
   if (!shuttingDown) {
     console.log(`\n${colors.bold}${colors.red}❌ Backend service stopped unexpectedly with code ${code}${colors.reset}`);
     handleShutdown('Backend Crash');
-  }
-});
-
-frontendProc.on('exit', (code) => {
-  if (!shuttingDown) {
-    console.log(`\n${colors.bold}${colors.red}❌ Frontend service stopped unexpectedly with code ${code}${colors.reset}`);
-    handleShutdown('Frontend Crash');
   }
 });
