@@ -29,8 +29,7 @@ const server = http.createServer(app);
 
 // Socket.io
 const io = new Server(server, {
-  cors: { origin: env.ALLOWED_ORIGINS, credentials: true },
-  pingTimeout: 60000,
+  cors: {},
 });
 
 if (process.env.USE_REDIS_SOCKETS !== 'false') {
