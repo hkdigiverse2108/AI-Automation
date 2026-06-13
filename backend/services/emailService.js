@@ -125,7 +125,7 @@ async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'H
     }
   }
 
-  // 2. Try sending via Resend API (HTTP Port 443) which is never blocked by cloud hosts like Render
+  // 2. Try sending via Resend API (HTTP Port 443) which is never blocked by cloud hosts
   if (apiKey) {
     try {
       logger.info(`Attempting to send onboarding email via Resend to ${toEmail}...`);

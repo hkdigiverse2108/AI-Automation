@@ -132,7 +132,7 @@ app.get(['/api/health', '/api/v1/health'], (_req, res) => {
   res.json({ success: true, message: 'HK Automation API is running', timestamp: new Date() });
 });
 
-// Root path handler for Render deploy health check
+// Root path handler for active health check
 app.get('/', (_req, res) => {
   res.status(200).json({ success: true, message: 'WhatsApp Marketing API Server is active' });
 });
