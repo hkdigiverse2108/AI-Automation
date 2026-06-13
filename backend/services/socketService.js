@@ -23,9 +23,23 @@ function initSocketService(io) {
 
       const decoded = jwt.verify(token, env.JWT_SECRET);
       const user = await User.findById(decoded.id);
-      if (!user) return next(new Error('User not found'));
+      if (!user || user.isDeleted) return next(new Error('User not found or deleted'));
 
-       socket.userId = user._id.toString();
+      if (user.isSuspended) return next(new Error('Account suspended'));
+
+      // Organization suspension checks
+      if (user.role !== 'superadmin' && user.organizationId) {
+        const Organization = require('../models/Organization');
+        const org = await Organization.findById(user.organizationId);
+        if (org && (org.status === 'suspended' || org.status === 'inactive')) {
+          return next(new Error('Organization account suspended or inactive'));
+        }
+        if (org && org.subscriptionStatus === 'expired') {
+          return next(new Error('Subscription expired'));
+        }
+      }
+
+      socket.userId = user._id.toString();
       socket.userName = user.name;
       socket.ownerId = user.ownerId ? user.ownerId.toString() : null;
       next();

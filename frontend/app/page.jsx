@@ -31,7 +31,7 @@ export default function Home() {
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-wa-green/20 border-t-wa-green rounded-full animate-spin" />
-          <p className="text-sm text-slate-400 font-semibold tracking-wide animate-pulse">Loading Ajnabh Connect Console...</p>
+          <p className="text-sm text-slate-400 font-semibold tracking-wide animate-pulse">Loading HK Automation Console...</p>
         </div>
       </div>
     );
@@ -113,7 +113,7 @@ export default function Home() {
             <MessageCircle className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-extrabold text-sm text-white tracking-tight leading-none">Ajnabh Connect</h1>
+            <h1 className="font-extrabold text-sm text-white tracking-tight leading-none">HK Automation</h1>
             <p className="text-[9px] text-wa-green-light font-bold uppercase tracking-widest mt-0.5 leading-none">Enterprise Suite</p>
           </div>
         </div>

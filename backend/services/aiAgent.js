@@ -23,9 +23,12 @@ async function processWithAI(messageHistory, contact, userMessage, customPrompt 
     // Resolve custom dynamic key from database configuration
     const { decryptField } = require('./encryption');
     
-    // Decrypt key if present
+    // Decrypt keys if present
     const customGrokKey = org?.aiConfig?.grokApiKey ? decryptField(org.aiConfig.grokApiKey) : null;
     const finalGrokKey = (customGrokKey && customGrokKey.trim() !== '') ? customGrokKey.trim() : null;
+
+    const customOpenAIKey = org?.aiConfig?.openaiApiKey ? decryptField(org.aiConfig.openaiApiKey) : null;
+    const finalOpenAIKey = (customOpenAIKey && customOpenAIKey.trim() !== '') ? customOpenAIKey.trim() : null;
 
     if (finalGrokKey) {
       const isGroq = finalGrokKey.startsWith('gsk_');
@@ -38,6 +41,32 @@ async function processWithAI(messageHistory, contact, userMessage, customPrompt 
       } else {
         clientOptions = {
           apiKey: finalGrokKey,
+          baseURL: 'https://api.x.ai/v1'
+        };
+        modelName = 'grok-2';
+      }
+    } else if (finalOpenAIKey) {
+      clientOptions = {
+        apiKey: finalOpenAIKey
+      };
+      modelName = 'gpt-4';
+    } else if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim() !== '') {
+      clientOptions = {
+        apiKey: process.env.OPENAI_API_KEY.trim()
+      };
+      modelName = 'gpt-4';
+    } else if (process.env.GROK_API_KEY && process.env.GROK_API_KEY.trim() !== '') {
+      const gKey = process.env.GROK_API_KEY.trim();
+      const isGroq = gKey.startsWith('gsk_');
+      if (isGroq) {
+        clientOptions = {
+          apiKey: gKey,
+          baseURL: 'https://api.groq.com/openai/v1'
+        };
+        modelName = 'llama-3.1-8b-instant';
+      } else {
+        clientOptions = {
+          apiKey: gKey,
           baseURL: 'https://api.x.ai/v1'
         };
         modelName = 'grok-2';

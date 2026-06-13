@@ -1,0 +1,48 @@
+name: mobile_app
+description: Mobile Companion App for WhatsApp Marketing Platform & AI CRM
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  provider: any
+
+  # Networking & Socket.io
+  http: any
+  socket_io_client: any
+
+  # Local Storage & Utilities
+  shared_preferences: any
+  intl: any
+  permission_handler: any
+
+  # Fonts & UI Design
+  google_fonts: any
+  lucide_icons: any
+  emoji_picker_flutter: any
+
+  # Hardware Sync & Media Pickers
+  contacts_service: any
+  call_log: any
+  image_picker: any
+  file_picker: any
+
+  # Push Notifications
+  firebase_core: any
+  firebase_messaging: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

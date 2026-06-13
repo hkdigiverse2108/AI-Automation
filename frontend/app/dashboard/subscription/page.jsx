@@ -70,7 +70,7 @@ export default function SubscriptionPage() {
         key: order.keyId,
         amount: order.amount * 100,
         currency: order.currency || 'INR',
-        name: 'Ajnabh Connect',
+        name: 'HK Automation',
         description: `Subscription - ${order.planMonths} Month(s)`,
         order_id: order.orderId,
         handler: async function (response) {

@@ -1,5 +1,6 @@
 const Notification = require('../models/Notification');
 const winston = require('winston');
+const fcmService = require('./fcmService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -40,6 +41,13 @@ async function createNotification({ userId, organizationId, type, title, message
       link,
       metadata
     });
+
+    // Send background push notification via FCM
+    fcmService.sendPushNotification(userId, title, message, {
+      type,
+      link,
+      notificationId: notif._id.toString()
+    }).catch(err => logger.error('Failed to send FCM push notification:', err.message));
 
     if (ioInstance) {
       ioInstance.to(`user_${userId}`).emit('new_notification', notif.toObject());

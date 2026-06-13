@@ -99,6 +99,7 @@ const analyticsRoute = require('./routes/analytics');
 const notificationsRoute = require('./routes/notifications');
 const mediaRoute = require('./routes/media');
 const subscriptionRoute = require('./routes/subscription');
+const telephonyRoute = require('./routes/telephony');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
@@ -119,6 +120,7 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/analytics`, analyticsRoute);
   app.use(`${prefix}/notifications`, notificationsRoute);
   app.use(`${prefix}/subscription`, subscriptionRoute);
+  app.use(`${prefix}/telephony`, telephonyRoute);
 };
 
 // Mount versioned API routes
@@ -127,7 +129,7 @@ mountRoutes('/api'); // Legacy support
 
 // Health check
 app.get(['/api/health', '/api/v1/health'], (_req, res) => {
-  res.json({ success: true, message: 'Ajnabh Connect API is running', timestamp: new Date() });
+  res.json({ success: true, message: 'HK Automation API is running', timestamp: new Date() });
 });
 
 // Root path handler for Render deploy health check

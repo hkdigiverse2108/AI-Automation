@@ -38,7 +38,7 @@ try {
  * @param {string} orgName - Associated organization name.
  * @returns {Promise<boolean>} - True if sent successfully.
  */
-async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'Ajnabh Connect') {
+async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'HK Automation') {
   const apiKey = env.RESEND_API_KEY;
   const roleLabel = role === 'admin' ? 'Organization Administrator' : 'Support Agent / Telecaller';
   const loginUrl = env.FRONTEND_URL || 'http://localhost:3000';
@@ -97,7 +97,7 @@ async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'A
         'https://api.brevo.com/v3/smtp/email',
         {
           sender: {
-            name: 'Ajnabh Connect',
+            name: 'HK Automation',
             email: env.FROM_EMAIL || env.SMTP_USER || 'princegajera0506@gmail.com',
           },
           to: [
@@ -132,7 +132,7 @@ async function sendOnboardingEmail(toEmail, toName, role, password, orgName = 'A
       
       // Resend does not allow sending from unverified public domains like @gmail.com.
       // If env.FROM_EMAIL is a Gmail or public address, we must use the default Resend sandbox sender.
-      let fromSender = 'Ajnabh Connect <onboarding@resend.dev>';
+      let fromSender = 'HK Automation <onboarding@resend.dev>';
       if (env.FROM_EMAIL) {
         const isPublicDomain = /@(gmail|yahoo|outlook|hotmail|live|icloud|aol)\.com$/i.test(env.FROM_EMAIL);
         if (!isPublicDomain) {
@@ -198,7 +198,7 @@ async function sendGenericEmail(toEmail, subject, htmlContent) {
   if (env.BREVO_API_KEY) {
     try {
       await axios.post('https://api.brevo.com/v3/smtp/email', {
-        sender: { name: 'Ajnabh Connect', email: env.FROM_EMAIL || env.SMTP_USER || 'noreply@ajnabh.com' },
+        sender: { name: 'HK Automation', email: env.FROM_EMAIL || env.SMTP_USER || 'noreply@hkautomation.com' },
         to: [{ email: toEmail }],
         subject,
         htmlContent
@@ -214,7 +214,7 @@ async function sendGenericEmail(toEmail, subject, htmlContent) {
   // 2. Try Resend
   if (env.RESEND_API_KEY) {
     try {
-      let fromSender = 'Ajnabh Connect <onboarding@resend.dev>';
+      let fromSender = 'HK Automation <onboarding@resend.dev>';
       if (env.FROM_EMAIL && !/^.*@(gmail|yahoo|outlook|hotmail|live|icloud|aol)\.com$/i.test(env.FROM_EMAIL)) {
         fromSender = env.FROM_EMAIL;
       }

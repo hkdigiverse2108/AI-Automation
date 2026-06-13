@@ -5,6 +5,7 @@ const BotFlow = require('../models/BotFlow');
 const BotMediaAsset = require('../models/BotMediaAsset');
 const WhatsAppAccount = require('../models/WhatsAppAccount');
 const whatsapp = require('./whatsapp');
+const aiAgent = require('./aiAgent');
 const { decryptField } = require('./encryption');
 
 /**

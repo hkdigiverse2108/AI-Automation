@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'hk-automation-backend'
+    metrics_path: '/api/v1/metrics'
+    static_configs:
+      - targets: ['backend-api:5000']
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis_exporter:9121']
+
+  - job_name: 'mongodb'
+    static_configs:
+      - targets: ['mongodb_exporter:9216']

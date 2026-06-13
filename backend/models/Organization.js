@@ -87,4 +87,6 @@ const organizationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+organizationSchema.index({ contactEmail: 1 }, { unique: true });
+
 module.exports = mongoose.model('Organization', organizationSchema);

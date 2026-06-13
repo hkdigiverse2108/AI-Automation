@@ -395,8 +395,8 @@ router.post('/meta/test', async (req, res) => {
         if (isApiBlocked) {
           org.metaConfig.whatsapp.status = 'connected';
           org.metaConfig.whatsapp.statusDetails = {
-            businessName: org.metaConfig.whatsapp.statusDetails?.businessName || 'Ajnabh Infotech (Dev Mode)',
-            displayName: org.metaConfig.whatsapp.statusDetails?.displayName || 'Ajnabh Infotech',
+            businessName: org.metaConfig.whatsapp.statusDetails?.businessName || 'HK Automation (Dev Mode)',
+            displayName: org.metaConfig.whatsapp.statusDetails?.displayName || 'HK Automation',
             phoneNumber: org.metaConfig.whatsapp.statusDetails?.phoneNumber || '+91 92658 52942',
             tokenStatus: 'Active (Sandbox/Dev)',
             errorReason: '',

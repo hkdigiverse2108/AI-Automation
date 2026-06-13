@@ -227,17 +227,41 @@ async function verifyApiKey(req, res, next) {
     }
 
     const keyHash = hashSHA256(apiKey);
-    const user = await User.findOne({ apiKeyHash: keyHash }).select('+apiKeyHash +apiKeyScope');
-    if (!user) {
-      return res.status(401).json({ success: false, error: 'Invalid API key', code: 'INVALID_API_KEY' });
+    const user = await User.findOne({ apiKeyHash: keyHash }).select('+apiKeyHash +apiKeyScope +isSuspended');
+    if (!user || user.isDeleted) {
+      return res.status(401).json({ success: false, error: 'Invalid API key or account deleted', code: 'INVALID_API_KEY' });
+    }
+
+    if (user.isSuspended) {
+      return res.status(403).json({ success: false, error: 'Account has been suspended', code: 'ACCOUNT_SUSPENDED' });
     }
 
     if (user.apiKeyExpiresAt && user.apiKeyExpiresAt < new Date()) {
       return res.status(401).json({ success: false, error: 'API key expired', code: 'API_KEY_EXPIRED' });
     }
 
+    // Organization suspension checks
+    if (user.role !== 'superadmin' && user.organizationId) {
+      const Organization = require('../models/Organization');
+      const org = await Organization.findById(user.organizationId);
+      if (org && (org.status === 'suspended' || org.status === 'inactive')) {
+        return res.status(403).json({ success: false, error: 'Your organization account has been suspended or is inactive', code: 'ORGANIZATION_SUSPENDED' });
+      }
+
+      // Subscription expiry check
+      if (org && org.subscriptionStatus === 'expired') {
+        return res.status(403).json({
+          success: false,
+          error: 'Your subscription has expired. Please renew to continue using the platform.',
+          code: 'SUBSCRIPTION_EXPIRED',
+          data: { expiryDate: org.subscriptionExpiryDate }
+        });
+      }
+    }
+
     req.user = user;
     req.userId = user._id;
+    req.organizationId = user.organizationId;
     req.apiKeyScope = user.apiKeyScope || 'read';
     next();
   } catch (error) {

@@ -83,7 +83,7 @@ router.post('/agents', async (req, res) => {
 
     // Send onboarding credentials email to newly created Agent
     const emailService = require('../services/emailService');
-    const orgName = org ? org.name : 'Ajnabh Connect';
+    const orgName = org ? org.name : 'HK Automation';
     emailService.sendOnboardingEmail(email, name, 'agent', password, orgName).catch((err) => {
       console.error('Failed to send agent onboarding email:', err.message);
     });

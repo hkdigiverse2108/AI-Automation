@@ -46,7 +46,7 @@ export default function SubscriptionExpiredGate({ expiryDate }) {
             <CreditCard className="w-5 h-5" /> Renew Now
           </Link>
           <a
-            href="mailto:support@ajnabh.com"
+            href="mailto:support@hkautomation.com"
             className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 text-slate-300 font-semibold rounded-xl transition-all border border-white/10 text-sm"
           >
             <Headphones className="w-4 h-4" /> Contact Support
