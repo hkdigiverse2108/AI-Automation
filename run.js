@@ -123,6 +123,16 @@ formatStdout(backendProc.stderr, '[Backend][Error]', colors.red);
 const frontendEnv = { ...runnerEnv, NODE_ENV: 'production' };
 delete frontendEnv.PORT; // Delete backend's PORT to let Next.js use port 3000
 
+// Clean Next.js cache folder before building to prevent pages-manifest.json lock issues on Windows
+const nextCachePath = path.join(__dirname, 'frontend', '.next');
+if (fs.existsSync(nextCachePath)) {
+  try {
+    fs.rmSync(nextCachePath, { recursive: true, force: true });
+  } catch (err) {
+    // Ignore cleanup errors
+  }
+}
+
 console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Building Next.js application (npm run build)...`);
 const buildProc = spawn('npm', ['run', 'build'], {
   cwd: path.join(__dirname, 'frontend'),

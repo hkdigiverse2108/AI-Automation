@@ -32,13 +32,14 @@ export default function TemplatesPage() {
     headerType: 'NONE',
     headerText: '',
     headerMediaId: '',
+    headerMediaUrl: '',
     bodyText: '',
     footerText: '',
     buttonText: '',
     isCustom: false,
     isCarousel: false,
     carouselCards: [
-      { headerMediaId: '', bodyText: '', buttonText: '' }
+      { headerMediaId: '', headerMediaUrl: '', bodyText: '', buttonText: '' }
     ]
   });
 
@@ -48,6 +49,17 @@ export default function TemplatesPage() {
   const handleImageUpload = async (e, cardIdx = null) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Create local Object URL for instant image preview
+    const localUrl = URL.createObjectURL(file);
+
+    if (cardIdx !== null) {
+      const cardsCopy = [...newTemplate.carouselCards];
+      cardsCopy[cardIdx].headerMediaUrl = localUrl;
+      setNewTemplate(prev => ({ ...prev, carouselCards: cardsCopy }));
+    } else {
+      setNewTemplate(prev => ({ ...prev, headerMediaUrl: localUrl }));
+    }
 
     const formData = new FormData();
     formData.append('file', file);
@@ -212,12 +224,15 @@ export default function TemplatesPage() {
       headerType: headerComp.format ? headerComp.format : (headerComp.text ? 'TEXT' : 'NONE'),
       headerText: headerComp.text || '',
       headerMediaId: tmpl.headerMediaId || '',
+      headerMediaUrl: '',
       bodyText: bodyComp.text || '',
       footerText: footerComp.text || '',
       buttonText: btnComp.buttons?.[0]?.text || '',
       isCustom: !!tmpl.isCustom,
       isCarousel: !!tmpl.isCarousel,
-      carouselCards: tmpl.carouselCards && tmpl.carouselCards.length ? tmpl.carouselCards : [{ headerMediaId: '', bodyText: '', buttonText: '' }]
+      carouselCards: tmpl.carouselCards && tmpl.carouselCards.length 
+        ? tmpl.carouselCards.map(c => ({ ...c, headerMediaUrl: '' })) 
+        : [{ headerMediaId: '', headerMediaUrl: '', bodyText: '', buttonText: '' }]
     });
     setIsModalOpen(true);
   };
@@ -238,12 +253,13 @@ export default function TemplatesPage() {
       headerType: 'NONE',
       headerText: '',
       headerMediaId: '',
+      headerMediaUrl: '',
       bodyText: '',
       footerText: '',
       buttonText: '',
       isCustom: false,
       isCarousel: false,
-      carouselCards: [{ headerMediaId: '', bodyText: '', buttonText: '' }]
+      carouselCards: [{ headerMediaId: '', headerMediaUrl: '', bodyText: '', buttonText: '' }]
     });
   };
 
@@ -270,7 +286,7 @@ export default function TemplatesPage() {
     }
     setNewTemplate(prev => ({
       ...prev,
-      carouselCards: [...prev.carouselCards, { headerMediaId: '', bodyText: '', buttonText: '' }]
+      carouselCards: [...prev.carouselCards, { headerMediaId: '', headerMediaUrl: '', bodyText: '', buttonText: '' }]
     }));
   };
 
@@ -899,7 +915,15 @@ export default function TemplatesPage() {
                         <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin max-w-full">
                           {newTemplate.carouselCards.map((card, cIdx) => (
                             <div key={cIdx} className="w-[180px] bg-white dark:bg-[#202c33] p-2 rounded-lg border border-wa-border dark:border-[#2f3b43] flex-shrink-0 space-y-1.5 shadow-sm">
-                              {card.headerMediaId ? (
+                              {card.headerMediaUrl ? (
+                                <div className="h-20 rounded overflow-hidden">
+                                  <img
+                                    src={card.headerMediaUrl}
+                                    alt={`Card ${cIdx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ) : card.headerMediaId ? (
                                 <div className="h-20 bg-wa-search dark:bg-[#182229] rounded flex items-center justify-center text-[10px] text-wa-text-secondary">📷 Image Attached</div>
                               ) : (
                                 <div className="h-20 bg-slate-50 dark:bg-[#182229] rounded flex items-center justify-center text-[9px] text-wa-text-light border border-dashed border-wa-border dark:border-[#2f3b43]">No Image</div>
@@ -918,8 +942,14 @@ export default function TemplatesPage() {
                         <>
                           <div className="chat-bubble-in !max-w-full !rounded-lg bg-white dark:bg-[#202c33] border border-white dark:border-[#202c33] shadow-sm p-2 space-y-1 select-text">
                             {newTemplate.headerType === 'IMAGE' && (
-                              <div className="bg-wa-search dark:bg-[#182229] rounded-lg py-5 flex flex-col items-center justify-center text-wa-text-light text-[11px] gap-1 mb-1 border border-dashed border-wa-border dark:border-[#2f3b43]">
-                                {newTemplate.headerMediaId ? (
+                              <div className="bg-wa-search dark:bg-[#182229] rounded-lg overflow-hidden flex flex-col items-center justify-center text-wa-text-light text-[11px] gap-1 mb-1 border border-dashed border-wa-border dark:border-[#2f3b43] relative min-h-[100px]">
+                                {newTemplate.headerMediaUrl ? (
+                                  <img
+                                    src={newTemplate.headerMediaUrl}
+                                    alt="Header Media"
+                                    className="w-full h-auto max-h-[140px] object-cover"
+                                  />
+                                ) : newTemplate.headerMediaId ? (
                                   <>
                                     <span className="text-sm">🖼️</span>
                                     <span className="text-[8px] uppercase font-bold text-wa-green">Header Image Uploaded</span>
