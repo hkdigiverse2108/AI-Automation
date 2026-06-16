@@ -247,6 +247,22 @@ export default function TemplatesPage() {
     });
   };
 
+  const renderFormattedBody = (text) => {
+    if (!text) return null;
+    const parts = text.split(/(\{\{\d+\}\})/g);
+    return parts.map((part, index) => {
+      const match = part.match(/^\{\{(\d+)\}\}$/);
+      if (match) {
+        return (
+          <span key={index} className="inline-block px-1.5 py-0.5 bg-wa-green/10 dark:bg-emerald-500/20 text-wa-green dark:text-emerald-400 font-bold rounded text-[10px] mx-0.5 select-none">
+            {`{Var ${match[1]}}`}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   const addCarouselCard = () => {
     if (newTemplate.carouselCards.length >= 10) {
       toast.error('Maximum 10 carousel cards allowed');
@@ -578,13 +594,11 @@ export default function TemplatesPage() {
             </button>
           </div>
         </div>
-      )}
-
-      {/* DESIGN TEMPLATE MODAL */}
+         {/* DESIGN TEMPLATE MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] shadow-wa-lg">
-            <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
+          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-4xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] shadow-wa-lg">
+            <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4 shrink-0">
               <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-wa-green" /> {editingTemplateId ? 'Edit' : 'Create'} Template Designer
               </h3>
@@ -593,249 +607,365 @@ export default function TemplatesPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateTemplate} className="p-5 space-y-4 flex-1 overflow-y-auto">
-              {/* Type toggle */}
-              <div className="flex items-center gap-4 bg-wa-bg dark:bg-wa-dark-header p-2.5 rounded-xl border border-wa-border dark:border-wa-dark-border">
-                <span className="text-xs font-bold text-wa-text-secondary uppercase">Template Mode:</span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewTemplate(prev => ({ ...prev, isCustom: false, isCarousel: false }))}
-                    disabled={!!editingTemplateId}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 ${!newTemplate.isCustom ? 'bg-wa-green text-white' : 'bg-wa-panel dark:bg-wa-dark-panel text-wa-text-secondary'}`}
-                  >
-                    Meta Review Mode
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewTemplate(prev => ({ ...prev, isCustom: true }))}
-                    disabled={!!editingTemplateId}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 ${newTemplate.isCustom ? 'bg-wa-green text-white' : 'bg-wa-panel dark:bg-wa-dark-panel text-wa-text-secondary'}`}
-                  >
-                    Local Custom Mode
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Template Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. order_alert"
-                    value={newTemplate.name}
-                    onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                    disabled={!!editingTemplateId}
-                    className="input-field py-2 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Category</label>
-                  <select
-                    value={newTemplate.category}
-                    onChange={(e) => setNewTemplate({ ...newTemplate, category: e.target.value })}
-                    className="input-field py-2 text-xs"
-                  >
-                    <option value="MARKETING">Marketing</option>
-                    <option value="UTILITY">Utility</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Local custom Carousel toggle */}
-              {newTemplate.isCustom && (
-                <div className="flex items-center justify-between bg-wa-bg dark:bg-wa-dark-header p-2.5 rounded-xl border border-wa-border dark:border-wa-dark-border">
-                  <div>
-                    <span className="block text-xs font-bold text-wa-text-primary dark:text-white">Multi-Card Carousel Layout</span>
-                    <span className="block text-[10px] text-wa-text-secondary">Send a scrollable slider of card images & reply buttons.</span>
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+              {/* Left Column: Form Editor (Scrollable) */}
+              <form onSubmit={handleCreateTemplate} className="w-full md:w-[55%] p-5 space-y-4 overflow-y-auto border-b md:border-b-0 md:border-r border-wa-border dark:border-wa-dark-border flex flex-col justify-between">
+                <div className="space-y-4">
+                  {/* Type toggle */}
+                  <div className="flex items-center gap-4 bg-wa-bg dark:bg-wa-dark-header p-2.5 rounded-xl border border-wa-border dark:border-wa-dark-border">
+                    <span className="text-xs font-bold text-wa-text-secondary uppercase">Template Mode:</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setNewTemplate(prev => ({ ...prev, isCustom: false, isCarousel: false }))}
+                        disabled={!!editingTemplateId}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 ${!newTemplate.isCustom ? 'bg-wa-green text-white' : 'bg-wa-panel dark:bg-wa-dark-panel text-wa-text-secondary'}`}
+                      >
+                        Meta Review Mode
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewTemplate(prev => ({ ...prev, isCustom: true }))}
+                        disabled={!!editingTemplateId}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 ${newTemplate.isCustom ? 'bg-wa-green text-white' : 'bg-wa-panel dark:bg-wa-dark-panel text-wa-text-secondary'}`}
+                      >
+                        Local Custom Mode
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setNewTemplate(prev => ({ ...prev, isCarousel: !prev.isCarousel }))}
-                    disabled={!!editingTemplateId}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${newTemplate.isCarousel ? 'bg-wa-green text-white' : 'border border-wa-border text-wa-text-secondary'}`}
-                  >
-                    {newTemplate.isCarousel ? 'ON' : 'OFF'}
-                  </button>
-                </div>
-              )}
 
-              {/* Standard Templates Form fields */}
-              {!newTemplate.isCarousel ? (
-                <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Header Format</label>
-                      <select
-                        value={newTemplate.headerType}
-                        onChange={(e) => setNewTemplate({ ...newTemplate, headerType: e.target.value })}
-                        className="input-field py-2 text-xs"
-                      >
-                        <option value="NONE">None</option>
-                        <option value="TEXT">Text</option>
-                        <option value="IMAGE">Image</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Language</label>
-                      <select
-                        value={newTemplate.language}
-                        onChange={(e) => setNewTemplate({ ...newTemplate, language: e.target.value })}
-                        className="input-field py-2 text-xs"
-                      >
-                        <option value="en">English (en)</option>
-                        <option value="es">Spanish (es)</option>
-                        <option value="pt_BR">Portuguese (pt_BR)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {newTemplate.headerType === 'TEXT' && (
-                    <div className="animate-fade-in">
-                      <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Header Text *</label>
+                      <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Template Name *</label>
                       <input
                         type="text"
                         required
-                        placeholder="e.g. Welcome onboard!"
-                        value={newTemplate.headerText}
-                        onChange={(e) => setNewTemplate({ ...newTemplate, headerText: e.target.value })}
+                        placeholder="e.g. order_alert"
+                        value={newTemplate.name}
+                        onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                        disabled={!!editingTemplateId}
                         className="input-field py-2 text-xs"
                       />
                     </div>
-                  )}
+                    <div>
+                      <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Category</label>
+                      <select
+                        value={newTemplate.category}
+                        onChange={(e) => setNewTemplate({ ...newTemplate, category: e.target.value })}
+                        className="input-field py-2 text-xs"
+                      >
+                        <option value="MARKETING">Marketing</option>
+                        <option value="UTILITY">Utility</option>
+                      </select>
+                    </div>
+                  </div>
 
-                  {newTemplate.headerType === 'IMAGE' && (
-                    <div className="space-y-2 animate-fade-in border-b border-wa-border dark:border-wa-dark-border pb-3">
-                      <label className="block text-xs font-bold text-wa-text-secondary uppercase">Header Media (Image) *</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleImageUpload(e)}
-                          disabled={uploadingImage}
-                          className="text-xs text-wa-text-secondary file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-wa-search file:text-wa-text-primary hover:file:bg-wa-green/10 cursor-pointer"
-                        />
-                        {uploadingImage && <Loader2 className="w-4 h-4 animate-spin text-wa-green" />}
-                        {!uploadingImage && newTemplate.headerMediaId && <span className="text-xs font-semibold text-wa-green bg-wa-green/10 px-2.5 py-1 rounded-lg">✓ Uploaded</span>}
+                  {/* Local custom Carousel toggle */}
+                  {newTemplate.isCustom && (
+                    <div className="flex items-center justify-between bg-wa-bg dark:bg-wa-dark-header p-2.5 rounded-xl border border-wa-border dark:border-wa-dark-border">
+                      <div>
+                        <span className="block text-xs font-bold text-wa-text-primary dark:text-white">Multi-Card Carousel Layout</span>
+                        <span className="block text-[10px] text-wa-text-secondary">Send a scrollable slider of card images & reply buttons.</span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setNewTemplate(prev => ({ ...prev, isCarousel: !prev.isCarousel }))}
+                        disabled={!!editingTemplateId}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${newTemplate.isCarousel ? 'bg-wa-green text-white' : 'border border-wa-border text-wa-text-secondary'}`}
+                      >
+                        {newTemplate.isCarousel ? 'ON' : 'OFF'}
+                      </button>
                     </div>
                   )}
 
-                  <div>
-                    <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Body Message Content *</label>
-                    <textarea
-                      rows="4"
-                      required
-                      placeholder="e.g. Hello {{1}}, your booking for {{2}} is confirmed!"
-                      value={newTemplate.bodyText}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, bodyText: e.target.value })}
-                      className="input-field py-2 text-xs"
-                    />
-                    <p className="text-[10px] text-wa-text-light mt-1">Use {"{{1}}"}, {"{{2}}"} for message variables.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Footer text (Optional)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Reply STOP to opt out"
-                      value={newTemplate.footerText}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, footerText: e.target.value })}
-                      className="input-field py-2 text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Quick Reply Button Text (Optional)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Talk to Agent"
-                      value={newTemplate.buttonText}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, buttonText: e.target.value })}
-                      className="input-field py-2 text-xs"
-                    />
-                  </div>
-                </>
-              ) : (
-                /* Carousel Templates cards list */
-                <div className="space-y-4 animate-fade-in border-t border-wa-border dark:border-wa-dark-border pt-4">
-                  <div className="flex items-center justify-between">
-                    <span className="block text-xs font-bold text-wa-text-secondary uppercase">Carousel Cards ({newTemplate.carouselCards.length})</span>
-                    <button
-                      type="button"
-                      onClick={addCarouselCard}
-                      className="text-xs text-wa-green hover:underline flex items-center gap-1 font-semibold"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add Card
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {newTemplate.carouselCards.map((card, cIdx) => (
-                      <div key={cIdx} className="bg-wa-bg dark:bg-wa-dark-header p-4 rounded-xl border border-wa-border dark:border-wa-dark-border relative space-y-3">
-                        <button
-                          type="button"
-                          onClick={() => removeCarouselCard(cIdx)}
-                          className="absolute right-3 top-3 text-wa-text-light hover:text-red-500 transition-colors"
-                          title="Remove Card"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                        
-                        <span className="block text-xs font-bold text-wa-text-primary dark:text-white">Card #{cIdx + 1}</span>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Card Image (Optional)</label>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => handleImageUpload(e, cIdx)}
-                                disabled={uploadingCardIdx !== null}
-                                className="text-[10px] text-wa-text-secondary file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-wa-search"
-                              />
-                              {uploadingCardIdx === cIdx && <Loader2 className="w-3.5 h-3.5 animate-spin text-wa-green" />}
-                              {card.headerMediaId && <span className="text-[10px] font-bold text-wa-green">✓</span>}
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Quick Reply Button</label>
-                            <input
-                              type="text"
-                              placeholder="e.g. Yes, please"
-                              value={card.buttonText}
-                              onChange={(e) => handleCardFieldChange(cIdx, 'buttonText', e.target.value)}
-                              className="input-field py-1 text-[11px]"
-                            />
-                          </div>
+                  {/* Standard Templates Form fields */}
+                  {!newTemplate.isCarousel ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Header Format</label>
+                          <select
+                            value={newTemplate.headerType}
+                            onChange={(e) => setNewTemplate({ ...newTemplate, headerType: e.target.value })}
+                            className="input-field py-2 text-xs"
+                          >
+                            <option value="NONE">None</option>
+                            <option value="TEXT">Text</option>
+                            <option value="IMAGE">Image</option>
+                          </select>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Card Body Content *</label>
-                          <textarea
-                            rows="2"
-                            required
-                            placeholder="Type card message details..."
-                            value={card.bodyText}
-                            onChange={(e) => handleCardFieldChange(cIdx, 'bodyText', e.target.value)}
-                            className="input-field py-1.5 text-[11px]"
-                          />
+                          <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Language</label>
+                          <select
+                            value={newTemplate.language}
+                            onChange={(e) => setNewTemplate({ ...newTemplate, language: e.target.value })}
+                            className="input-field py-2 text-xs"
+                          >
+                            <option value="en">English (en)</option>
+                            <option value="es">Spanish (es)</option>
+                            <option value="pt_BR">Portuguese (pt_BR)</option>
+                          </select>
                         </div>
                       </div>
-                    ))}
+
+                      {newTemplate.headerType === 'TEXT' && (
+                        <div className="animate-fade-in">
+                          <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Header Text *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Welcome onboard!"
+                            value={newTemplate.headerText}
+                            onChange={(e) => setNewTemplate({ ...newTemplate, headerText: e.target.value })}
+                            className="input-field py-2 text-xs"
+                          />
+                        </div>
+                      )}
+
+                      {newTemplate.headerType === 'IMAGE' && (
+                        <div className="space-y-2 animate-fade-in border-b border-wa-border dark:border-wa-dark-border pb-3">
+                          <label className="block text-xs font-bold text-wa-text-secondary uppercase">Header Media (Image) *</label>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleImageUpload(e)}
+                              disabled={uploadingImage}
+                              className="text-xs text-wa-text-secondary file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-wa-search file:text-wa-text-primary hover:file:bg-wa-green/10 cursor-pointer"
+                            />
+                            {uploadingImage && <Loader2 className="w-4 h-4 animate-spin text-wa-green" />}
+                            {!uploadingImage && newTemplate.headerMediaId && <span className="text-xs font-semibold text-wa-green bg-wa-green/10 px-2.5 py-1 rounded-lg">✓ Uploaded</span>}
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Body Message Content *</label>
+                        <textarea
+                          rows="4"
+                          required
+                          placeholder="e.g. Hello {{1}}, your booking for {{2}} is confirmed!"
+                          value={newTemplate.bodyText}
+                          onChange={(e) => setNewTemplate({ ...newTemplate, bodyText: e.target.value })}
+                          className="input-field py-2 text-xs"
+                        />
+                        <p className="text-[10px] text-wa-text-light mt-1">Use {"{{1}}"}, {"{{2}}"} for message variables.</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Footer text (Optional)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Reply STOP to opt out"
+                          value={newTemplate.footerText}
+                          onChange={(e) => setNewTemplate({ ...newTemplate, footerText: e.target.value })}
+                          className="input-field py-2 text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Quick Reply Button Text (Optional)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Talk to Agent"
+                          value={newTemplate.buttonText}
+                          onChange={(e) => setNewTemplate({ ...newTemplate, buttonText: e.target.value })}
+                          className="input-field py-2 text-xs"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    /* Carousel Templates cards list */
+                    <div className="space-y-4 animate-fade-in border-t border-wa-border dark:border-wa-dark-border pt-4">
+                      <div className="flex items-center justify-between">
+                        <span className="block text-xs font-bold text-wa-text-secondary uppercase">Carousel Cards ({newTemplate.carouselCards.length})</span>
+                        <button
+                          type="button"
+                          onClick={addCarouselCard}
+                          className="text-xs text-wa-green hover:underline flex items-center gap-1 font-semibold"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add Card
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {newTemplate.carouselCards.map((card, cIdx) => (
+                          <div key={cIdx} className="bg-wa-bg dark:bg-wa-dark-header p-4 rounded-xl border border-wa-border dark:border-wa-dark-border relative space-y-3">
+                            <button
+                              type="button"
+                              onClick={() => removeCarouselCard(cIdx)}
+                              className="absolute right-3 top-3 text-wa-text-light hover:text-red-500 transition-colors"
+                              title="Remove Card"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                            
+                            <span className="block text-xs font-bold text-wa-text-primary dark:text-white">Card #{cIdx + 1}</span>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Card Image (Optional)</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => handleImageUpload(e, cIdx)}
+                                    disabled={uploadingCardIdx !== null}
+                                    className="text-[10px] text-wa-text-secondary file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-wa-search"
+                                  />
+                                  {uploadingCardIdx === cIdx && <Loader2 className="w-3.5 h-3.5 animate-spin text-wa-green" />}
+                                  {card.headerMediaId && <span className="text-[10px] font-bold text-wa-green">✓</span>}
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Quick Reply Button</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Yes, please"
+                                  value={card.buttonText}
+                                  onChange={(e) => handleCardFieldChange(cIdx, 'buttonText', e.target.value)}
+                                  className="input-field py-1 text-[11px]"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Card Body Content *</label>
+                              <textarea
+                                rows="2"
+                                required
+                                placeholder="Type card message details..."
+                                value={card.bodyText}
+                                onChange={(e) => handleCardFieldChange(cIdx, 'bodyText', e.target.value)}
+                                className="input-field py-1.5 text-[11px]"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 justify-end pt-4 mt-6 border-t border-wa-border dark:border-wa-dark-border shrink-0">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary py-2 text-xs px-4" disabled={creating}>Cancel</button>
+                  <button type="submit" disabled={creating} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
+                    {creating && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {editingTemplateId ? 'Save Changes' : (newTemplate.isCustom ? 'Save Local Custom' : 'Submit to Meta')}
+                  </button>
+                </div>
+              </form>
+
+              {/* Right Column: Live Mockup Phone Preview */}
+              <div className="w-full md:w-[45%] p-5 bg-[#efeae2]/40 dark:bg-[#0b141a]/10 flex flex-col items-center justify-start overflow-y-auto select-none border-t md:border-t-0 border-wa-border dark:border-wa-dark-border min-h-[400px] md:min-h-0">
+                <span className="text-[10px] font-bold text-wa-text-secondary mb-4 uppercase tracking-wider block">Live Message Preview</span>
+                
+                {/* Phone Frame Simulator */}
+                <div className="w-full max-w-[280px] rounded-[36px] border-[10px] border-slate-800 dark:border-slate-700 bg-[#efeae2] dark:bg-[#0b141a] overflow-hidden shadow-wa-lg flex flex-col relative aspect-[9/18] shrink-0">
+                  {/* Speaker notch */}
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-800 dark:bg-slate-700 rounded-b-xl z-20 flex items-center justify-center">
+                    <div className="w-8 h-1 bg-slate-600 dark:bg-slate-500 rounded-full" />
+                  </div>
+
+                  {/* Top bar info */}
+                  <div className="bg-[#075e54] dark:bg-[#202c33] text-white pt-5 pb-2 px-4 flex items-center justify-between text-[9px] select-none shrink-0 z-10 font-mono">
+                    <div className="font-semibold">WhatsApp Live</div>
+                    <div className="flex items-center gap-1">
+                      <span>📶</span>
+                      <span>🔋 100%</span>
+                    </div>
+                  </div>
+
+                  {/* Conversation Header */}
+                  <div className="bg-[#128c7e] dark:bg-[#202c33] text-white py-2 px-3 flex items-center gap-2 border-b border-[#075e54]/10 dark:border-[#2f3b43] shrink-0 z-10 shadow-sm select-none">
+                    <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center font-bold text-[10px] text-white shrink-0 border border-white/20 uppercase">
+                      {(newTemplate.name ? newTemplate.name.substring(0, 2) : 'WA')}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-[10.5px] leading-tight truncate">
+                        {newTemplate.name ? newTemplate.name.toLowerCase().replace(/\s+/g, '_') : 'my_template_name'}
+                      </div>
+                      <div className="text-[7.5px] text-white/80 leading-none">Template Preview</div>
+                    </div>
+                  </div>
+
+                  {/* Wallpaper Chat Area */}
+                  <div className="flex-1 p-3 overflow-y-auto space-y-2 relative bg-[#efeae2] dark:bg-[#0b141a] min-h-[300px]">
+                    <div className="absolute inset-0 opacity-[0.06] dark:opacity-[0.03] pointer-events-none z-0" style={{ backgroundImage: "url('/uploads/chat-bg.png')", backgroundSize: 'contain' }} />
+
+                    <div className="relative z-10 space-y-2">
+                      {newTemplate.isCarousel && newTemplate.carouselCards?.length ? (
+                        /* Carousel cards preview list */
+                        <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin max-w-full">
+                          {newTemplate.carouselCards.map((card, cIdx) => (
+                            <div key={cIdx} className="w-[180px] bg-white dark:bg-[#202c33] p-2 rounded-lg border border-wa-border dark:border-[#2f3b43] flex-shrink-0 space-y-1.5 shadow-sm">
+                              {card.headerMediaId ? (
+                                <div className="h-20 bg-wa-search dark:bg-[#182229] rounded flex items-center justify-center text-[10px] text-wa-text-secondary">📷 Image Attached</div>
+                              ) : (
+                                <div className="h-20 bg-slate-50 dark:bg-[#182229] rounded flex items-center justify-center text-[9px] text-wa-text-light border border-dashed border-wa-border dark:border-[#2f3b43]">No Image</div>
+                              )}
+                              <div className="text-[11px] text-wa-text-primary dark:text-white leading-tight break-words whitespace-pre-wrap">
+                                {renderFormattedBody(card.bodyText) || <span className="italic text-wa-text-light">[Card Body]</span>}
+                              </div>
+                              {card.buttonText && (
+                                <div className="py-1 bg-wa-bg dark:bg-[#182229] border dark:border-[#2f3b43] rounded text-[10px] text-center text-wa-green dark:text-[#53bdeb] font-semibold">{card.buttonText}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        /* Standard bubble preview layout */
+                        <>
+                          <div className="chat-bubble-in !max-w-full !rounded-lg bg-white dark:bg-[#202c33] border border-white dark:border-[#202c33] shadow-sm p-2 space-y-1 select-text">
+                            {newTemplate.headerType === 'IMAGE' && (
+                              <div className="bg-wa-search dark:bg-[#182229] rounded-lg py-5 flex flex-col items-center justify-center text-wa-text-light text-[11px] gap-1 mb-1 border border-dashed border-wa-border dark:border-[#2f3b43]">
+                                {newTemplate.headerMediaId ? (
+                                  <>
+                                    <span className="text-sm">🖼️</span>
+                                    <span className="text-[8px] uppercase font-bold text-wa-green">Header Image Uploaded</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-sm">📷</span>
+                                    <span className="text-[8px] uppercase font-bold tracking-wider">No Image selected</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                            {newTemplate.headerType === 'TEXT' && newTemplate.headerText && (
+                              <div className="font-bold text-[11.5px] text-wa-text-primary dark:text-white leading-tight pb-1 border-b border-wa-border/30 dark:border-[#2f3b43] mb-1">
+                                {newTemplate.headerText}
+                              </div>
+                            )}
+                            <div className="text-[11.5px] text-wa-text-primary dark:text-white whitespace-pre-wrap leading-normal break-words">
+                              {renderFormattedBody(newTemplate.bodyText) || <span className="italic text-wa-text-light">[Empty Body Text]</span>}
+                            </div>
+                            {newTemplate.footerText && (
+                              <div className="text-[9.5px] text-wa-text-light mt-1 select-none">
+                                {newTemplate.footerText}
+                              </div>
+                            )}
+                          </div>
+
+                          {newTemplate.buttonText && (
+                            <div className="py-1.5 bg-white dark:bg-[#202c33] rounded-lg border border-white dark:border-[#202c33] text-center text-wa-green dark:text-[#53bdeb] font-semibold text-[11px] shadow-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-[#233138] transition-colors">
+                              🔗 {newTemplate.buttonText}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-              )}
 
-              <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary py-2 text-xs px-4" disabled={creating}>Cancel</button>
-                <button type="submit" disabled={creating} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
-                  {creating && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {editingTemplateId ? 'Save Changes' : (newTemplate.isCustom ? 'Save Local Custom' : 'Submit to Meta')}
-                </button>
+                {/* Info Note about live delivery */}
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-xl text-[10px] text-blue-600 dark:text-blue-400 space-y-1 max-w-[280px] shrink-0">
+                  <span className="font-bold uppercase tracking-wider block">💡 Live Message Delivery:</span>
+                  <p className="leading-normal">
+                    When sending a campaign or automation, WhatsApp replaces variables like <span className="font-mono bg-blue-100 dark:bg-blue-900 px-1 py-0.2 rounded font-bold">{"{{1}}"}</span> with actual contact data (e.g. contact name, order details) dynamically.
+                  </p>
+                </div>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
