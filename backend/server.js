@@ -58,6 +58,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Security
 applySecurity(app);

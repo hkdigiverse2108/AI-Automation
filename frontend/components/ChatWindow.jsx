@@ -68,7 +68,7 @@ const resolveMediaUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('/uploads')) {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || '/api';
-    const baseUrl = apiBase.replace(/\/api\/?$/, ''); // Remove trailing /api
+    const baseUrl = apiBase.endsWith('/api') ? apiBase : `${apiBase.replace(/\/$/, '')}/api`;
     return `${baseUrl}${url}`;
   }
   return url;

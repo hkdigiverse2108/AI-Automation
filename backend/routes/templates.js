@@ -26,7 +26,7 @@ router.post('/sync', async (req, res) => {
 
     const token = decryptField(waAccount.accessToken);
     const result = await whatsappService.getTemplates(waAccount.wabaId, token);
-    if (!result.success) return res.status(502).json({ success: false, error: 'Failed to fetch from Meta', code: 'META_ERROR' });
+    if (!result.success) return res.status(400).json({ success: false, error: 'Failed to fetch from Meta', code: 'META_ERROR' });
 
     const metaTemplates = result.data?.data || [];
     let synced = 0;
@@ -92,7 +92,7 @@ router.post('/', async (req, res) => {
     const token = decryptField(waAccount.accessToken);
     const result = await whatsappService.createTemplate(waAccount.wabaId, token, { name, category: category || 'MARKETING', language: language || 'en', components });
 
-    if (!result.success) return res.status(502).json({ success: false, error: result.error || 'Meta API error', code: 'META_ERROR' });
+    if (!result.success) return res.status(400).json({ success: false, error: result.error || 'Meta API error', code: 'META_ERROR' });
 
     const template = await Template.create({
       userId: req.userId,
