@@ -594,7 +594,8 @@ export default function TemplatesPage() {
             </button>
           </div>
         </div>
-         {/* DESIGN TEMPLATE MODAL */}
+      )}
+      {/* DESIGN TEMPLATE MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-4xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] shadow-wa-lg">
