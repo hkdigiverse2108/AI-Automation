@@ -1,12 +1,12 @@
 const dotenv = require('dotenv');
 const path = require('path');
-
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
-
 const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: parseInt(process.env.PORT, 10) || 5000,
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || `http://localhost:${process.env.PORT || 5000}`,
+
 
   // MongoDB
   MONGODB_URI: process.env.MONGODB_URI,

@@ -9,6 +9,12 @@ export function getSocket() {
   if (!token) return null;
 
   let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  if (!socketUrl && process.env.NEXT_PUBLIC_API_URL) {
+    const apiURL = process.env.NEXT_PUBLIC_API_URL;
+    if (apiURL.startsWith('http://') || apiURL.startsWith('https://')) {
+      socketUrl = apiURL.replace(/\/api\/?$/, '');
+    }
+  }
   if (!socketUrl && typeof window !== 'undefined') {
     socketUrl = `${window.location.protocol}//${window.location.hostname}:5000`;
   }

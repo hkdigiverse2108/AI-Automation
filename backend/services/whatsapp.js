@@ -159,7 +159,9 @@ async function proxyImageUrl(imageUrl) {
       // Prepend public origin even if Cloudinary is not configured so it is a valid absolute URL for Meta WABA
       if (imageUrl.startsWith('/uploads/')) {
         const env = require('../config/env');
-        const publicOrigin = env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`;
+        const publicOrigin = env.NEXT_PUBLIC_API_URL
+          ? env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, '').replace(/\/$/, '')
+          : (env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`);
         return `${publicOrigin}${imageUrl}`;
       }
       return imageUrl;
@@ -168,7 +170,9 @@ async function proxyImageUrl(imageUrl) {
     let downloadUrl = imageUrl;
     if (downloadUrl.startsWith('/uploads/')) {
       const env = require('../config/env');
-      const publicOrigin = env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`;
+      const publicOrigin = env.NEXT_PUBLIC_API_URL
+        ? env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, '').replace(/\/$/, '')
+        : (env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`);
       downloadUrl = `${publicOrigin}${downloadUrl}`;
     }
 

@@ -67,7 +67,7 @@ const getTagColorClass = (tag) => {
 const resolveMediaUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('/uploads')) {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || '/api';
     const baseUrl = apiBase.replace(/\/api\/?$/, ''); // Remove trailing /api
     return `${baseUrl}${url}`;
   }

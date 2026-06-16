@@ -32,7 +32,9 @@ async function resolveAssetUrl(botId, mediaUrlOrKey) {
   // Prepend absolute public host if it is a relative uploads path
   if (fileUrl.startsWith('/uploads/')) {
     const env = require('../config/env');
-    const publicOrigin = env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`;
+    const publicOrigin = env.NEXT_PUBLIC_API_URL
+      ? env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, '').replace(/\/$/, '')
+      : (env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`);
     fileUrl = `${publicOrigin}${fileUrl}`;
   }
 
