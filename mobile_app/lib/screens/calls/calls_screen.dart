@@ -26,6 +26,8 @@ class _CallsScreenState extends State<CallsScreen> {
     final granted = await provider.requestPermission();
     if (granted) {
       await provider.fetchLocalCallLogs();
+      // Automatically sync call logs to CRM in the background
+      provider.syncCallLogsToServer();
     }
   }
 

@@ -100,7 +100,10 @@ class ChatProvider extends ChangeNotifier {
         final data = jsonDecode(resp.body);
         if (data['success'] == true) {
           final newMsg = MessageModel.fromJson(data['data']['message']);
-          _activeMessages.add(newMsg);
+          final exists = _activeMessages.any((m) => m.id == newMsg.id);
+          if (!exists) {
+            _activeMessages.add(newMsg);
+          }
           _isSending = false;
           notifyListeners();
           return true;
@@ -114,6 +117,61 @@ class ChatProvider extends ChangeNotifier {
     return false;
   }
 
+  Future<bool> sendFileMessage(List<int> bytes, String filename, String mimeType) async {
+    if (_activeConversation == null) return false;
+    _isSending = true;
+    notifyListeners();
+
+    try {
+      final uploadResp = await _apiClient.uploadFile('/messages/upload', bytes, filename);
+      if (uploadResp.statusCode == 200) {
+        final uploadData = jsonDecode(uploadResp.body);
+        if (uploadData['success'] == true) {
+          final fileUrl = uploadData['data']['url'];
+          
+          String type = 'document';
+          if (mimeType.startsWith('image/')) {
+            type = 'image';
+          } else if (mimeType.startsWith('video/')) {
+            type = 'video';
+          } else if (mimeType.startsWith('audio/')) {
+            type = 'audio';
+          }
+
+          final contactId = _activeConversation!.contact?.id ?? '';
+          final payload = {
+            'contactId': contactId,
+            'text': filename,
+            'type': type,
+            'mediaUrl': fileUrl,
+            'filename': filename,
+          };
+
+          final resp = await _apiClient.post('/messages/send', payload);
+          if (resp.statusCode == 200) {
+            final sendData = jsonDecode(resp.body);
+            if (sendData['success'] == true) {
+              final newMsg = MessageModel.fromJson(sendData['data']['message']);
+              final exists = _activeMessages.any((m) => m.id == newMsg.id);
+              if (!exists) {
+                _activeMessages.add(newMsg);
+              }
+              _isSending = false;
+              notifyListeners();
+              return true;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error uploading/sending file message: $e');
+    }
+
+    _isSending = false;
+    notifyListeners();
+    return false;
+  }
+
   // Socket triggers callback interfaces
   void handleIncomingSocketMessage(Map<String, dynamic> data, String currentUserId) {
     try {
@@ -121,7 +179,11 @@ class ChatProvider extends ChangeNotifier {
       final conversationId = data['conversationId'];
 
       if (_activeConversation != null && _activeConversation!.id == conversationId) {
-        _activeMessages.add(message);
+        final exists = _activeMessages.any((m) => m.id == message.id);
+        if (!exists) {
+          _activeMessages.add(message);
+          notifyListeners();
+        }
       }
 
       // Refresh list in background
@@ -199,6 +261,26 @@ class ChatProvider extends ChangeNotifier {
     } catch (e) {
       return 'Network error occurred during resolution';
     }
+  }
+
+  Future<String> resolveMediaUrl(String url) async {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    // Relative path, resolve using API Base URL
+    final baseUrl = await _apiClient.getBaseUrl();
+    var rootUrl = baseUrl;
+    if (rootUrl.endsWith('/api')) {
+      rootUrl = rootUrl.substring(0, rootUrl.length - 4);
+    }
+    if (rootUrl.endsWith('/')) {
+      rootUrl = rootUrl.substring(0, rootUrl.length - 1);
+    }
+    var path = url;
+    if (!path.startsWith('/')) {
+      path = '/$path';
+    }
+    return '$rootUrl$path';
   }
 
   void setActiveConversation(ConversationModel? conversation) {

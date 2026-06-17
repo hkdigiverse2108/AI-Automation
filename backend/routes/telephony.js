@@ -6,6 +6,58 @@ const { verifyToken } = require('../middleware/auth');
 
 router.use(verifyToken);
 
+// GET /telephony/call-logs — list synced call logs for the user/organization
+router.get('/call-logs', async (req, res) => {
+  try {
+    const orgId = req.organizationId || req.user.organizationId;
+    const query = { organizationId: orgId };
+    
+    // Non-admins (agents) can only see their own call logs
+    if (req.user.role === 'agent') {
+      query.userId = req.user._id;
+    }
+
+    const { page = 1, limit = 50, search, callType } = req.query;
+    
+    if (callType) {
+      query.callType = callType;
+    }
+    
+    if (search) {
+      const searchRegex = new RegExp(search.replace(/\D/g, '') || search, 'i');
+      query.$or = [
+        { phone: searchRegex },
+        { name: new RegExp(search, 'i') }
+      ];
+    }
+
+    const [logs, total] = await Promise.all([
+      CallLog.find(query)
+        .populate('userId', 'name email')
+        .sort('-timestamp')
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .lean(),
+      CallLog.countDocuments(query)
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        logs,
+        pagination: {
+          total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message || 'Failed to fetch call logs' });
+  }
+});
+
 // POST /telephony/call-logs
 router.post('/call-logs', async (req, res) => {
   try {
@@ -26,9 +78,20 @@ router.post('/call-logs', async (req, res) => {
     })).filter(log => log.phone);
 
     if (mappedLogs.length > 0) {
-      await CallLog.insertMany(mappedLogs, { ordered: false }).catch((err) => {
-        // ignore duplicate key or minor bulk insertion warnings
-        console.warn('CallLog bulk insertion partial warning:', err.message);
+      const ops = mappedLogs.map((log) => ({
+        updateOne: {
+          filter: {
+            userId: log.userId,
+            phone: log.phone,
+            timestamp: log.timestamp
+          },
+          update: { $setOnInsert: log },
+          upsert: true
+        }
+      }));
+
+      await CallLog.bulkWrite(ops, { ordered: false }).catch((err) => {
+        console.warn('CallLog bulkWrite partial warning:', err.message);
       });
     }
 

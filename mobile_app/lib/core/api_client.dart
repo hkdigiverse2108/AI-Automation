@@ -28,17 +28,6 @@ class ApiClient {
     final prefs = await SharedPreferences.getInstance();
     final savedUrl = prefs.getString(keyBaseUrl);
     if (savedUrl != null) {
-      if ((kIsWeb ||
-           defaultTargetPlatform == TargetPlatform.windows ||
-           defaultTargetPlatform == TargetPlatform.macOS ||
-           defaultTargetPlatform == TargetPlatform.linux) &&
-          savedUrl.contains('10.0.2.2')) {
-        return defaultBaseUrl;
-      }
-      if (defaultTargetPlatform == TargetPlatform.android &&
-          (savedUrl.contains('localhost') || savedUrl.contains('127.0.0.1'))) {
-        return defaultBaseUrl;
-      }
       return savedUrl;
     }
     return defaultBaseUrl;
@@ -161,6 +150,27 @@ class ApiClient {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<http.Response> uploadFile(String path, List<int> bytes, String filename) async {
+    final baseUrl = await getBaseUrl();
+    final url = Uri.parse('$baseUrl$path');
+    final token = await getAccessToken();
+
+    final request = http.MultipartRequest('POST', url);
+    if (token != null) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    final multipartFile = http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: filename,
+    );
+    request.files.add(multipartFile);
+
+    final streamedResponse = await request.send().timeout(const Duration(seconds: 30));
+    return http.Response.fromStream(streamedResponse);
   }
 
   Future<bool> refreshTokens() async {

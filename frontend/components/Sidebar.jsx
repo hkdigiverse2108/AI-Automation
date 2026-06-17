@@ -17,6 +17,7 @@ const navSections = [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, badge: true },
       { href: '/dashboard/contacts', label: 'Contacts', icon: Users },
+      { href: '/dashboard/call-logs', label: 'Call Logs', icon: Clock },
       { href: '/dashboard/team', label: 'Team', icon: Users2 },
     ]
   },
@@ -79,6 +80,7 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/admin?tab=admins', label: 'Organization Admins', icon: Shield },
             { href: '/dashboard/team', label: 'Telecallers', icon: Users2 },
             { href: '/dashboard/inbox', label: 'Conversations', icon: MessageSquare, badge: true },
+            { href: '/dashboard/call-logs', label: 'Call Logs', icon: Clock },
             { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
             { href: '/dashboard/admin?tab=subscriptions', label: 'Subscriptions', icon: Zap },
             { href: '/dashboard/settings?tab=integrations', label: 'Integrations', icon: Globe },

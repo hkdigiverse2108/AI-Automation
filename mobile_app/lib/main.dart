@@ -75,6 +75,10 @@ class _WhatsAppCRMAppState extends State<WhatsAppCRMApp> {
       if (currentUser != null) {
         SocketManager().connect(currentUser.id, chatProvider);
         PushNotificationService().initialize();
+        // Automatically sync call logs in the background on startup
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.read<CallLogProvider>().syncCallLogsToServer();
+        });
       }
       return const MainNavigation();
     }
