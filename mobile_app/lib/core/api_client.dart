@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,27 +8,14 @@ class ApiClient {
   static const String keyUserEmail = 'userEmail';
   static const String keyBaseUrl = 'baseUrl';
 
-  // Android emulator loopback host default, fallback to standard localhost
-  static String get defaultBaseUrl {
-    if (kIsWeb ||
-        defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.linux) {
-      return 'http://localhost:5005/api';
-    }
-    return 'http://10.0.2.2:5005/api';
-  }
+  // Live Production Backend API URL
+  static String get defaultBaseUrl => 'https://api-automation.hkdigiverse.com/api';
 
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
   ApiClient._internal();
 
   Future<String> getBaseUrl() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedUrl = prefs.getString(keyBaseUrl);
-    if (savedUrl != null) {
-      return savedUrl;
-    }
     return defaultBaseUrl;
   }
 

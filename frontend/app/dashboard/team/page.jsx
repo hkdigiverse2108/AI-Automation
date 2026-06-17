@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useConfirmStore } from '../../../lib/store';
+import { formatTime } from '../../../lib/utils';
 
 export default function TeamPage() {
   const confirm = useConfirmStore(state => state.confirm);
@@ -585,7 +586,7 @@ export default function TeamPage() {
                         </div>
                         <p className="text-[9px] text-wa-text-secondary truncate">Ref Chat ID: {log.resourceId || 'N/A'}</p>
                         <span className="text-[8px] text-wa-text-light block text-right font-mono mt-0.5">
-                          {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          {formatTime(log.timestamp)}
                         </span>
                       </div>
                     );

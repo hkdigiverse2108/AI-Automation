@@ -1,11 +1,10 @@
 'use client';
 import { CreditCard, AlertTriangle, Headphones } from 'lucide-react';
 import Link from 'next/link';
+import { formatDateOnly } from '../lib/utils';
 
 export default function SubscriptionExpiredGate({ expiryDate }) {
-  const formatted = expiryDate
-    ? new Date(expiryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
-    : 'N/A';
+  const formatted = expiryDate ? formatDateOnly(expiryDate) : 'N/A';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">

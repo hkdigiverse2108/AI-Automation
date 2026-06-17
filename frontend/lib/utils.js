@@ -38,3 +38,23 @@ export const formatDateOnly = (dateString) => {
 
   return `${day} ${month} ${year}`;
 };
+
+/**
+ * Formats a date string or Date object into a time-only format: "hh:mm AM/PM"
+ * Example: "04:30 PM"
+ */
+export const formatTime = (dateString) => {
+  if (!dateString) return '—';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '—';
+
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const formattedHours = String(hours).padStart(2, '0');
+
+  return `${formattedHours}:${minutes}:${seconds} ${ampm}`;
+};

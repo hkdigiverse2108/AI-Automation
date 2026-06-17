@@ -6,7 +6,7 @@ import {
   Settings, Save, Sparkles, Loader2, MessageSquare, AlertCircle, Bookmark
 } from 'lucide-react';
 import api from '../lib/api';
-import { formatDateOnly } from '../lib/utils';
+import { formatDateOnly, formatTime } from '../lib/utils';
 
 export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess }) {
   const [loading, setLoading] = useState(true);
@@ -297,7 +297,7 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess }) {
                 <div className="space-y-3.5">
                   {messages.map((msg) => {
                     const isInbound = msg.direction === 'inbound';
-                    const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                    const timeStr = msg.timestamp ? formatTime(msg.timestamp) : '';
                     
                     return (
                       <div key={msg._id} className={`flex ${isInbound ? 'justify-start' : 'justify-end'}`}>
