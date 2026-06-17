@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '../../../lib/store';
-import { MessageCircle, Eye, EyeOff, ArrowRight, ShieldCheck, HelpCircle, Loader2 } from 'lucide-react';
+import { MessageCircle, Eye, EyeOff, ArrowRight, ShieldCheck, HelpCircle, Loader2, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -227,6 +227,18 @@ export default function LoginPage() {
             <p className="text-center text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary mt-8 pt-4 border-t border-wa-border dark:border-wa-dark-border select-none">
               New admin accounts are created only by the Super Admin. Please contact your Super Admin to obtain credentials.
             </p>
+
+            {/* Download Mobile App Option */}
+            <div className="mt-6 pt-4 border-t border-wa-border dark:border-wa-dark-border flex flex-col items-center">
+              <a 
+                href="/api/uploads/app-release.apk" 
+                download 
+                className="inline-flex items-center gap-2 text-xs font-semibold text-wa-green hover:text-wa-green-hover transition-colors"
+              >
+                <Smartphone className="w-4.5 h-4.5" />
+                <span>Download Android Companion App</span>
+              </a>
+            </div>
           </div>
 
           {/* Right panel: WhatsApp Web QR code simulation (Desktop only) */}

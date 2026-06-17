@@ -6,7 +6,8 @@ import { useAuthStore } from '../lib/store';
 import { 
   MessageCircle, ArrowRight, ShieldCheck, Zap, Sparkles, Loader2, 
   Bot, CheckCircle, Mail, MessageSquare, Shield, CheckCheck, Lock,
-  Users, Target, Award, Check, HelpCircle, BarChart3, ChevronDown
+  Users, Target, Award, Check, HelpCircle, BarChart3, ChevronDown,
+  Smartphone
 } from 'lucide-react';
 
 export default function Home() {
@@ -152,6 +153,14 @@ export default function Home() {
               <span>Admin Login Console</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
+            <a 
+              href="/api/uploads/app-release.apk" 
+              download 
+              className="w-full sm:w-auto px-7 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl border border-white/10 hover:border-wa-green/30 transition-all flex items-center justify-center gap-2 text-sm"
+            >
+              <Smartphone className="w-4 h-4 text-wa-green-light" />
+              <span>Get Android App</span>
+            </a>
           </div>
 
           {/* Core Trust Indicators */}
