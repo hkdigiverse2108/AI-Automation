@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useConfirmStore } from '../../../lib/store';
+import { formatDateOnly } from '../../../lib/utils';
 
 export default function TemplatesPage() {
   const confirm = useConfirmStore(state => state.confirm);
@@ -557,7 +558,7 @@ export default function TemplatesPage() {
                     <td className="py-3.5 px-4 text-wa-text-secondary dark:text-wa-dark-text-secondary capitalize">{template.category}</td>
                     <td className="py-3.5 px-4 font-semibold uppercase">{template.language}</td>
                     <td className="py-3.5 px-4 text-wa-text-light">
-                      {template.createdAt ? new Date(template.createdAt).toLocaleDateString() : 'N/A'}
+                      {template.createdAt ? formatDateOnly(template.createdAt) : 'N/A'}
                     </td>
                     <td className="py-3.5 px-4">{getStatusBadge(template.status)}</td>
                     <td className="py-3.5 px-4 text-right">

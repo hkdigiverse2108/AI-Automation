@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useConfirmStore } from '../../../lib/store';
+import { formatDateOnly } from '../../../lib/utils';
 
 export default function TriggersPage() {
   const confirm = useConfirmStore(state => state.confirm);
@@ -296,11 +297,7 @@ export default function TriggersPage() {
 
                       {/* Created Date */}
                       <td className="px-5 py-4 text-wa-text-secondary font-mono">
-                        {new Date(trigger.createdAt).toLocaleDateString(undefined, {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
+                        {formatDateOnly(trigger.createdAt)}
                       </td>
 
                       {/* Actions */}

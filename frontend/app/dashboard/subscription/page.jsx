@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../../lib/store';
 import api from '../../../lib/api';
 import toast from 'react-hot-toast';
+import { formatDateOnly } from '../../../lib/utils';
 import {
   CreditCard, Clock, CheckCircle, AlertTriangle, Upload, Download,
   IndianRupee, Calendar, FileText, ArrowRight, Loader2, XCircle,
@@ -204,7 +205,7 @@ export default function SubscriptionPage() {
             <div>
               <p className={`font-semibold text-sm ${current.subscriptionStatus === 'expired' ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
                 {current.subscriptionStatus === 'expired'
-                  ? `Your subscription expired on ${new Date(current.subscriptionExpiryDate).toLocaleDateString('en-IN')}.`
+                  ? `Your subscription expired on ${formatDateOnly(current.subscriptionExpiryDate)}.`
                   : `Your subscription expires in ${current.remainingDays} day(s).`
                 }
               </p>
@@ -259,7 +260,7 @@ export default function SubscriptionPage() {
                   <span className="text-xs font-medium uppercase">Expiry Date</span>
                 </div>
                 <p className="text-lg font-bold text-wa-text-primary dark:text-white">
-                  {current?.subscriptionExpiryDate ? new Date(current.subscriptionExpiryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not Set'}
+                  {current?.subscriptionExpiryDate ? formatDateOnly(current.subscriptionExpiryDate) : 'Not Set'}
                 </p>
               </div>
               <div className="bg-wa-search dark:bg-wa-dark-search rounded-xl p-4">
@@ -479,7 +480,7 @@ export default function SubscriptionPage() {
                     <tr key={p._id} className="border-b border-wa-border dark:border-wa-dark-border hover:bg-wa-hover/50 dark:hover:bg-wa-dark-hover/50">
                       <td className="px-5 py-3 font-mono text-xs">{p.invoiceNumber || '-'}</td>
                       <td className="px-5 py-3">{p.planMonths} Month{p.planMonths > 1 ? 's' : ''}</td>
-                      <td className="px-5 py-3 text-wa-text-secondary">{new Date(p.createdAt).toLocaleDateString('en-IN')}</td>
+                      <td className="px-5 py-3 text-wa-text-secondary">{formatDateOnly(p.createdAt)}</td>
                       <td className="px-5 py-3 font-semibold">₹{p.totalAmount?.toLocaleString('en-IN')}</td>
                       <td className="px-5 py-3">
                         <span className="capitalize">{p.paymentMethod?.replace('_', ' ')}</span>

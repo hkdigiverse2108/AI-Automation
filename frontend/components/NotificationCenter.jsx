@@ -9,6 +9,7 @@ import api from '../lib/api';
 import { useRouter } from 'next/navigation';
 import { getSocket } from '../lib/socket';
 import { useConfirmStore } from '../lib/store';
+import { formatDateOnly } from '../lib/utils';
 
 const TYPE_CONFIG = {
   system: { icon: Shield, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
@@ -28,7 +29,7 @@ function timeAgo(dateStr) {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  return formatDateOnly(dateStr);
 }
 
 export default function NotificationCenter() {

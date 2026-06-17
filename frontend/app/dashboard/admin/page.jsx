@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore, useConfirmStore } from '../../../lib/store';
 import api from '../../../lib/api';
 import toast from 'react-hot-toast';
+import { formatDateOnly } from '../../../lib/utils';
 import {
   Shield, Activity, Database, Cpu, Layers, UserX, UserCheck,
   RefreshCw, Play, Pause, Trash2, Search, Users, CheckCircle2,
@@ -582,7 +583,7 @@ export default function AdminPanel() {
                               <span className="text-dark-400 text-[10px] block">Limit: {org.maxMonthlyConversations}</span>
                             </td>
                             <td className="px-5 py-4 text-center text-dark-400 font-mono">
-                              {new Date(org.createdAt).toLocaleDateString()}
+                              {formatDateOnly(org.createdAt)}
                             </td>
                             <td className="px-5 py-4 text-center">
                               <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${
@@ -936,7 +937,7 @@ export default function AdminPanel() {
                                   <p className="text-wa-text-secondary text-xs">{org.ownerEmail}</p>
                                 </td>
                                 <td className="px-4 py-3 text-xs">{org.currentPlan}</td>
-                                <td className="px-4 py-3 text-xs text-wa-text-secondary">{org.subscriptionExpiryDate ? new Date(org.subscriptionExpiryDate).toLocaleDateString('en-IN') : '-'}</td>
+                                <td className="px-4 py-3 text-xs text-wa-text-secondary">{org.subscriptionExpiryDate ? formatDateOnly(org.subscriptionExpiryDate) : '-'}</td>
                                 <td className="px-4 py-3">
                                   <span className={`text-xs font-bold ${org.remainingDays > 7 ? 'text-emerald-600' : org.remainingDays > 0 ? 'text-amber-600' : 'text-red-600'}`}>
                                     {org.remainingDays} days
@@ -1017,7 +1018,7 @@ export default function AdminPanel() {
                                 <span>Plan: <strong>{p.planMonths} Month{p.planMonths > 1 ? 's' : ''}</strong></span>
                                 <span>Amount: <strong className="text-wa-text-primary dark:text-white">₹{p.totalAmount?.toLocaleString('en-IN')}</strong></span>
                                 <span>Ref: <strong>{p.transactionId || 'N/A'}</strong></span>
-                                <span>{new Date(p.createdAt).toLocaleDateString('en-IN')}</span>
+                                <span>{formatDateOnly(p.createdAt)}</span>
                               </div>
                               {p.notes && <p className="text-xs text-wa-text-secondary mt-1 italic">Notes: {p.notes}</p>}
                             </div>

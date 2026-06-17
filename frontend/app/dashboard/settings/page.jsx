@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useAuthStore, useConfirmStore } from '../../../lib/store';
+import { formatDate, formatDateOnly } from '../../../lib/utils';
 
 // Pre-defined premium SVG avatars
 const AVATAR_OPTIONS = [
@@ -503,7 +504,7 @@ export default function SettingsPage() {
               <div className="border-t border-wa-border/50 dark:border-wa-dark-border/50 pt-3 text-[10px] text-wa-text-secondary space-y-1.5">
                 <p className="flex justify-between"><span>Phone Number ID:</span> <span className="font-mono font-semibold text-wa-text-primary dark:text-white truncate max-w-[130px]">{metaConfig.whatsapp?.phoneNumberId || '—'}</span></p>
                 <p className="flex justify-between"><span>WABA ID:</span> <span className="font-mono font-semibold text-wa-text-primary dark:text-white truncate max-w-[130px]">{metaConfig.whatsapp?.wabaId || '—'}</span></p>
-                <p className="flex justify-between"><span>Last Sync:</span> <span className="font-semibold text-wa-text-primary dark:text-white">{metaConfig.whatsapp?.statusDetails?.lastVerified ? new Date(metaConfig.whatsapp.statusDetails.lastVerified).toLocaleDateString() : 'Never'}</span></p>
+                <p className="flex justify-between"><span>Last Sync:</span> <span className="font-semibold text-wa-text-primary dark:text-white">{metaConfig.whatsapp?.statusDetails?.lastVerified ? formatDate(metaConfig.whatsapp.statusDetails.lastVerified) : 'Never'}</span></p>
               </div>
             </div>
 
@@ -534,7 +535,7 @@ export default function SettingsPage() {
               <div className="border-t border-wa-border/50 dark:border-wa-dark-border/50 pt-3 text-[10px] text-wa-text-secondary space-y-1.5">
                 <p className="flex justify-between"><span>Page ID:</span> <span className="font-mono font-semibold text-wa-text-primary dark:text-white truncate max-w-[130px]">{metaConfig.facebook?.pageId || '—'}</span></p>
                 <p className="flex justify-between"><span>App ID:</span> <span className="font-mono font-semibold text-wa-text-primary dark:text-white truncate max-w-[130px]">{metaConfig.facebook?.appId || '—'}</span></p>
-                <p className="flex justify-between"><span>Last Sync:</span> <span className="font-semibold text-wa-text-primary dark:text-white">{metaConfig.facebook?.statusDetails?.lastVerified ? new Date(metaConfig.facebook.statusDetails.lastVerified).toLocaleDateString() : 'Never'}</span></p>
+                <p className="flex justify-between"><span>Last Sync:</span> <span className="font-semibold text-wa-text-primary dark:text-white">{metaConfig.facebook?.statusDetails?.lastVerified ? formatDate(metaConfig.facebook.statusDetails.lastVerified) : 'Never'}</span></p>
               </div>
             </div>
 
@@ -565,7 +566,7 @@ export default function SettingsPage() {
               <div className="border-t border-wa-border/50 dark:border-wa-dark-border/50 pt-3 text-[10px] text-wa-text-secondary space-y-1.5">
                 <p className="flex justify-between"><span>Account ID:</span> <span className="font-mono font-semibold text-wa-text-primary dark:text-white truncate max-w-[130px]">{metaConfig.instagram?.accountId || '—'}</span></p>
                 <p className="flex justify-between"><span>Business ID:</span> <span className="font-mono font-semibold text-wa-text-primary dark:text-white truncate max-w-[130px]">{metaConfig.instagram?.businessAccountId || '—'}</span></p>
-                <p className="flex justify-between"><span>Last Sync:</span> <span className="font-semibold text-wa-text-primary dark:text-white">{metaConfig.instagram?.statusDetails?.lastVerified ? new Date(metaConfig.instagram.statusDetails.lastVerified).toLocaleDateString() : 'Never'}</span></p>
+                <p className="flex justify-between"><span>Last Sync:</span> <span className="font-semibold text-wa-text-primary dark:text-white">{metaConfig.instagram?.statusDetails?.lastVerified ? formatDate(metaConfig.instagram.statusDetails.lastVerified) : 'Never'}</span></p>
               </div>
             </div>
           </div>
@@ -1156,7 +1157,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="border-t border-wa-border/50 dark:border-wa-dark-border/50 pt-3 text-[10px] text-wa-text-secondary grid grid-cols-2 gap-4">
                     <p>Authorization Scopes: <span className="font-bold text-wa-green uppercase">{apiKeyData.scope}</span></p>
-                    <p>Expiry: <span className="font-semibold">{apiKeyData.expiresAt ? new Date(apiKeyData.expiresAt).toLocaleDateString() : 'Never'}</span></p>
+                    <p>Expiry: <span className="font-semibold">{apiKeyData.expiresAt ? formatDateOnly(apiKeyData.expiresAt) : 'Never'}</span></p>
                   </div>
                 </div>
               ) : (

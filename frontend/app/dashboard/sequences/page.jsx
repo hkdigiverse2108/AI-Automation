@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useConfirmStore } from '../../../lib/store';
+import { formatDate } from '../../../lib/utils';
 
 export default function SequencesPage() {
   const confirm = useConfirmStore((state) => state.confirm);
@@ -308,7 +309,7 @@ export default function SequencesPage() {
                     {exec.status === 'running' && (
                       <p className="text-[10px] text-wa-text-light flex items-center gap-1.5 mt-1 font-mono">
                         <Clock className="w-3.5 h-3.5 text-amber-500" />
-                        Next step due: {new Date(exec.scheduledAt).toLocaleString()}
+                        Next step due: {formatDate(exec.scheduledAt)}
                       </p>
                     )}
                   </div>

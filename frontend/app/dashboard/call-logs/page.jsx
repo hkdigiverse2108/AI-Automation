@@ -6,6 +6,7 @@ import {
   Search, Loader2, ChevronLeft, ChevronRight, RefreshCw, User, Clock
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { formatDate } from '../../../lib/utils';
 
 export default function CallLogsPage() {
   const [logs, setLogs] = useState([]);
@@ -192,7 +193,7 @@ export default function CallLogsPage() {
                     <tr key={log._id} className="hover:bg-wa-bg/10 dark:hover:bg-wa-dark-header/10 transition-colors">
                       {/* Call Time */}
                       <td className="px-5 py-3.5 text-wa-text-secondary whitespace-nowrap">
-                        {new Date(log.timestamp).toLocaleString()}
+                        {formatDate(log.timestamp)}
                       </td>
 
                       {/* Contact Details */}

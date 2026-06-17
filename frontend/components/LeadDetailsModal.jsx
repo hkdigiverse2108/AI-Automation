@@ -6,6 +6,7 @@ import {
   Settings, Save, Sparkles, Loader2, MessageSquare, AlertCircle, Bookmark
 } from 'lucide-react';
 import api from '../lib/api';
+import { formatDateOnly } from '../lib/utils';
 
 export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess }) {
   const [loading, setLoading] = useState(true);
@@ -168,7 +169,7 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess }) {
                   <div>
                     <span className="block text-[10px] text-wa-text-light">Extraction Date</span>
                     <span className="font-semibold text-wa-text-primary dark:text-white">
-                      {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '-'}
+                      {lead.createdAt ? formatDateOnly(lead.createdAt) : '-'}
                     </span>
                   </div>
                 </div>

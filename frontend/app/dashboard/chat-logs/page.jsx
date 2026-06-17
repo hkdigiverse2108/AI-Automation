@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '../../../lib/api';
+import { formatDate } from '../../../lib/utils';
 
 export default function ChatLogsPage() {
   const [activeTab, setActiveTab] = useState('text'); // 'text', 'button', 'api'
@@ -199,7 +200,7 @@ export default function ChatLogsPage() {
                   <tr key={log.id} className="hover:bg-wa-bg/10 dark:hover:bg-wa-dark-header/10 transition-colors">
                     {/* Timestamp */}
                     <td className="px-5 py-3.5 text-wa-text-secondary whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleString()}
+                      {formatDate(log.timestamp)}
                     </td>
 
                     {/* TEXT TAB SPECIFIC */}
@@ -384,7 +385,7 @@ export default function ChatLogsPage() {
               {/* Extra Metadata */}
               <div className="p-3 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-secondary">
                 <p>Status: <span className="font-bold font-mono text-wa-green">{selectedPayload.details.statusCode}</span></p>
-                <p className="mt-1">Timestamp: <span className="font-mono">{new Date(selectedPayload.details.timestamp).toLocaleString()}</span></p>
+                <p className="mt-1">Timestamp: <span className="font-mono">{formatDate(selectedPayload.details.timestamp)}</span></p>
               </div>
             </div>
 

@@ -8,6 +8,7 @@ import {
 import api from '../../../lib/api';
 import CampaignForm from '../../../components/CampaignForm';
 import { useConfirmStore } from '../../../lib/store';
+import { formatDate } from '../../../lib/utils';
 
 export default function CampaignsPage() {
   const confirm = useConfirmStore((state) => state.confirm);
@@ -88,11 +89,6 @@ export default function CampaignsPage() {
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to delete campaign');
     }
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString();
   };
 
   const getStatusBadge = (status) => {
