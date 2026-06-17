@@ -5,7 +5,8 @@ import api from '../lib/api';
 import {
   Send, Paperclip, Smile, Check, CheckCheck, User, Bot, Sparkles,
   Phone, MoreVertical, Search, Mic, Image, FileText, Camera,
-  UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, Trash2, Mail, Loader2, MessageSquare, ChevronLeft
+  UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, Trash2, Mail, Loader2, MessageSquare, ChevronLeft,
+  Download
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -114,6 +115,8 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactCardName, setContactCardName] = useState('');
   const [contactCardPhone, setContactCardPhone] = useState('');
+  const [previewPdfUrl, setPreviewPdfUrl] = useState(null);
+  const [previewPdfName, setPreviewPdfName] = useState('');
 
 
   const handleFileUpload = async (e, forcedType = null) => {
@@ -871,14 +874,21 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                               {msg.content.filename || msg.content.caption || msg.content.text || "Document File"}
                             </span>
                           </div>
-                          <a 
-                            href={resolveMediaUrl(msg.content.mediaUrl)} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
+                          <button 
+                            onClick={() => {
+                              const url = resolveMediaUrl(msg.content.mediaUrl);
+                              const name = msg.content.filename || msg.content.caption || msg.content.text || "Document File";
+                              if (url.toLowerCase().includes('.pdf') || name.toLowerCase().endsWith('.pdf')) {
+                                setPreviewPdfUrl(url);
+                                setPreviewPdfName(name);
+                              } else {
+                                window.open(url, '_blank');
+                              }
+                            }}
                             className="px-2.5 py-1 text-[10px] font-bold text-wa-green bg-wa-green/10 border border-wa-green/20 rounded-lg hover:bg-wa-green hover:text-white transition-colors shrink-0"
                           >
                             Open
-                          </a>
+                          </button>
                         </div>
                       )}
 
@@ -1500,6 +1510,50 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PDF PREVIEW */}
+      {previewPdfUrl && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-5xl h-[85vh] overflow-hidden shadow-2xl flex flex-col">
+            <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary truncate mr-4">
+                  {previewPdfName || "PDF Document"}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={previewPdfUrl}
+                  download={previewPdfName || "document.pdf"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-wa-green/10 text-wa-green border border-wa-green/20 hover:bg-wa-green hover:text-white rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download</span>
+                </a>
+                <button
+                  onClick={() => {
+                    setPreviewPdfUrl(null);
+                    setPreviewPdfName('');
+                  }}
+                  className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors text-wa-text-secondary dark:text-wa-dark-text-secondary"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 bg-wa-bg/15 dark:bg-wa-dark-bg/10 relative p-4 flex justify-center items-center">
+              <iframe
+                src={previewPdfUrl}
+                className="w-full h-full border-none rounded-xl bg-white shadow-inner"
+                title={previewPdfName || "PDF Preview"}
+              />
+            </div>
           </div>
         </div>
       )}
