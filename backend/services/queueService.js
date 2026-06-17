@@ -127,8 +127,11 @@ function getCampaignQueue(userId) {
 
         // Emit new message socket event to frontend
         if (ioInstance) {
+          const { getOekForUser, decryptMessage } = require('./oekService');
+          const rawOek = await getOekForUser(jobUserId);
+          const decryptedMsg = decryptMessage(message, rawOek);
           ioInstance.to(`user_${jobUserId}`).emit('new_message', {
-            message: message.toObject(),
+            message: decryptedMsg,
             contact: contact.toObject(),
             conversationId: conversation._id,
             isNewConversation,
@@ -502,8 +505,11 @@ async function processDueSequences() {
 
           // Emit new message socket event to frontend
           if (ioInstance) {
+            const { getOekForUser, decryptMessage } = require('./oekService');
+            const rawOek = await getOekForUser(exec.userId);
+            const decryptedMsg = decryptMessage(message, rawOek);
             ioInstance.to(`user_${exec.userId}`).emit('new_message', {
-              message: message.toObject(),
+              message: decryptedMsg,
               contact: contact.toObject(),
               conversationId: conversation._id,
             });

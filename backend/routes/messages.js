@@ -572,17 +572,21 @@ router.post('/send', async (req, res) => {
       userAgent: req.headers['user-agent']
     });
 
+    const { getOekForUser, decryptMessage } = require('../services/oekService');
+    const rawOek = await getOekForUser(userId);
+    const decryptedMsg = decryptMessage(message, rawOek);
+
     // Emit via Socket.io
     const io = req.app.get('io');
     if (io) {
       io.to(`user_${userId}`).emit('new_message', {
-        message: message.toObject(),
+        message: decryptedMsg,
         contact: contact.toObject(),
         conversationId: conversation._id,
       });
     }
 
-    res.json({ success: true, data: { message: message.toObject() }, message: 'Message sent' });
+    res.json({ success: true, data: { message: decryptedMsg }, message: 'Message sent' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to send message', code: 'SEND_ERROR' });
   }
@@ -664,8 +668,11 @@ router.post('/bulk', async (req, res) => {
         // Emit via Socket.io
         const io = req.app.get('io');
         if (io) {
+          const { getOekForUser, decryptMessage } = require('../services/oekService');
+          const rawOek = await getOekForUser(userId);
+          const decryptedMsg = decryptMessage(message, rawOek);
           io.to(`user_${userId}`).emit('new_message', {
-            message: message.toObject(),
+            message: decryptedMsg,
             contact: contact.toObject(),
             conversationId: conversation._id,
           });

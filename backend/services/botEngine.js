@@ -290,8 +290,10 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
 
     // 6. Emit to Socket.io for live inbox
     if (io) {
+      const { decryptMessage } = require('./oekService');
+      const decryptedMsg = decryptMessage(savedMsg, rawOek);
       io.to(`user_${userId}`).emit('new_message', {
-        message: savedMsg.toObject(),
+        message: decryptedMsg,
         contact: contact.toObject(),
         conversationId: conversation._id,
         isNewConversation,
@@ -308,8 +310,10 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
       // Just save message, notify agent
       const agentId = conversation.assigned_agent_id || conversation.assignedAgent;
       if (io && agentId) {
+        const { decryptMessage } = require('./oekService');
+        const decryptedMsg = decryptMessage(savedMsg, rawOek);
         io.to(`user_${agentId}`).emit('new_message', {
-          message: savedMsg.toObject(),
+          message: decryptedMsg,
           contact: contact.toObject(),
           conversationId: conversation._id,
         });
@@ -1058,8 +1062,11 @@ async function sendAndSaveMessage(userId, conversation, contact, phoneNumberId, 
           sentBy,
         });
         if (io) {
+          const { getOekForUser, decryptMessage } = require('./oekService');
+          const rawOek = await getOekForUser(userId);
+          const decryptedMsg = decryptMessage(imgMsg, rawOek);
           io.to(`user_${userId}`).emit('new_message', {
-            message: imgMsg.toObject(),
+            message: decryptedMsg,
             contact: contact.toObject(),
             conversationId: conversation._id,
           });
@@ -1086,8 +1093,11 @@ async function sendAndSaveMessage(userId, conversation, contact, phoneNumberId, 
   conversation.lastMessageAt = new Date();
   await conversation.save();
   if (io) {
+    const { getOekForUser, decryptMessage } = require('./oekService');
+    const rawOek = await getOekForUser(userId);
+    const decryptedMsg = decryptMessage(msg, rawOek);
     io.to(`user_${userId}`).emit('new_message', {
-      message: msg.toObject(),
+      message: decryptedMsg,
       contact: contact.toObject(),
       conversationId: conversation._id,
     });
@@ -1131,8 +1141,11 @@ async function saveAndEmitMessage(userId, conversation, contact, text, sentBy, i
             sentBy,
           });
           if (io) {
+            const { getOekForUser, decryptMessage } = require('./oekService');
+            const rawOek = await getOekForUser(userId);
+            const decryptedMsg = decryptMessage(imgMsg, rawOek);
             io.to(`user_${userId}`).emit('new_message', {
-              message: imgMsg.toObject(),
+              message: decryptedMsg,
               contact: contact.toObject(),
               conversationId: conversation._id,
             });
@@ -1159,8 +1172,11 @@ async function saveAndEmitMessage(userId, conversation, contact, text, sentBy, i
   conversation.lastMessageAt = new Date();
   await conversation.save();
   if (io) {
+    const { getOekForUser, decryptMessage } = require('./oekService');
+    const rawOek = await getOekForUser(userId);
+    const decryptedMsg = decryptMessage(msg, rawOek);
     io.to(`user_${userId}`).emit('new_message', {
-      message: msg.toObject(),
+      message: decryptedMsg,
       contact: contact.toObject(),
       conversationId: conversation._id,
     });
@@ -1359,8 +1375,11 @@ async function sendReplyForTrigger(userId, conversation, contact, trigger, phone
         await conversation.save();
 
         if (io) {
+          const { getOekForUser, decryptMessage } = require('./oekService');
+          const rawOek = await getOekForUser(userId);
+          const decryptedMsg = decryptMessage(message, rawOek);
           io.to(`user_${userId}`).emit('new_message', {
-            message: message.toObject(),
+            message: decryptedMsg,
             contact: contact.toObject(),
             conversationId: conversation._id,
           });
