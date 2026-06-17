@@ -369,6 +369,38 @@ async function getMediaUrl(mediaId, token) {
   return metaApiCall('get', `${META_API_URL}/${mediaId}`, null, token);
 }
 
+async function fetchMediaStreamOrBuffer(mediaUrl, token, responseType = 'stream') {
+  // Use maxRedirects: 0 to prevent Axios from forwarding Authorization headers to the CDN domain (which returns 403)
+  let response = await axios({
+    method: 'get',
+    url: mediaUrl,
+    headers: { 
+      Authorization: `Bearer ${token}`,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    },
+    responseType,
+    maxRedirects: 0,
+    validateStatus: (status) => status >= 200 && status < 400
+  });
+
+  if (response.status === 301 || response.status === 302 || response.status === 307 || response.status === 308) {
+    const redirectUrl = response.headers.location;
+    logger.info(`[FETCH MEDIA] Following redirect to CDN: ${redirectUrl}`);
+    
+    // Request CDN URL WITHOUT Authorization header
+    response = await axios({
+      method: 'get',
+      url: redirectUrl,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      responseType
+    });
+  }
+
+  return response;
+}
+
 async function downloadMedia(mediaId, token, destPath) {
   if (token === 'demo' || token === 'mock' || token?.startsWith('mock_')) {
     logger.info(`[MOCK SANDBOX] Intercepted downloadMedia for ID ${mediaId}`);
@@ -381,13 +413,9 @@ async function downloadMedia(mediaId, token, destPath) {
     }
     
     const mediaUrl = metaRes.data.url;
-    
-    const response = await axios({
-      method: 'get',
-      url: mediaUrl,
-      headers: { Authorization: `Bearer ${token}` },
-      responseType: 'stream'
-    });
+    logger.info(`[DOWNLOAD MEDIA] Downloading media ID ${mediaId} from: ${mediaUrl}`);
+
+    const response = await fetchMediaStreamOrBuffer(mediaUrl, token, 'stream');
 
     const fs = require('fs');
     const writer = fs.createWriteStream(destPath);
@@ -398,9 +426,10 @@ async function downloadMedia(mediaId, token, destPath) {
       writer.on('error', reject);
     });
 
+    logger.info(`[DOWNLOAD MEDIA] Media successfully saved to: ${destPath}`);
     return { success: true };
   } catch (error) {
-    logger.error(`Download media binary error for ID ${mediaId}:`, error.message);
+    logger.error(`[DOWNLOAD MEDIA] Download media binary error for ID ${mediaId}: ${error.message}`);
     return { success: false, error: error.message };
   }
 }
@@ -463,12 +492,7 @@ async function getResumableUploadHandleFromMediaId(mediaId, token) {
 
     // 2. Download media binary
     logger.info(`Downloading media binary for resumable upload from Meta URL: ${mediaUrl}`);
-    const downloadRes = await axios({
-      method: 'get',
-      url: mediaUrl,
-      headers: { Authorization: `Bearer ${token}` },
-      responseType: 'arraybuffer',
-    });
+    const downloadRes = await fetchMediaStreamOrBuffer(mediaUrl, token, 'arraybuffer');
     const fileBuffer = Buffer.from(downloadRes.data);
 
     // 3. Get App ID from Token dynamically if not in process.env
