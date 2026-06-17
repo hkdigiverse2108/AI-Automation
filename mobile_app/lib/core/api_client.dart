@@ -15,9 +15,9 @@ class ApiClient {
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.linux) {
-      return 'http://localhost:5000/api';
+      return 'http://localhost:5005/api';
     }
-    return 'http://10.0.2.2:5000/api';
+    return 'http://10.0.2.2:5005/api';
   }
 
   static final ApiClient _instance = ApiClient._internal();
@@ -88,12 +88,12 @@ class ApiClient {
     final url = Uri.parse('$baseUrl$path');
     final headers = await _getHeaders();
     
-    var response = await http.get(url, headers: headers);
+    var response = await http.get(url, headers: headers).timeout(const Duration(seconds: 10));
     if (response.statusCode == 401 && _isTokenExpired(response)) {
       final success = await refreshTokens();
       if (success) {
         final retryHeaders = await _getHeaders();
-        response = await http.get(url, headers: retryHeaders);
+        response = await http.get(url, headers: retryHeaders).timeout(const Duration(seconds: 10));
       }
     }
     return response;
@@ -104,12 +104,12 @@ class ApiClient {
     final url = Uri.parse('$baseUrl$path');
     final headers = await _getHeaders();
     
-    var response = await http.post(url, headers: headers, body: jsonEncode(body));
+    var response = await http.post(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 10));
     if (response.statusCode == 401 && _isTokenExpired(response)) {
       final success = await refreshTokens();
       if (success) {
         final retryHeaders = await _getHeaders();
-        response = await http.post(url, headers: retryHeaders, body: jsonEncode(body));
+        response = await http.post(url, headers: retryHeaders, body: jsonEncode(body)).timeout(const Duration(seconds: 10));
       }
     }
     return response;
@@ -120,12 +120,12 @@ class ApiClient {
     final url = Uri.parse('$baseUrl$path');
     final headers = await _getHeaders();
     
-    var response = await http.put(url, headers: headers, body: jsonEncode(body));
+    var response = await http.put(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 10));
     if (response.statusCode == 401 && _isTokenExpired(response)) {
       final success = await refreshTokens();
       if (success) {
         final retryHeaders = await _getHeaders();
-        response = await http.put(url, headers: retryHeaders, body: jsonEncode(body));
+        response = await http.put(url, headers: retryHeaders, body: jsonEncode(body)).timeout(const Duration(seconds: 10));
       }
     }
     return response;
@@ -136,12 +136,12 @@ class ApiClient {
     final url = Uri.parse('$baseUrl$path');
     final headers = await _getHeaders();
     
-    var response = await http.delete(url, headers: headers);
+    var response = await http.delete(url, headers: headers).timeout(const Duration(seconds: 10));
     if (response.statusCode == 401 && _isTokenExpired(response)) {
       final success = await refreshTokens();
       if (success) {
         final retryHeaders = await _getHeaders();
-        response = await http.delete(url, headers: retryHeaders);
+        response = await http.delete(url, headers: retryHeaders).timeout(const Duration(seconds: 10));
       }
     }
     return response;
@@ -167,7 +167,7 @@ class ApiClient {
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refreshToken': refreshVal}),
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final payload = jsonDecode(response.body);

@@ -5,6 +5,121 @@ const { verifyToken, requireRole } = require('../middleware/auth');
 const { validateObjectId } = require('../middleware/validator');
 
 router.use(verifyToken);
+
+// GET /api/team/monitoring-stats — get admin monitoring details (accessible by all verified team members, including agents)
+router.get('/monitoring-stats', async (req, res) => {
+  try {
+    const ownerId = req.userId; // resolved tenant owner ID
+    const Conversation = require('../models/Conversation');
+    const AuditLog = require('../models/AuditLog');
+    const mongoose = require('mongoose');
+
+    // 1. Total Unassigned Chats
+    const totalUnassigned = await Conversation.countDocuments({
+      userId: ownerId,
+      status: { $ne: 'resolved' },
+      $or: [
+        { assignedAgent: { $exists: false } },
+        { assignedAgent: null },
+        { assigned_agent_id: { $exists: false } },
+        { assigned_agent_id: null }
+      ]
+    });
+
+    // 2. Active Telecallers count
+    const activeTelecallers = await User.countDocuments({
+      ownerId,
+      role: 'agent',
+      isDeleted: { $ne: true }
+    });
+
+    // 3. Assigned Conversations count (active/non-resolved)
+    const totalAssignedActive = await Conversation.countDocuments({
+      userId: ownerId,
+      status: { $ne: 'resolved' },
+      $or: [
+        { assignedAgent: { $ne: null } },
+        { assigned_agent_id: { $ne: null } }
+      ]
+    });
+
+    // 4. Agent Performance (conversations count by agent)
+    // List all agents first
+    const agentsList = await User.find({ ownerId, role: 'agent', isDeleted: { $ne: true } }).select('name email isSuspended').lean();
+    
+    // Aggregate active counts
+    const activeCounts = await Conversation.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(ownerId),
+          status: { $ne: 'resolved' },
+          assigned_agent_id: { $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: '$assigned_agent_id',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Aggregate resolved counts
+    const resolvedCounts = await Conversation.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(ownerId),
+          status: 'resolved',
+          assigned_agent_id: { $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: '$assigned_agent_id',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const activeMap = {};
+    activeCounts.forEach(c => { activeMap[c._id.toString()] = c.count; });
+
+    const resolvedMap = {};
+    resolvedCounts.forEach(c => { resolvedMap[c._id.toString()] = c.count; });
+
+    const performance = agentsList.map(agent => ({
+      _id: agent._id,
+      name: agent.name,
+      email: agent.email,
+      isSuspended: agent.isSuspended,
+      activeChats: activeMap[agent._id.toString()] || 0,
+      resolvedChats: resolvedMap[agent._id.toString()] || 0
+    }));
+
+    // 5. Takeover History / Audit Logs (Recent actions related to takeover/assignments/messages)
+    const logs = await AuditLog.find({
+      userId: ownerId,
+      action: { $in: ['ASSIGN_CONVERSATION', 'REASSIGN_CONVERSATION', 'RELEASE_CONVERSATION', 'RESOLVE_CONVERSATION', 'AI_RESUME', 'AGENT_MESSAGE_SENT'] }
+    })
+      .sort({ timestamp: -1 })
+      .limit(30)
+      .lean();
+
+    res.json({
+      success: true,
+      data: {
+        totalUnassigned,
+        activeTelecallers,
+        totalAssignedActive,
+        performance,
+        takeoverHistory: logs
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch monitoring statistics', details: error.message });
+  }
+});
+
 router.use(requireRole('superadmin', 'owner', 'admin'));
 
 // GET /api/team — get agents and auto assignment rules
@@ -276,118 +391,6 @@ router.delete('/rules/:id', ...validateObjectId('id'), async (req, res) => {
   }
 });
 
-// GET /api/team/monitoring-stats — get admin monitoring details
-router.get('/monitoring-stats', async (req, res) => {
-  try {
-    const ownerId = req.userId; // resolved tenant owner ID
-    const Conversation = require('../models/Conversation');
-    const AuditLog = require('../models/AuditLog');
-    const mongoose = require('mongoose');
 
-    // 1. Total Unassigned Chats
-    const totalUnassigned = await Conversation.countDocuments({
-      userId: ownerId,
-      status: { $ne: 'resolved' },
-      $or: [
-        { assignedAgent: { $exists: false } },
-        { assignedAgent: null },
-        { assigned_agent_id: { $exists: false } },
-        { assigned_agent_id: null }
-      ]
-    });
-
-    // 2. Active Telecallers count
-    const activeTelecallers = await User.countDocuments({
-      ownerId,
-      role: 'agent',
-      isDeleted: { $ne: true }
-    });
-
-    // 3. Assigned Conversations count (active/non-resolved)
-    const totalAssignedActive = await Conversation.countDocuments({
-      userId: ownerId,
-      status: { $ne: 'resolved' },
-      $or: [
-        { assignedAgent: { $ne: null } },
-        { assigned_agent_id: { $ne: null } }
-      ]
-    });
-
-    // 4. Agent Performance (conversations count by agent)
-    // List all agents first
-    const agentsList = await User.find({ ownerId, role: 'agent', isDeleted: { $ne: true } }).select('name email isSuspended').lean();
-    
-    // Aggregate active counts
-    const activeCounts = await Conversation.aggregate([
-      {
-        $match: {
-          userId: new mongoose.Types.ObjectId(ownerId),
-          status: { $ne: 'resolved' },
-          assigned_agent_id: { $ne: null }
-        }
-      },
-      {
-        $group: {
-          _id: '$assigned_agent_id',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-
-    // Aggregate resolved counts
-    const resolvedCounts = await Conversation.aggregate([
-      {
-        $match: {
-          userId: new mongoose.Types.ObjectId(ownerId),
-          status: 'resolved',
-          assigned_agent_id: { $ne: null }
-        }
-      },
-      {
-        $group: {
-          _id: '$assigned_agent_id',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-
-    const activeMap = {};
-    activeCounts.forEach(c => { activeMap[c._id.toString()] = c.count; });
-
-    const resolvedMap = {};
-    resolvedCounts.forEach(c => { resolvedMap[c._id.toString()] = c.count; });
-
-    const performance = agentsList.map(agent => ({
-      _id: agent._id,
-      name: agent.name,
-      email: agent.email,
-      isSuspended: agent.isSuspended,
-      activeChats: activeMap[agent._id.toString()] || 0,
-      resolvedChats: resolvedMap[agent._id.toString()] || 0
-    }));
-
-    // 5. Takeover History / Audit Logs (Recent actions related to takeover/assignments/messages)
-    const logs = await AuditLog.find({
-      userId: ownerId,
-      action: { $in: ['ASSIGN_CONVERSATION', 'REASSIGN_CONVERSATION', 'RELEASE_CONVERSATION', 'RESOLVE_CONVERSATION', 'AI_RESUME', 'AGENT_MESSAGE_SENT'] }
-    })
-      .sort({ timestamp: -1 })
-      .limit(30)
-      .lean();
-
-    res.json({
-      success: true,
-      data: {
-        totalUnassigned,
-        activeTelecallers,
-        totalAssignedActive,
-        performance,
-        takeoverHistory: logs
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch monitoring statistics', details: error.message });
-  }
-});
 
 module.exports = router;
