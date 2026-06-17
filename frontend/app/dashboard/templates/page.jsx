@@ -50,6 +50,12 @@ export default function TemplatesPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Reject WebP images since Meta Graph API does not support WebP for template headers
+    if (file.type === 'image/webp' || file.name.toLowerCase().endsWith('.webp')) {
+      toast.error('WebP images are not supported by Meta for template headers. Please upload a JPG/JPEG or PNG image.');
+      return;
+    }
+
     // Create local Object URL for instant image preview
     const localUrl = URL.createObjectURL(file);
 
@@ -745,7 +751,7 @@ export default function TemplatesPage() {
                           <div className="flex items-center gap-3">
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/png, image/jpeg, image/jpg"
                               onChange={(e) => handleImageUpload(e)}
                               disabled={uploadingImage}
                               className="text-xs text-wa-text-secondary file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-wa-search file:text-wa-text-primary hover:file:bg-wa-green/10 cursor-pointer"
@@ -825,7 +831,7 @@ export default function TemplatesPage() {
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="file"
-                                    accept="image/*"
+                                    accept="image/png, image/jpeg, image/jpg"
                                     onChange={(e) => handleImageUpload(e, cIdx)}
                                     disabled={uploadingCardIdx !== null}
                                     className="text-[10px] text-wa-text-secondary file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-wa-search"

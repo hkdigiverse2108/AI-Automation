@@ -511,6 +511,10 @@ async function getResumableUploadHandleFromMediaId(mediaId, token) {
 
     const { url: mediaUrl, mime_type: mimeType } = metaRes.data;
 
+    if (mimeType && mimeType.toLowerCase() === 'image/webp') {
+      throw new Error('WebP images are not supported by Meta for WhatsApp template headers. Please upload a JPG or PNG image instead.');
+    }
+
     // 2. Download media binary
     logger.info(`Downloading media binary for resumable upload from Meta URL: ${mediaUrl}`);
     const downloadRes = await fetchMediaStreamOrBuffer(mediaUrl, token, 'arraybuffer');
