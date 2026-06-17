@@ -30,17 +30,30 @@ if (isConfigured) {
  * Upload a file buffer directly to Cloudinary via stream.
  * @param {Buffer} fileBuffer - File raw buffer.
  * @param {string} folder - Destination folder on Cloudinary.
+ * @param {string} resourceType - Force resource type (auto, raw, image, video).
  * @returns {Promise<string>} - The secure url of the uploaded file.
  */
-function uploadStream(fileBuffer, folder = 'whatsapp_platform') {
+function uploadStream(fileBuffer, folder = 'whatsapp_platform', resourceType = 'auto') {
   return new Promise((resolve, reject) => {
     if (!isConfigured) {
       return reject(new Error('Cloudinary is not configured.'));
     }
 
+    let determinedResourceType = resourceType;
+    if (determinedResourceType === 'auto' && fileBuffer && fileBuffer.length >= 4) {
+      // Check magic bytes for PDF (%PDF- is 0x25 0x50 0x44 0x46)
+      const isPdf = fileBuffer[0] === 0x25 && fileBuffer[1] === 0x50 && fileBuffer[2] === 0x44 && fileBuffer[3] === 0x46;
+      // Check magic bytes for ZIP/Office XML (PK is 0x50 0x4B 0x03 0x04)
+      const isZipOrOffice = fileBuffer[0] === 0x50 && fileBuffer[1] === 0x4B && fileBuffer[2] === 0x03 && fileBuffer[3] === 0x04;
+      
+      if (isPdf || isZipOrOffice) {
+        determinedResourceType = 'raw';
+      }
+    }
+
     const uploadOptions = {
       folder,
-      resource_type: 'auto', // Auto detect image, video, raw document, etc.
+      resource_type: determinedResourceType,
     };
 
     const stream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
