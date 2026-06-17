@@ -69,10 +69,17 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final baseUrl = await _apiClient.getBaseUrl();
+      debugPrint('🔑 [AUTH] Attempting login to: $baseUrl/auth/login');
+      debugPrint('🔑 [AUTH] Email: $email');
+      
       final response = await _apiClient.post('/auth/login', {
         'email': email,
         'password': password,
       });
+
+      debugPrint('🔑 [AUTH] Response status: ${response.statusCode}');
+      debugPrint('🔑 [AUTH] Response body: ${response.body}');
 
       final payload = jsonDecode(response.body);
       if (response.statusCode == 200 && payload['success'] == true) {
@@ -92,16 +99,20 @@ class AuthProvider extends ChangeNotifier {
         _isAuthenticated = true;
         _isLoading = false;
         notifyListeners();
+        debugPrint('🔑 [AUTH] Login successful for: ${_currentUser?.name}');
         return null; // Success
       } else {
         _isLoading = false;
         notifyListeners();
-        return payload['error'] ?? 'Login failed';
+        final errorMsg = payload['error'] ?? 'Login failed';
+        debugPrint('🔑 [AUTH] Login failed: $errorMsg');
+        return errorMsg;
       }
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      return 'Network error: Please check server status';
+      debugPrint('🔑 [AUTH] Login exception: $e');
+      return 'Connection error: ${e.toString().length > 100 ? e.toString().substring(0, 100) : e}';
     }
   }
 
