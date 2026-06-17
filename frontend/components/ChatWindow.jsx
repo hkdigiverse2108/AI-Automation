@@ -102,6 +102,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   const dropdownRef = useRef(null);
   const attachRef = useRef(null);
   const emojiRef = useRef(null);
+  const textareaRef = useRef(null);
 
   // Attachment input refs
   const docInputRef = useRef(null);
@@ -246,6 +247,17 @@ export default function ChatWindow({ conversation, messages, onBack }) {
       setEditEmail(false);
     }
   }, [conversation]);
+
+  // Auto-resize textarea based on content
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '42px'; // Default base height
+      const scrollHeight = textareaRef.current.scrollHeight;
+      if (scrollHeight > 42) {
+        textareaRef.current.style.height = `${Math.min(scrollHeight, 140)}px`;
+      }
+    }
+  }, [text]);
 
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -969,7 +981,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
             </div>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-end gap-2">
             <button 
               onClick={toggleQuickReplies}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${showQuickReplies ? 'text-wa-green bg-wa-green/10' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'}`}
@@ -1118,12 +1130,20 @@ export default function ChatWindow({ conversation, messages, onBack }) {
               </div>
             ) : (
               <>
-                <input
-                  type="text"
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                  className="flex-1 px-4 py-2.5 bg-wa-panel dark:bg-wa-dark-input rounded-xl text-[14.5px] text-wa-text-primary dark:text-white placeholder-wa-text-light focus:outline-none border border-transparent focus:border-wa-border"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (!e.shiftKey && !e.ctrlKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }
+                  }}
+                  className="flex-1 px-4 py-[9px] bg-wa-panel dark:bg-wa-dark-input rounded-xl text-[14.5px] text-wa-text-primary dark:text-white placeholder-wa-text-light focus:outline-none border border-transparent focus:border-wa-border resize-none leading-normal min-h-[42px] max-h-[140px]"
                   placeholder="Type a message"
                 />
 

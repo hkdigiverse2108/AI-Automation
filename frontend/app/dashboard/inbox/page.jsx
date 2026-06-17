@@ -95,7 +95,7 @@ export default function InboxPage() {
     socket.on('new_message', (data) => {
       addMessage(data.message);
       if (data.message && data.message.direction === 'inbound' && useConversationStore.getState().currentConversation?._id?.toString() === data.message.conversationId?.toString()) {
-        api.post(`/messages/conversations/${data.message.conversationId}/read`).catch(() => {});
+        api.post(`/messages/conversations/${data.message.conversationId}/read`).catch(() => { });
       }
     });
 
@@ -111,7 +111,7 @@ export default function InboxPage() {
         else if (filter === 'unassigned') params.assignedAgent = 'unassigned';
       }
       fetchConversations(params);
-      
+
       // If we are currently viewing the modified chat, reload message details
       if (useConversationStore.getState().currentConversation?._id === data.conversationId) {
         fetchMessages(data.conversationId);
@@ -134,18 +134,18 @@ export default function InboxPage() {
 
     socket.on('conversation_ai_updated', (data) => {
       useConversationStore.setState((state) => ({
-        conversations: state.conversations.map(c => 
-          c._id === data.conversationId 
-            ? { 
-                ...c, 
-                sentiment: data.sentiment, 
-                urgency: data.urgency, 
-                risk: data.risk,
-                isComplaint: data.isComplaint,
-                isRefundRequested: data.isRefundRequested,
-                isLegalThreat: data.isLegalThreat,
-                isVipCustomer: data.isVipCustomer
-              } 
+        conversations: state.conversations.map(c =>
+          c._id === data.conversationId
+            ? {
+              ...c,
+              sentiment: data.sentiment,
+              urgency: data.urgency,
+              risk: data.risk,
+              isComplaint: data.isComplaint,
+              isRefundRequested: data.isRefundRequested,
+              isLegalThreat: data.isLegalThreat,
+              isVipCustomer: data.isVipCustomer
+            }
             : c
         )
       }));
@@ -246,23 +246,22 @@ export default function InboxPage() {
   const isAgent = user?.role === 'agent';
   const filterTabs = isAgent
     ? [
-        { key: 'assigned', label: 'My Assigned' },
-        { key: 'unassigned', label: 'Unassigned Queue' }
-      ]
+      { key: 'assigned', label: 'My Assigned' },
+      { key: 'unassigned', label: 'Unassigned Queue' }
+    ]
     : [
-        { key: '', label: 'All' },
-        { key: 'human', label: 'Unread' },
-        { key: 'bot', label: 'Bots' },
-        { key: 'ai', label: 'AI' },
-        { key: 'waiting', label: 'Waiting' },
-      ];
+      { key: '', label: 'All' },
+      { key: 'human', label: 'Unread' },
+      { key: 'bot', label: 'Bots' },
+      { key: 'ai', label: 'AI' },
+      { key: 'waiting', label: 'Waiting' },
+    ];
 
   return (
     <div className="flex h-full w-full animate-fade-in relative overflow-hidden">
       {/* Left Panel — WhatsApp Web Conversation List */}
-      <div className={`w-full lg:w-[420px] border-r border-wa-border dark:border-wa-dark-border flex flex-col bg-wa-panel dark:bg-wa-dark-panel shrink-0 ${
-        currentConversation ? 'hidden lg:flex' : 'flex'
-      }`}>
+      <div className={`w-full lg:w-[420px] border-r border-wa-border dark:border-wa-dark-border flex flex-col bg-wa-panel dark:bg-wa-dark-panel shrink-0 ${currentConversation ? 'hidden lg:flex' : 'flex'
+        }`}>
         {/* Header */}
         <div className="wa-header flex items-center justify-between h-[52px] border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0">
           <div className="flex items-center gap-3">
@@ -312,7 +311,7 @@ export default function InboxPage() {
           {filterTabs.map((tab) => {
             const isActive = filter === tab.key;
             let activeClass = 'bg-wa-green/15 text-wa-green dark:bg-wa-green/20 dark:text-wa-green-light';
-            
+
             if (isActive) {
               if (tab.key === 'bot') {
                 activeClass = 'bg-purple-100 text-purple-755 dark:bg-purple-950/40 dark:text-purple-300 font-bold border-purple-200/20 dark:border-purple-800/20';
@@ -326,16 +325,15 @@ export default function InboxPage() {
                 activeClass = 'bg-wa-green/15 text-wa-green dark:bg-wa-green/20 dark:text-wa-green-light font-bold';
               }
             }
-            
+
             return (
               <button
                 key={tab.key}
                 onClick={() => setFilter(tab.key)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border border-transparent ${
-                  isActive
-                    ? activeClass
-                    : 'bg-wa-search dark:bg-wa-dark-search text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
-                }`}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border border-transparent ${isActive
+                  ? activeClass
+                  : 'bg-wa-search dark:bg-wa-dark-search text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
+                  }`}
               >
                 {tab.label}
               </button>
@@ -364,15 +362,13 @@ export default function InboxPage() {
               <button
                 key={conv._id}
                 onClick={() => selectConversation(conv)}
-                className={`w-full text-left flex items-center gap-3 px-3 py-3 transition-colors duration-100 border-b border-wa-border/50 dark:border-wa-dark-border/50 relative overflow-hidden ${
-                  isAwaitingHuman
-                    ? 'border-l-[4px] border-l-amber-500 bg-amber-500/5 dark:bg-amber-500/10'
-                    : ''
-                } ${
-                  isActive
+                className={`w-full text-left flex items-center gap-3 px-3 py-3 transition-colors duration-100 border-b border-wa-border/50 dark:border-wa-dark-border/50 relative overflow-hidden ${isAwaitingHuman
+                  ? 'border-l-[4px] border-l-amber-500 bg-amber-500/5 dark:bg-amber-500/10'
+                  : ''
+                  } ${isActive
                     ? 'bg-wa-hover dark:bg-wa-dark-hover'
                     : 'hover:bg-wa-hover/60 dark:hover:bg-wa-dark-hover/60'
-                }`}
+                  }`}
               >
                 {/* Avatar */}
                 <div className="wa-avatar wa-avatar-lg shrink-0">
@@ -405,18 +401,16 @@ export default function InboxPage() {
                             </span>
                           )
                         ) : (
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
-                            conv.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
                             conv.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
-                            conv.status === 'waiting' ? 'bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse' :
-                            'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
-                          }`}>
-                            <span className={`w-1 h-1 rounded-full shrink-0 ${
-                              conv.status === 'bot' ? 'bg-purple-500' :
+                              conv.status === 'waiting' ? 'bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse' :
+                                'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
+                            }`}>
+                            <span className={`w-1 h-1 rounded-full shrink-0 ${conv.status === 'bot' ? 'bg-purple-500' :
                               conv.status === 'ai' ? 'bg-emerald-500' :
-                              conv.status === 'waiting' ? 'bg-amber-500' :
-                              'bg-slate-400'
-                            }`} />
+                                conv.status === 'waiting' ? 'bg-amber-500' :
+                                  'bg-slate-400'
+                              }`} />
                             <span>{conv.status}</span>
                           </span>
                         )
@@ -424,24 +418,22 @@ export default function InboxPage() {
 
                       {/* Sentiment Badge */}
                       {conv.sentiment && conv.sentiment !== 'neutral' && (
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
-                          conv.sentiment === 'positive' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900/30' :
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.sentiment === 'positive' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900/30' :
                           conv.sentiment === 'frustrated' ? 'bg-orange-50 text-orange-705 border-orange-100 dark:bg-orange-950/20 dark:text-orange-450 dark:border-orange-900/30' :
-                          conv.sentiment === 'angry' ? 'bg-red-50 text-red-705 border-red-100 dark:bg-red-950/20 dark:text-red-450 dark:border-red-900/30 animate-pulse' :
-                          'bg-slate-50 text-slate-655 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-850'
-                        }`}>
+                            conv.sentiment === 'angry' ? 'bg-red-50 text-red-705 border-red-100 dark:bg-red-950/20 dark:text-red-450 dark:border-red-900/30 animate-pulse' :
+                              'bg-slate-50 text-slate-655 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-850'
+                          }`}>
                           <span>{conv.sentiment}</span>
                         </span>
                       )}
 
                       {/* Urgency Badge */}
                       {conv.urgency && conv.urgency !== 'low' && (
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
-                          conv.urgency === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100 dark:bg-yellow-950/20 dark:text-yellow-450 dark:border-yellow-900/30' :
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.urgency === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100 dark:bg-yellow-950/20 dark:text-yellow-450 dark:border-yellow-900/30' :
                           conv.urgency === 'high' ? 'bg-orange-50 text-orange-705 border-orange-100 dark:bg-orange-950/20 dark:text-orange-450 dark:border-orange-900/30 animate-pulse' :
-                          conv.urgency === 'critical' ? 'bg-red-50 text-red-705 border-red-100 dark:bg-red-950/20 dark:text-red-450 dark:border-red-900/30 animate-pulse' :
-                          'bg-slate-50 text-slate-655 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-850'
-                        }`}>
+                            conv.urgency === 'critical' ? 'bg-red-50 text-red-705 border-red-100 dark:bg-red-950/20 dark:text-red-450 dark:border-red-900/30 animate-pulse' :
+                              'bg-slate-50 text-slate-655 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-850'
+                          }`}>
                           <span>{conv.urgency}</span>
                         </span>
                       )}
@@ -459,13 +451,12 @@ export default function InboxPage() {
                       )}
                       <div className="flex items-center gap-1.5">
                         {BadgeIcon && (
-                          <BadgeIcon className={`w-3.5 h-3.5 shrink-0 ${
-                            conv.status === 'bot' ? 'text-purple-500' :
+                          <BadgeIcon className={`w-3.5 h-3.5 shrink-0 ${conv.status === 'bot' ? 'text-purple-500' :
                             conv.status === 'human' ? 'text-blue-500' :
-                            conv.status === 'ai' ? 'text-emerald-500' :
-                            conv.status === 'waiting' ? 'text-amber-500' :
-                            'text-wa-text-light'
-                          }`} />
+                              conv.status === 'ai' ? 'text-emerald-500' :
+                                conv.status === 'waiting' ? 'text-amber-500' :
+                                  'text-wa-text-light'
+                            }`} />
                         )}
                         <p className="text-[13px] text-wa-text-secondary dark:text-wa-dark-text-secondary truncate">
                           {conv.lastMessage?.content?.text || '[media]'}
@@ -488,14 +479,13 @@ export default function InboxPage() {
       </div>
 
       {/* Right Panel — Chat */}
-      <div className={`flex-1 wa-chat-pattern ${
-        currentConversation ? 'flex' : 'hidden lg:flex'
-      } flex-col h-full min-w-0`}>
+      <div className={`flex-1 wa-chat-pattern ${currentConversation ? 'flex' : 'hidden lg:flex'
+        } flex-col h-full min-w-0`}>
         {currentConversation ? (
-          <ChatWindow 
-            conversation={currentConversation} 
-            messages={messages} 
-            onBack={() => useConversationStore.setState({ currentConversation: null })} 
+          <ChatWindow
+            conversation={currentConversation}
+            messages={messages}
+            onBack={() => useConversationStore.setState({ currentConversation: null })}
           />
         ) : (
           <div className="flex items-center justify-center h-full">
@@ -518,7 +508,7 @@ export default function InboxPage() {
                 Select a conversation to start chatting.
               </p>
               <div className="mt-6 flex items-center justify-center gap-1 text-xs text-wa-text-light">
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
                 <span>End-to-end encrypted</span>
               </div>
             </div>
