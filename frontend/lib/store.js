@@ -65,13 +65,13 @@ export const useConversationStore = create((set, get) => ({
   messages: [],
   loading: false,
 
-  fetchConversations: async (params = {}) => {
-    set({ loading: true });
+  fetchConversations: async (params = {}, silent = false) => {
+    if (!silent) set({ loading: true });
     try {
       const { data } = await api.get('/messages/conversations', { params });
       if (data.success) set({ conversations: data.data.conversations });
     } catch {}
-    set({ loading: false });
+    if (!silent) set({ loading: false });
   },
 
   fetchMessages: async (conversationId) => {

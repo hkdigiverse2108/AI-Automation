@@ -193,6 +193,37 @@ export default function InboxPage() {
     }
   }, [showSearch]);
 
+  // Background auto-refresh of conversations list and current conversation messages every 2 seconds
+  useEffect(() => {
+    const getParams = () => {
+      const params = { search: debouncedSearch || undefined };
+      if (user?.role === 'agent') {
+        if (filter === 'assigned') {
+          params.assignedAgent = user._id;
+        } else if (filter === 'unassigned') {
+          params.assignedAgent = 'unassigned';
+        }
+      } else {
+        if (filter) params.status = filter;
+      }
+      return params;
+    };
+
+    const intervalId = setInterval(() => {
+      const params = getParams();
+      // Fetch conversations list silently
+      fetchConversations(params, true);
+
+      // If there's an active conversation, fetch its messages silently
+      const activeConv = useConversationStore.getState().currentConversation;
+      if (activeConv?._id) {
+        fetchMessages(activeConv._id);
+      }
+    }, 2000);
+
+    return () => clearInterval(intervalId);
+  }, [debouncedSearch, filter, user, fetchConversations, fetchMessages]);
+
   const selectConversation = (conv) => {
     setSelectedId(conv._id);
     fetchMessages(conv._id);
