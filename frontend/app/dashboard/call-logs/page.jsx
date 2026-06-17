@@ -15,16 +15,17 @@ export default function CallLogsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalLogs, setTotalLogs] = useState(0);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [callType, setCallType] = useState('');
 
-  const fetchCallLogs = async () => {
-    setLoading(true);
+  const fetchCallLogs = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const { data } = await api.get('/telephony/call-logs', {
         params: {
           page,
           limit,
-          search: search || undefined,
+          search: debouncedSearch || undefined,
           callType: callType || undefined,
         }
       });
@@ -36,24 +37,34 @@ export default function CallLogsPage() {
     } catch (err) {
       toast.error('Failed to load call logs database');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
-
-  useEffect(() => {
-    setPage(1);
-    fetchCallLogs();
-  }, [callType, limit]);
 
   // Debounce search input
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      setPage(1);
-      fetchCallLogs();
+      setDebouncedSearch(search);
     }, 400);
 
     return () => clearTimeout(delayDebounceFn);
   }, [search]);
+
+  // Reset to first page when search or call type filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, callType, limit]);
+
+  // Periodic polling every 2 seconds
+  useEffect(() => {
+    fetchCallLogs(true); // Initial fetch with loader spinner
+
+    const interval = setInterval(() => {
+      fetchCallLogs(false); // Background update without flashing spinner
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [debouncedSearch, callType, limit, page]);
 
   // Format call duration to readable string
   const formatDuration = (seconds) => {

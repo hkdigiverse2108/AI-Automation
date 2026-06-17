@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:call_log/call_log.dart';
@@ -9,9 +10,27 @@ class CallLogProvider extends ChangeNotifier {
   
   List<CallLogModel> _localCallLogs = [];
   bool _isSyncing = false;
+  Timer? _syncTimer;
 
   List<CallLogModel> get localCallLogs => _localCallLogs;
   bool get isSyncing => _isSyncing;
+
+  CallLogProvider() {
+    _startPeriodicSync();
+  }
+
+  void _startPeriodicSync() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      syncCallLogsToServer();
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    super.dispose();
+  }
 
   Future<bool> requestPermission() async {
     if (kIsWeb) return false;
