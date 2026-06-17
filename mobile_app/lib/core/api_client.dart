@@ -46,7 +46,14 @@ class ApiClient {
 
   Future<void> setBaseUrl(String url) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(keyBaseUrl, url);
+    var sanitizedUrl = url.trim();
+    if (sanitizedUrl.endsWith('/')) {
+      sanitizedUrl = sanitizedUrl.substring(0, sanitizedUrl.length - 1);
+    }
+    if (!sanitizedUrl.endsWith('/api')) {
+      sanitizedUrl = '$sanitizedUrl/api';
+    }
+    await prefs.setString(keyBaseUrl, sanitizedUrl);
   }
 
   Future<String?> getAccessToken() async {
