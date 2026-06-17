@@ -55,7 +55,7 @@ router.post('/upload-logo', logoUpload.single('logo'), async (req, res) => {
 
     let logoUrl = '';
     if (cloudinaryService.isConfigured()) {
-      logoUrl = await cloudinaryService.uploadStream(req.file.buffer, 'logos');
+      logoUrl = await cloudinaryService.uploadStream(req.file.buffer, 'logos', 'auto', req.file.originalname);
     } else {
       logoUrl = `/uploads/logos/${req.file.filename}`;
     }

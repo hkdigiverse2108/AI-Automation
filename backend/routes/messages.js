@@ -46,7 +46,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     let fileUrl = '';
     if (cloudinaryService.isConfigured()) {
-      fileUrl = await cloudinaryService.uploadStream(req.file.buffer, 'messages');
+      fileUrl = await cloudinaryService.uploadStream(req.file.buffer, 'messages', 'auto', req.file.originalname);
     } else {
       fileUrl = `/uploads/${req.file.filename}`;
     }

@@ -145,7 +145,7 @@ router.post('/bot/:botId/upload', upload.single('file'), async (req, res) => {
 
     let fileUrl = '';
     if (cloudinaryService.isConfigured()) {
-      fileUrl = await cloudinaryService.uploadStream(req.file.buffer, 'bot_media');
+      fileUrl = await cloudinaryService.uploadStream(req.file.buffer, 'bot_media', 'auto', req.file.originalname);
     } else {
       fileUrl = `/uploads/${req.file.filename}`;
     }
@@ -189,7 +189,7 @@ router.post('/bot/:botId/replace/:assetId', upload.single('file'), async (req, r
 
     let fileUrl = '';
     if (cloudinaryService.isConfigured()) {
-      fileUrl = await cloudinaryService.uploadStream(req.file.buffer, 'bot_media');
+      fileUrl = await cloudinaryService.uploadStream(req.file.buffer, 'bot_media', 'auto', req.file.originalname);
     } else {
       fileUrl = `/uploads/${req.file.filename}`;
     }

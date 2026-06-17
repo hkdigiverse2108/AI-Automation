@@ -220,7 +220,7 @@ router.post('/offline-payment', screenshotUpload.single('screenshot'), async (re
     let screenshotUrl = '';
     if (req.file) {
       if (cloudinaryService.isConfigured()) {
-        screenshotUrl = await cloudinaryService.uploadStream(req.file.buffer, 'payment-screenshots');
+        screenshotUrl = await cloudinaryService.uploadStream(req.file.buffer, 'payment-screenshots', 'auto', req.file.originalname);
       } else {
         screenshotUrl = `/uploads/payment-screenshots/${req.file.filename}`;
       }

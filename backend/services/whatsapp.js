@@ -429,7 +429,9 @@ async function downloadMedia(mediaId, token, destPath) {
       logger.info(`[DOWNLOAD MEDIA] Cloudinary is configured. Uploading media ID ${mediaId} directly to Cloudinary...`);
       const response = await fetchMediaStreamOrBuffer(mediaUrl, token, 'arraybuffer');
       const buffer = Buffer.from(response.data);
-      const cloudinaryUrl = await cloudinaryService.uploadStream(buffer, 'incoming_media');
+      const path = require('path');
+      const filename = path.basename(destPath);
+      const cloudinaryUrl = await cloudinaryService.uploadStream(buffer, 'incoming_media', 'auto', filename);
       logger.info(`[DOWNLOAD MEDIA] Media ID ${mediaId} uploaded to Cloudinary: ${cloudinaryUrl}`);
       return { success: true, url: cloudinaryUrl };
     }
