@@ -235,7 +235,7 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
 
         const dlResult = await whatsapp.downloadMedia(content.mediaId, token, destPath);
         if (dlResult.success) {
-          content.mediaUrl = `/uploads/${filename}`;
+          content.mediaUrl = dlResult.url || `/uploads/${filename}`;
         }
       } catch (err) {
         logger.error('Failed to execute inbound media download:', err.message);

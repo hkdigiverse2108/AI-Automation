@@ -115,6 +115,15 @@ async function metaApiCall(method, url, data, token, retries = 0) {
     const status = error.response?.status;
     const errData = error.response?.data?.error || {};
 
+    const isMediaGet = method.toLowerCase() === 'get' && url.includes('graph.facebook.com') && !url.includes('/message_templates') && !url.includes('/messages');
+    
+    if (isMediaGet && (status === 404 || errData.code === 100) && retries < MAX_RETRIES) {
+      const delay = Math.pow(2, retries) * 1500;
+      logger.warn(`Meta Graph API media object not found yet (replication lag), retrying in ${delay}ms (attempt ${retries + 1})`);
+      await new Promise((r) => setTimeout(r, delay));
+      return metaApiCall(method, url, data, token, retries + 1);
+    }
+
     if (status === 429 && retries < MAX_RETRIES) {
       const delay = Math.pow(2, retries) * 1000;
       logger.warn(`Meta API rate limited, retrying in ${delay}ms (attempt ${retries + 1})`);
@@ -404,7 +413,7 @@ async function fetchMediaStreamOrBuffer(mediaUrl, token, responseType = 'stream'
 async function downloadMedia(mediaId, token, destPath) {
   if (token === 'demo' || token === 'mock' || token?.startsWith('mock_')) {
     logger.info(`[MOCK SANDBOX] Intercepted downloadMedia for ID ${mediaId}`);
-    return { success: true };
+    return { success: true, url: '/uploads/waterpark-placeholder.jpg' };
   }
   try {
     const metaRes = await getMediaUrl(mediaId, token);
@@ -414,6 +423,16 @@ async function downloadMedia(mediaId, token, destPath) {
     
     const mediaUrl = metaRes.data.url;
     logger.info(`[DOWNLOAD MEDIA] Downloading media ID ${mediaId} from: ${mediaUrl}`);
+
+    const cloudinaryService = require('./cloudinaryService');
+    if (cloudinaryService.isConfigured()) {
+      logger.info(`[DOWNLOAD MEDIA] Cloudinary is configured. Uploading media ID ${mediaId} directly to Cloudinary...`);
+      const response = await fetchMediaStreamOrBuffer(mediaUrl, token, 'arraybuffer');
+      const buffer = Buffer.from(response.data);
+      const cloudinaryUrl = await cloudinaryService.uploadStream(buffer, 'incoming_media');
+      logger.info(`[DOWNLOAD MEDIA] Media ID ${mediaId} uploaded to Cloudinary: ${cloudinaryUrl}`);
+      return { success: true, url: cloudinaryUrl };
+    }
 
     const response = await fetchMediaStreamOrBuffer(mediaUrl, token, 'stream');
 

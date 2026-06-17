@@ -29,7 +29,26 @@ const server = http.createServer(app);
 
 // Socket.io
 const io = new Server(server, {
-  cors: {},
+  cors: {
+    origin: (origin, callback) => {
+      if (!origin || env.isDev()) {
+        return callback(null, true);
+      }
+      const normalizedOrigin = origin.replace(/\/$/, '');
+      const allowed = env.ALLOWED_ORIGINS.map(url => url.replace(/\/$/, ''));
+      if (
+        allowed.includes(normalizedOrigin) ||
+        normalizedOrigin.includes('ngrok-free.app') ||
+        normalizedOrigin.includes('ngrok.io')
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
 });
 
 if (process.env.USE_REDIS_SOCKETS !== 'false') {
@@ -55,6 +74,77 @@ app.use('/api/webhook', express.json({
 // Body parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Fallback route for missing uploads (to handle media sync during local development with shared DB)
+const handleUploadsFallback = async (req, res, next) => {
+  const fs = require('fs');
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, 'uploads', filename);
+
+  // If file exists, let Express static serve it
+  if (fs.existsSync(filePath)) {
+    return next();
+  }
+
+  // Check if it's an incoming whatsapp media file
+  const match = filename.match(/^incoming-(wamid\.[a-zA-Z0-9_\-\.\+=]+)\.([a-zA-Z0-9]+)$/);
+  if (!match) {
+    return next();
+  }
+
+  const metaMessageId = match[1];
+  logger.info(`[UPLOADS FALLBACK] Missing file requested: ${filename}. Attempting to resolve via metaMessageId: ${metaMessageId}`);
+
+  try {
+    const Message = require('./models/Message');
+    const msg = await Message.findOne({ metaMessageId });
+    if (!msg || !msg.content?.mediaId) {
+      logger.warn(`[UPLOADS FALLBACK] No message or media ID found for metaMessageId: ${metaMessageId}`);
+      return next();
+    }
+
+    const WhatsAppAccount = require('./models/WhatsAppAccount');
+    const waAccount = await WhatsAppAccount.findOne({ userId: msg.userId, isActive: true });
+    if (!waAccount) {
+      logger.warn(`[UPLOADS FALLBACK] No active WhatsApp account found for user: ${msg.userId}`);
+      return next();
+    }
+
+    const { decryptField } = require('./services/encryption');
+    const token = decryptField(waAccount.accessToken);
+    const whatsapp = require('./services/whatsapp');
+
+    // Create uploads directory if missing
+    const uploadDir = path.dirname(filePath);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    logger.info(`[UPLOADS FALLBACK] Triggering download for missing media ID: ${msg.content.mediaId}`);
+    const dlResult = await whatsapp.downloadMedia(msg.content.mediaId, token, filePath);
+    
+    if (dlResult.success) {
+      if (dlResult.url && dlResult.url.startsWith('http')) {
+        logger.info(`[UPLOADS FALLBACK] Media was uploaded to Cloudinary: ${dlResult.url}. Redirecting...`);
+        msg.content.mediaUrl = dlResult.url;
+        await msg.save();
+        return res.redirect(dlResult.url);
+      }
+      
+      logger.info(`[UPLOADS FALLBACK] Serving downloaded local file: ${filePath}`);
+      return res.sendFile(filePath);
+    } else {
+      logger.error(`[UPLOADS FALLBACK] Failed to download media: ${dlResult.error}`);
+      return next();
+    }
+  } catch (err) {
+    logger.error(`[UPLOADS FALLBACK] Error resolving missing file:`, err);
+    return next();
+  }
+};
+
+app.get('/uploads/:filename', handleUploadsFallback);
+app.get('/api/uploads/:filename', handleUploadsFallback);
 
 // Serve static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
