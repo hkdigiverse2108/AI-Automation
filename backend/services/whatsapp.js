@@ -1,5 +1,6 @@
 const axios = require('axios');
 const winston = require('winston');
+const env = require('../config/env');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -7,7 +8,8 @@ const logger = winston.createLogger({
   transports: [new winston.transports.Console()],
 });
 
-const META_API_URL = 'https://graph.facebook.com/v18.0';
+const GRAPH_API_VERSION = env.GRAPH_API_VERSION || 'v18.0';
+const META_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 const MAX_RETRIES = 3;
 
 async function metaApiCall(method, url, data, token, retries = 0) {
@@ -97,8 +99,17 @@ async function metaApiCall(method, url, data, token, retries = 0) {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     };
     if (data) config.data = data;
+
+    logger.info(`[META GRAPH API REQUEST] ${method.toUpperCase()} ${url}`, {
+      payload: data ? JSON.stringify(data, null, 2) : 'No payload'
+    });
+
     const response = await axios(config);
-    logger.info(`Meta API ${method.toUpperCase()} ${url} — OK`);
+    
+    logger.info(`[META GRAPH API RESPONSE] ${method.toUpperCase()} ${url} — OK`, {
+      response: JSON.stringify(response.data, null, 2)
+    });
+
     return { success: true, data: response.data };
   } catch (error) {
     const status = error.response?.status;
@@ -111,8 +122,25 @@ async function metaApiCall(method, url, data, token, retries = 0) {
       return metaApiCall(method, url, data, token, retries + 1);
     }
 
-    logger.error(`Meta API error: ${errData.message || error.message}`, { code: errData.code, status });
-    return { success: false, error: errData.message || error.message, code: errData.code };
+    logger.error(`[META GRAPH API ERROR] ${method.toUpperCase()} ${url} — FAILED`, {
+      status,
+      message: errData.message || error.message,
+      code: errData.code,
+      error_subcode: errData.error_subcode,
+      fbtrace_id: errData.fbtrace_id,
+      error_data: errData.error_data,
+      response: error.response?.data ? JSON.stringify(error.response.data, null, 2) : 'No response data'
+    });
+
+    return {
+      success: false,
+      error: errData.message || error.message,
+      code: errData.code,
+      error_subcode: errData.error_subcode,
+      fbtrace_id: errData.fbtrace_id,
+      error_data: errData.error_data,
+      status
+    };
   }
 }
 
@@ -418,6 +446,80 @@ async function sendContactMessage(phoneNumberId, token, to, name, phone) {
   }, token);
 }
 
+async function getResumableUploadHandleFromMediaId(mediaId, token) {
+  if (token === 'demo' || token === 'mock' || token?.startsWith('mock_')) {
+    logger.info(`[MOCK SANDBOX] Mock resumable upload handle generated for media ID: ${mediaId}`);
+    return `mock_handle_for_${mediaId}`;
+  }
+
+  try {
+    // 1. Get Media URL metadata from Meta
+    const metaRes = await getMediaUrl(mediaId, token);
+    if (!metaRes.success || !metaRes.data?.url) {
+      throw new Error(metaRes.error || 'Failed to fetch media metadata from Meta.');
+    }
+
+    const { url: mediaUrl, mime_type: mimeType } = metaRes.data;
+
+    // 2. Download media binary
+    logger.info(`Downloading media binary for resumable upload from Meta URL: ${mediaUrl}`);
+    const downloadRes = await axios({
+      method: 'get',
+      url: mediaUrl,
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: 'arraybuffer',
+    });
+    const fileBuffer = Buffer.from(downloadRes.data);
+
+    // 3. Get App ID from Token dynamically if not in process.env
+    let appId = process.env.META_APP_ID;
+    if (!appId) {
+      logger.info('META_APP_ID not found in env. Fetching dynamically from token...');
+      const appRes = await axios.get(`https://graph.facebook.com/${GRAPH_API_VERSION}/app?access_token=${token}`);
+      appId = appRes.data.id;
+      logger.info(`Successfully fetched Meta App ID: ${appId}`);
+    }
+
+    // 4. Initiate Resumable Upload session
+    logger.info(`Initiating Resumable Upload session for App ID: ${appId}`);
+    const initRes = await axios.post(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${appId}/uploads`,
+      null,
+      {
+        params: {
+          file_length: fileBuffer.length,
+          file_type: mimeType,
+          file_name: `upload_${mediaId}`,
+          access_token: token,
+        },
+      }
+    );
+    const uploadSessionId = initRes.data.id;
+
+    // 5. Upload File binary data to the session
+    logger.info(`Uploading binary data to upload session: ${uploadSessionId}`);
+    const uploadRes = await axios.post(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${uploadSessionId}`,
+      fileBuffer,
+      {
+        headers: {
+          Authorization: `OAuth ${token}`,
+          'file_offset': 0,
+          'Content-Type': mimeType,
+        },
+      }
+    );
+
+    const handle = uploadRes.data.h;
+    logger.info(`Resumable Upload complete. Generated handle: ${handle}`);
+    return handle;
+  } catch (error) {
+    const errData = error.response?.data || {};
+    logger.error('Failed to generate Resumable Upload Handle:', errData);
+    throw new Error(errData.error?.message || error.message || 'Resumable Upload failed');
+  }
+}
+
 module.exports = {
   sendTextMessage,
   sendImageMessage,
@@ -435,4 +537,5 @@ module.exports = {
   getTemplates,
   createTemplate,
   sendContactMessage,
+  getResumableUploadHandleFromMediaId,
 };

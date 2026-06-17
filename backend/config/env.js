@@ -23,6 +23,8 @@ const env = {
   META_WABA_ID: process.env.META_WABA_ID,
   META_VERIFY_TOKEN: process.env.META_VERIFY_TOKEN,
   META_APP_SECRET: process.env.META_APP_SECRET,
+  META_APP_ID: process.env.META_APP_ID,
+  GRAPH_API_VERSION: process.env.GRAPH_API_VERSION || 'v18.0',
 
 
 
