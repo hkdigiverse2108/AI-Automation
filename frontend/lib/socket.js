@@ -9,6 +9,9 @@ export function getSocket() {
   if (!token) return null;
 
   let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  if (!socketUrl && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    socketUrl = window.location.origin;
+  }
   if (!socketUrl && process.env.NEXT_PUBLIC_API_URL) {
     const apiURL = process.env.NEXT_PUBLIC_API_URL;
     if (apiURL.startsWith('http://') || apiURL.startsWith('https://')) {

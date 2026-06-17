@@ -13,27 +13,39 @@ const { validateObjectId } = require('../middleware/validator');
 const whatsapp = require('../services/whatsapp');
 const { decryptField } = require('../services/encryption');
 
-// Configure multer storage for local file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
 const cloudinaryService = require('../services/cloudinaryService');
 
+// Always use memoryStorage so the file buffer is available regardless of
+// whether Cloudinary is configured. We decide where to persist in the handler.
 const upload = multer({
-  storage: cloudinaryService.isConfigured() ? multer.memoryStorage() : storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
+
+// Helper: persist a file buffer. Tries Cloudinary first; falls back to local
+// disk only when Cloudinary is not configured. Returns the URL/path to store.
+async function persistFileBuffer(buffer, originalname, mimetype) {
+  if (cloudinaryService.isConfigured()) {
+    try {
+      const url = await cloudinaryService.uploadStream(buffer, 'messages', 'auto', originalname);
+      return { url, isLocal: false };
+    } catch (err) {
+      // Log and fall through to local fallback
+      console.error('[UPLOAD] Cloudinary upload failed, falling back to local disk:', err.message);
+    }
+  }
+
+  // Local disk fallback
+  const uploadDir = path.join(__dirname, '../uploads');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+  const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+  const filename = uniqueSuffix + path.extname(originalname);
+  const filePath = path.join(uploadDir, filename);
+  fs.writeFileSync(filePath, buffer);
+  return { url: `/uploads/${filename}`, isLocal: true };
+}
 
 router.use(verifyToken);
 
@@ -44,12 +56,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ success: false, error: 'No file uploaded', code: 'MISSING_FILE' });
     }
 
-    let fileUrl = '';
-    if (cloudinaryService.isConfigured()) {
-      fileUrl = await cloudinaryService.uploadStream(req.file.buffer, 'messages', 'auto', req.file.originalname);
-    } else {
-      fileUrl = `/uploads/${req.file.filename}`;
-    }
+    const { url: fileUrl } = await persistFileBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
 
     res.json({
       success: true,
@@ -459,9 +466,40 @@ router.post('/send', async (req, res) => {
     const token = decryptField(waAccount.accessToken);
     let result;
 
-    // For local uploads, upload file to Meta's Media API first to get a media_id.
-    // This avoids Meta needing to download from our server (which may be behind
-    // ngrok or not publicly accessible), fixing "single tick" delivery issues.
+    // MIME type map used for both Cloudinary re-upload and Meta Media API upload
+    const mimeMap = {
+      '.pdf': 'application/pdf',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xls': 'application/vnd.ms-excel',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.ppt': 'application/vnd.ms-powerpoint',
+      '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      '.txt': 'text/plain',
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.mp4': 'video/mp4',
+      '.3gp': 'video/3gpp',
+      '.mov': 'video/quicktime',
+      '.avi': 'video/x-msvideo',
+      '.mpeg': 'video/mpeg',
+      '.mp3': 'audio/mpeg',
+      '.wav': 'audio/wav',
+      '.ogg': 'audio/ogg',
+      '.aac': 'audio/aac',
+      '.m4a': 'audio/mp4',
+      '.amr': 'audio/amr',
+    };
+
+    // For local uploads, resolve to a publicly accessible URL before sending.
+    // Priority:
+    //   1. If Cloudinary is configured → upload file to Cloudinary and use that URL.
+    //      This guarantees the live server (and Meta) can always reach the media.
+    //   2. Otherwise → upload directly to Meta's Media API to get a media_id so
+    //      Meta never needs to fetch the file from our (possibly private) server.
+    //   3. Last resort → construct an absolute URL from the request host.
     let finalMediaUrl = mediaUrl;
     let metaMediaId = null;
 
@@ -469,44 +507,37 @@ router.post('/send', async (req, res) => {
       const filePath = path.join(__dirname, '..', mediaUrl);
       if (fs.existsSync(filePath)) {
         const fileBuffer = fs.readFileSync(filePath);
-        // Determine MIME type from extension
         const ext = path.extname(filePath).toLowerCase();
-        const mimeMap = {
-          '.pdf': 'application/pdf',
-          '.doc': 'application/msword',
-          '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          '.xls': 'application/vnd.ms-excel',
-          '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          '.ppt': 'application/vnd.ms-powerpoint',
-          '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-          '.txt': 'text/plain',
-          '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-          '.png': 'image/png',
-          '.gif': 'image/gif',
-          '.webp': 'image/webp',
-          '.mp4': 'video/mp4',
-          '.3gp': 'video/3gpp',
-          '.mov': 'video/quicktime',
-          '.avi': 'video/x-msvideo',
-          '.mpeg': 'video/mpeg',
-          '.mp3': 'audio/mpeg',
-          '.wav': 'audio/wav',
-          '.ogg': 'audio/ogg',
-          '.aac': 'audio/aac',
-          '.m4a': 'audio/mp4',
-          '.amr': 'audio/amr',
-        };
         const mimeType = mimeMap[ext] || 'application/octet-stream';
 
-        const uploadResult = await whatsapp.uploadMedia(waAccount.phoneNumberId, token, fileBuffer, mimeType);
-        if (uploadResult.success && uploadResult.data?.id) {
-          metaMediaId = uploadResult.data.id;
+        // 1. Try Cloudinary first — produces a stable public URL stored in the DB
+        if (cloudinaryService.isConfigured()) {
+          try {
+            const cloudinaryUrl = await cloudinaryService.uploadStream(
+              fileBuffer, 'messages', 'auto', path.basename(filePath)
+            );
+            finalMediaUrl = cloudinaryUrl;
+          } catch (cloudErr) {
+            console.error('[SEND] Cloudinary re-upload failed, falling back to Meta Media API:', cloudErr.message);
+            // Fall through to Meta Media API upload below
+          }
         }
-      }
 
-      // Keep the local URL as fallback reference for the message record
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-      finalMediaUrl = `${protocol}://${req.headers.host}${mediaUrl}`;
+        // 2. If still a local path (Cloudinary not configured or failed), use Meta Media API
+        if (finalMediaUrl.startsWith('/uploads')) {
+          const uploadResult = await whatsapp.uploadMedia(waAccount.phoneNumberId, token, fileBuffer, mimeType);
+          if (uploadResult.success && uploadResult.data?.id) {
+            metaMediaId = uploadResult.data.id;
+          }
+          // Build an absolute URL as fallback reference for the message record
+          const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+          finalMediaUrl = `${protocol}://${req.headers.host}${mediaUrl}`;
+        }
+      } else {
+        // File not found locally — build absolute URL and let proxyImageUrl in whatsapp.js handle it
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        finalMediaUrl = `${protocol}://${req.headers.host}${mediaUrl}`;
+      }
     }
 
     // Extract original filename from the upload path
@@ -616,6 +647,32 @@ router.post('/bulk', async (req, res) => {
     let sentCount = 0;
     let failedCount = 0;
 
+    // Resolve local /uploads/ path to a public URL once before the loop so we
+    // don't re-upload the same file for every contact.
+    let resolvedMediaUrl = mediaUrl;
+    if (mediaUrl && mediaUrl.startsWith('/uploads')) {
+      const filePath = path.join(__dirname, '..', mediaUrl);
+      if (fs.existsSync(filePath)) {
+        if (cloudinaryService.isConfigured()) {
+          try {
+            resolvedMediaUrl = await cloudinaryService.uploadStream(
+              fs.readFileSync(filePath), 'messages', 'auto', path.basename(filePath)
+            );
+          } catch (cloudErr) {
+            console.error('[BULK SEND] Cloudinary re-upload failed, using absolute host URL:', cloudErr.message);
+            const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+            resolvedMediaUrl = `${protocol}://${req.headers.host}${mediaUrl}`;
+          }
+        } else {
+          const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+          resolvedMediaUrl = `${protocol}://${req.headers.host}${mediaUrl}`;
+        }
+      } else {
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        resolvedMediaUrl = `${protocol}://${req.headers.host}${mediaUrl}`;
+      }
+    }
+
     const limit = 5;
     const activeTasks = [];
 
@@ -635,10 +692,10 @@ router.post('/bulk', async (req, res) => {
         }
 
         let result;
-        if (type === 'image' && mediaUrl) {
-          result = await whatsapp.sendImageMessage(waAccount.phoneNumberId, token, contact.phone, mediaUrl, caption);
-        } else if (type === 'document' && mediaUrl) {
-          result = await whatsapp.sendDocumentMessage(waAccount.phoneNumberId, token, contact.phone, mediaUrl, caption);
+        if (type === 'image' && resolvedMediaUrl) {
+          result = await whatsapp.sendImageMessage(waAccount.phoneNumberId, token, contact.phone, resolvedMediaUrl, caption);
+        } else if (type === 'document' && resolvedMediaUrl) {
+          result = await whatsapp.sendDocumentMessage(waAccount.phoneNumberId, token, contact.phone, resolvedMediaUrl, caption);
         } else {
           result = await whatsapp.sendTextMessage(waAccount.phoneNumberId, token, contact.phone, text);
         }
@@ -655,7 +712,7 @@ router.post('/bulk', async (req, res) => {
           contactId: contact._id,
           direction: 'outbound',
           type,
-          content: { text, mediaUrl: (type === 'image' && result?.sentUrl) ? result.sentUrl : mediaUrl, caption },
+          content: { text, mediaUrl: (type === 'image' && result?.sentUrl) ? result.sentUrl : resolvedMediaUrl, caption },
           status: result.success ? 'sent' : 'failed',
           metaMessageId: result.data?.messages?.[0]?.id,
           sentBy: 'human',

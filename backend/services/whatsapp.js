@@ -205,17 +205,35 @@ async function proxyImageUrl(imageUrl) {
     }
 
     let downloadUrl = imageUrl;
+    let buffer;
     if (downloadUrl.startsWith('/uploads/')) {
-      const env = require('../config/env');
-      const publicOrigin = env.NEXT_PUBLIC_API_URL
-        ? env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, '').replace(/\/$/, '')
-        : (env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`);
-      downloadUrl = `${publicOrigin}${downloadUrl}`;
+      const fs = require('fs');
+      const path = require('path');
+      const localFilePath = path.join(__dirname, '..', downloadUrl);
+      if (fs.existsSync(localFilePath)) {
+        logger.info(`[PROXY CLOUDINARY] Reading local file directly from disk: ${localFilePath}`);
+        try {
+          buffer = fs.readFileSync(localFilePath);
+        } catch (readErr) {
+          logger.error(`[PROXY CLOUDINARY] Failed to read local file: ${readErr.message}`);
+        }
+      } else {
+        logger.warn(`[PROXY CLOUDINARY] Local file not found at: ${localFilePath}. Falling back to HTTP download.`);
+      }
     }
 
-    logger.info(`Downloading remote image to proxy through Cloudinary: ${downloadUrl}`);
-    const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-    const buffer = Buffer.from(response.data);
+    if (!buffer) {
+      if (downloadUrl.startsWith('/uploads/')) {
+        const env = require('../config/env');
+        const publicOrigin = env.NEXT_PUBLIC_API_URL
+          ? env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, '').replace(/\/$/, '')
+          : (env.ALLOWED_ORIGINS?.find(o => o.startsWith('https://')) || `http://localhost:${env.PORT || 5000}`);
+        downloadUrl = `${publicOrigin}${downloadUrl}`;
+      }
+      logger.info(`Downloading remote image to proxy through Cloudinary: ${downloadUrl}`);
+      const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+      buffer = Buffer.from(response.data);
+    }
 
     const cloudinaryUrl = await cloudinaryService.uploadStream(buffer, 'whatsapp_image_proxy');
     logger.info(`Successfully proxied image via Cloudinary: ${cloudinaryUrl}`);

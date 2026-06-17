@@ -68,6 +68,9 @@ const getTagColorClass = (tag) => {
 const resolveMediaUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('/uploads')) {
+    if (typeof window !== 'undefined') {
+      return `/api${url}`;
+    }
     const apiBase = process.env.NEXT_PUBLIC_API_URL || '/api';
     const baseUrl = apiBase.endsWith('/api') ? apiBase : `${apiBase.replace(/\/$/, '')}/api`;
     return `${baseUrl}${url}`;
