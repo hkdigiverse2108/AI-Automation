@@ -102,11 +102,7 @@ router.post('/call-logs', async (req, res) => {
         for (const [indexStr, _id] of Object.entries(resWrite.upsertedIds)) {
           const idx = parseInt(indexStr);
           const newLog = mappedLogs[idx];
-          if (
-            newLog && 
-            (newLog.callType === 'incoming' || newLog.callType === 'outgoing') && 
-            newLog.duration > 0
-          ) {
+          if (newLog) {
             console.log(`[Call Bot Trigger] Triggering bot flow for new call: ${newLog.phone} (type: ${newLog.callType}, duration: ${newLog.duration}s)`);
             botEngine.triggerBotFlowForPhone(newLog.userId, newLog.phone, io).catch((err) => {
               console.error('[Call Bot Trigger] Failed to trigger bot flow:', err.message);
