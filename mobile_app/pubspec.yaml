@@ -39,6 +39,10 @@ dependencies:
   firebase_core: any
   firebase_messaging: any
 
+  # Background Service & Notifications
+  flutter_background_service: ^5.0.7
+  flutter_local_notifications: ^17.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

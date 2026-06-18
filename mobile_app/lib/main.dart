@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'core/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
@@ -11,9 +12,18 @@ import 'screens/auth/login_screen.dart';
 import 'screens/main_navigation.dart';
 import 'socket/socket_manager.dart';
 import 'services/push_notification_service.dart';
+import 'services/background_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize persistent background sync service
+  try {
+    await initializeBackgroundService();
+  } catch (e) {
+    debugPrint('Failed to initialize background service: $e');
+  }
+
   runApp(
     MultiProvider(
       providers: [
@@ -40,8 +50,10 @@ class _WhatsAppCRMAppState extends State<WhatsAppCRMApp> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       context.read<AuthProvider>().checkAuth();
+      // Request notification permission for foreground service notification
+      await Permission.notification.request();
     });
   }
 
@@ -75,10 +87,6 @@ class _WhatsAppCRMAppState extends State<WhatsAppCRMApp> {
       if (currentUser != null) {
         SocketManager().connect(currentUser.id, chatProvider);
         PushNotificationService().initialize();
-        // Automatically sync call logs in the background on startup
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.read<CallLogProvider>().syncCallLogsToServer();
-        });
       }
       return const MainNavigation();
     }

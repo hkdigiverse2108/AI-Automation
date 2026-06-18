@@ -24,6 +24,7 @@ if (fs.existsSync(envPath)) {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  transpilePackages: ['lucide-react'],
   images: { domains: ['localhost'] },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || rootEnv.NEXT_PUBLIC_API_URL || `http://localhost:${process.env.PORT || rootEnv.PORT || '5000'}`,

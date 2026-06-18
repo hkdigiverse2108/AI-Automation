@@ -10,25 +10,16 @@ class CallLogProvider extends ChangeNotifier {
   
   List<CallLogModel> _localCallLogs = [];
   bool _isSyncing = false;
-  Timer? _syncTimer;
 
   List<CallLogModel> get localCallLogs => _localCallLogs;
   bool get isSyncing => _isSyncing;
 
   CallLogProvider() {
-    _startPeriodicSync();
-  }
-
-  void _startPeriodicSync() {
-    _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      syncCallLogsToServer();
-    });
+    // Background service handles periodic sync automatically
   }
 
   @override
   void dispose() {
-    _syncTimer?.cancel();
     super.dispose();
   }
 
