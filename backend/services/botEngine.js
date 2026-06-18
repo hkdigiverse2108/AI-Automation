@@ -1436,4 +1436,78 @@ function getMatchingImage(text) {
   return null;
 }
 
-module.exports = { processIncomingMessage };
+async function triggerBotFlowForPhone(userId, phone, io) {
+  try {
+    logger.info(`Triggering bot flow for phone: ${phone}, userId: ${userId}`);
+
+    // 1. Get WhatsApp account
+    const waAccount = await WhatsAppAccount.findOne({ userId, isActive: true });
+    if (!waAccount) {
+      logger.warn(`No active WA account for userId: ${userId}`);
+      return;
+    }
+    const token = decryptField(waAccount.accessToken);
+    const phoneNumberId = waAccount.phoneNumberId;
+
+    // 2. Find or create Contact
+    const { getOekForUser, generateHMAC } = require('./oekService');
+    const rawOek = await getOekForUser(userId);
+    let contact;
+    if (rawOek) {
+      const phoneHash = generateHMAC(phone, rawOek);
+      contact = await Contact.findOne({ userId, $or: [{ phone }, { phoneHash }] });
+    } else {
+      contact = await Contact.findOne({ userId, phone });
+    }
+
+    if (!contact) {
+      contact = await Contact.create({
+        userId,
+        phone,
+        name: 'Contact from Phone Call',
+        source: 'direct',
+        tags: ['call_followup'],
+      });
+    }
+
+    // 3. Find or create Conversation
+    let conversation = await Conversation.findOne({ userId, contactId: contact._id });
+    const isNewConversation = !conversation;
+    
+    if (!conversation) {
+      conversation = await Conversation.create({
+        userId,
+        contactId: contact._id,
+        status: 'bot',
+        source: contact.source,
+        lastMessageAt: new Date(),
+        organization_id: waAccount.organizationId || null,
+      });
+    } else {
+      // Force set to bot status and reset flow state to start from the beginning
+      conversation.status = 'bot';
+      conversation.currentNodeId = null;
+      conversation.currentFlowId = null;
+      conversation.flowVariables = new Map();
+      conversation.markModified('flowVariables');
+      await conversation.save();
+    }
+
+    // 4. Run bot flow
+    await processBotFlow(
+      userId,
+      conversation,
+      contact,
+      { text: '' },
+      'text',
+      phoneNumberId,
+      token,
+      io,
+      true // isNew
+    );
+  } catch (err) {
+    logger.error('triggerBotFlowForPhone error:', err);
+  }
+}
+
+module.exports = { processIncomingMessage, triggerBotFlowForPhone };

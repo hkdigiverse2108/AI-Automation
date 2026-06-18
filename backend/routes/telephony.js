@@ -90,9 +90,30 @@ router.post('/call-logs', async (req, res) => {
         }
       }));
 
-      await CallLog.bulkWrite(ops, { ordered: false }).catch((err) => {
+      const resWrite = await CallLog.bulkWrite(ops, { ordered: false }).catch((err) => {
         console.warn('CallLog bulkWrite partial warning:', err.message);
+        return null;
       });
+
+      if (resWrite && resWrite.upsertedCount > 0 && resWrite.upsertedIds) {
+        const botEngine = require('../services/botEngine');
+        const io = req.app.get('io');
+        
+        for (const [indexStr, _id] of Object.entries(resWrite.upsertedIds)) {
+          const idx = parseInt(indexStr);
+          const newLog = mappedLogs[idx];
+          if (
+            newLog && 
+            (newLog.callType === 'incoming' || newLog.callType === 'outgoing') && 
+            newLog.duration > 0
+          ) {
+            console.log(`[Call Bot Trigger] Triggering bot flow for new call: ${newLog.phone} (type: ${newLog.callType}, duration: ${newLog.duration}s)`);
+            botEngine.triggerBotFlowForPhone(newLog.userId, newLog.phone, io).catch((err) => {
+              console.error('[Call Bot Trigger] Failed to trigger bot flow:', err.message);
+            });
+          }
+        }
+      }
     }
 
     res.json({ success: true, message: `${mappedLogs.length} call logs synchronized successfully` });
