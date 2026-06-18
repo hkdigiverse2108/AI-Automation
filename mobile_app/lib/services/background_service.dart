@@ -63,7 +63,7 @@ void onStart(ServiceInstance service) async {
     });
 
     service.on('setAsBackground').listen((event) {
-      service.setAsBackground();
+      service.setAsBackgroundService();
     });
   }
 
@@ -87,14 +87,14 @@ Future<void> _performBackgroundSync(ServiceInstance service) async {
     // Check permission
     final hasPermission = await Permission.phone.isGranted;
     if (!hasPermission) {
-      _updateNotification('Sync Paused: Phone permission required');
+      _updateNotification(service, 'Sync Paused: Phone permission required');
       return;
     }
 
     // Fetch local logs
     final Iterable<CallLogEntry> entries = await CallLog.get();
     if (entries.isEmpty) {
-      _updateNotification('Running: No call logs found on device');
+      _updateNotification(service, 'Running: No call logs found on device');
       return;
     }
 
@@ -129,7 +129,7 @@ Future<void> _performBackgroundSync(ServiceInstance service) async {
     }).where((log) => (log['phone'] as String).isNotEmpty).toList();
 
     if (logsJson.isEmpty) {
-      _updateNotification('Running: No valid call logs to sync');
+      _updateNotification(service, 'Running: No valid call logs to sync');
       return;
     }
 
@@ -137,11 +137,11 @@ Future<void> _performBackgroundSync(ServiceInstance service) async {
     final ApiClient apiClient = ApiClient();
     final token = await apiClient.getAccessToken();
     if (token == null) {
-      _updateNotification('Sync Paused: Log in to start syncing');
+      _updateNotification(service, 'Sync Paused: Log in to start syncing');
       return;
     }
 
-    _updateNotification('Syncing ${logsJson.length} logs to server...');
+    _updateNotification(service, 'Syncing ${logsJson.length} logs to server...');
     final resp = await apiClient.post('/telephony/call-logs', {
       'logs': logsJson,
     });
@@ -149,36 +149,26 @@ Future<void> _performBackgroundSync(ServiceInstance service) async {
     if (resp.statusCode == 200) {
       final now = DateTime.now();
       final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-      _updateNotification('Last synced at $timeStr (${logsJson.length} logs)');
+      _updateNotification(service, 'Last synced at $timeStr (${logsJson.length} logs)');
       service.invoke('on_sync_completed', {
         'success': true,
         'count': logsJson.length,
         'time': now.toIso8601String(),
       });
     } else {
-      _updateNotification('Sync failed: Server error (${resp.statusCode})');
+      _updateNotification(service, 'Sync failed: Server error (${resp.statusCode})');
     }
   } catch (err) {
-    _updateNotification('Sync error: Offline or unreachable');
+    _updateNotification(service, 'Sync error: Offline or unreachable');
     debugPrint('Background sync error: $err');
   }
 }
 
-void _updateNotification(String content) {
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
-  flutterLocalNotificationsPlugin.show(
-    notificationId,
-    'HK CRM Sync Active',
-    content,
-    const NotificationDetails(
-      android: AndroidNotificationDetails(
-        notificationChannelId,
-        'HK CRM Sync Service',
-        icon: '@mipmap/ic_launcher',
-        ongoing: true,
-        showWhen: false,
-      ),
-    ),
-  );
+void _updateNotification(ServiceInstance service, String content) {
+  if (service is AndroidServiceInstance) {
+    service.setForegroundNotificationInfo(
+      title: 'HK CRM Sync Active',
+      content: content,
+    );
+  }
 }
