@@ -147,11 +147,11 @@ if (process.env.SKIP_BUILD === 'true') {
   // Start server directly after a tiny delay to let backend bind ports first
   setTimeout(startFrontendServer, 1000);
 } else {
-  // Clean Next.js cache folder before building to prevent pages-manifest.json lock issues on Windows
-  const nextCachePath = path.join(__dirname, 'frontend', '.next');
-  if (fs.existsSync(nextCachePath)) {
+  // Only delete pages-manifest.json if it exists to avoid lock issues on Windows, keeping Next.js compiler cache
+  const manifestPath = path.join(__dirname, 'frontend', '.next', 'server', 'pages-manifest.json');
+  if (fs.existsSync(manifestPath)) {
     try {
-      fs.rmSync(nextCachePath, { recursive: true, force: true });
+      fs.unlinkSync(manifestPath);
     } catch (err) {
       // Ignore cleanup errors
     }
