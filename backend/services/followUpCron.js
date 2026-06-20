@@ -23,7 +23,52 @@ function startFollowUpCron() {
     logger.info('[FollowUpCron] Checking scheduled follow-ups...');
     const now = new Date();
     try {
-      // Find pending follow-ups that are scheduled at or before the current time
+      // 1. Send 1-hour upcoming reminders
+      const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+      const upcomingFollowUps = await FollowUp.find({
+        status: 'pending',
+        scheduledAt: { $gt: now, $lte: oneHourFromNow },
+        remindedHourBefore: { $ne: true }
+      });
+
+      for (const fu of upcomingFollowUps) {
+        fu.remindedHourBefore = true;
+        await fu.save();
+
+        await createNotification({
+          userId: fu.assignedTo,
+          organizationId: fu.organizationId,
+          type: 'contact',
+          title: 'Upcoming Follow-Up Reminder ⏰',
+          message: `The follow-up "${fu.title}" is scheduled in 1 hour.`,
+          link: '/dashboard/contacts',
+          metadata: { followUpId: fu._id }
+        });
+      }
+
+      // 2. Send overdue notifications for any pending past-due follow-ups
+      const overdueFollowUps = await FollowUp.find({
+        status: 'pending',
+        scheduledAt: { $lt: now },
+        remindedOverdue: { $ne: true }
+      });
+
+      for (const fu of overdueFollowUps) {
+        fu.remindedOverdue = true;
+        await fu.save();
+
+        await createNotification({
+          userId: fu.assignedTo,
+          organizationId: fu.organizationId,
+          type: 'contact',
+          title: 'Follow-Up Overdue ⚠️',
+          message: `The follow-up "${fu.title}" is now overdue.`,
+          link: '/dashboard/contacts',
+          metadata: { followUpId: fu._id }
+        });
+      }
+
+      // 3. Process/execute scheduled follow-ups
       const followUps = await FollowUp.find({
         status: 'pending',
         scheduledAt: { $lte: now },

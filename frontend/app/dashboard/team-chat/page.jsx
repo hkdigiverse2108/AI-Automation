@@ -58,6 +58,17 @@ export default function TeamChatPage() {
   const [filter, setFilter] = useState('all'); // all, unread, pinned, group, private, archived
   const [messageText, setMessageText] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  useEffect(() => {
+    if (activeChat?._id) {
+      window.activeTeamChatId = activeChat._id;
+    } else {
+      window.activeTeamChatId = null;
+    }
+    return () => {
+      window.activeTeamChatId = null;
+    };
+  }, [activeChat?._id]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   

@@ -194,6 +194,7 @@ const groupsRoute = require('./routes/groups');
 const followUpsRoute = require('./routes/followups');
 const teamChatRoute = require('./routes/team-chat');
 const notesRoute = require('./routes/notes');
+const tasksRoute = require('./routes/tasks');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
@@ -219,6 +220,7 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/follow-ups`, followUpsRoute);
   app.use(`${prefix}/team-chat`, teamChatRoute);
   app.use(`${prefix}/notes`, notesRoute);
+  app.use(`${prefix}/tasks`, tasksRoute);
 };
 
 // Mount versioned API routes
@@ -285,6 +287,22 @@ async function startServer() {
       startFollowUpCron();
     } catch (err) {
       logger.warn('Follow-up cron failed to start:', err.message);
+    }
+
+    // Init task assignment & reminder cron job
+    try {
+      const { startTaskReminderCron } = require('./services/taskReminderCron');
+      startTaskReminderCron();
+    } catch (err) {
+      logger.warn('Task reminder cron failed to start:', err.message);
+    }
+
+    // Init appointment reminder cron job
+    try {
+      const { startAppointmentCron } = require('./services/appointmentCron');
+      startAppointmentCron();
+    } catch (err) {
+      logger.warn('Appointment reminder cron failed to start:', err.message);
     }
 
     server.listen(env.PORT, () => {

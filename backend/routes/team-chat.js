@@ -13,6 +13,7 @@ const Organization = require('../models/Organization');
 const { verifyToken } = require('../middleware/auth');
 const cloudinaryService = require('../services/cloudinaryService');
 const { getOnlineUsers } = require('../services/socketService');
+const { createNotification } = require('../services/notificationService');
 
 // Multer Config for Team Chat Uploads (up to 15MB)
 const storage = multer.diskStorage({
@@ -392,6 +393,19 @@ router.post('/chats', async (req, res) => {
         });
       }
 
+      // Create persistent DB notifications for all joined users (except creator)
+      for (const member of verifiedMembers) {
+        await createNotification({
+          userId: member._id,
+          organizationId: orgId,
+          type: 'team',
+          title: 'Added to Chat Group 👥',
+          message: `You were added to the group chat "${chat.name}" by ${req.user.name}.`,
+          link: '/dashboard/team-chat',
+          metadata: { chatId: chat._id }
+        });
+      }
+
       return res.status(201).json({ success: true, data: { chat } });
     }
   } catch (error) {
@@ -513,6 +527,19 @@ router.post('/chats/:chatId/members', async (req, res) => {
         // Emit group updated to existing members
         io.to(`team_chat_${chatId}`).emit('team_members_added', { chatId, members: addedMemberObjects });
       }
+
+      // Create persistent DB notifications for the newly added members
+      for (const newMember of addedMemberObjects) {
+        await createNotification({
+          userId: newMember._id,
+          organizationId: orgId,
+          type: 'team',
+          title: 'Added to Chat Group 👥',
+          message: `You were added to the group chat "${chat.name || 'Group Chat'}" by ${req.user.name}.`,
+          link: '/dashboard/team-chat',
+          metadata: { chatId }
+        });
+      }
     }
 
     res.json({ success: true, addedCount: newInserts.length, message: 'Members added successfully' });
@@ -555,6 +582,35 @@ router.delete('/chats/:chatId/members/:targetUserId', async (req, res) => {
     if (io) {
       io.to(`team_chat_${chatId}`).emit('team_member_removed', { chatId, userId: targetUserId, isLeave: actionIsLeave });
       io.to(`user_${targetUserId}`).emit('team_chat_removed', { chatId });
+    }
+
+    // Create persistent DB notifications
+    const targetUser = await User.findById(targetUserId).select('name').lean();
+    if (actionIsLeave) {
+      // Notify group admin or remaining members that someone left
+      const remainingAdmins = await TeamChatMember.find({ chatId, role: 'admin' }).select('userId').lean();
+      for (const admin of remainingAdmins) {
+        await createNotification({
+          userId: admin.userId,
+          organizationId: orgId,
+          type: 'team',
+          title: 'Member Left Group 🚪',
+          message: `"${targetUser?.name || 'Someone'}" left the group "${chat.name}".`,
+          link: '/dashboard/team-chat',
+          metadata: { chatId }
+        });
+      }
+    } else {
+      // Someone was removed by admin. Notify the removed user.
+      await createNotification({
+        userId: targetUserId,
+        organizationId: orgId,
+        type: 'team',
+        title: 'Removed from Chat Group 🚪',
+        message: `You were removed from the group "${chat.name}" by ${req.user.name}.`,
+        link: '/dashboard/team-chat',
+        metadata: { chatId }
+      });
     }
 
     res.json({ success: true, message: actionIsLeave ? 'Left group successfully' : 'Member removed successfully' });
@@ -685,6 +741,54 @@ router.post('/messages', async (req, res) => {
           }
         });
       });
+
+      // 3. Create persistent DB notifications for other members
+      const allOrgUsers = await User.find({
+        organizationId: orgId,
+        status: 'active',
+        isDeleted: { $ne: true }
+      }).select('name username').lean();
+
+      const mentionedUserIds = new Set();
+      const msgText = message || '';
+      for (const orgUser of allOrgUsers) {
+        if (orgUser._id.toString() === userId.toString()) continue;
+        const nameMatch = orgUser.name && msgText.includes(`@${orgUser.name}`);
+        const usernameMatch = orgUser.username && msgText.includes(`@${orgUser.username}`);
+        if (nameMatch || usernameMatch) {
+          mentionedUserIds.add(orgUser._id.toString());
+        }
+      }
+
+      // Determine if file/image was shared
+      let titleText = `New message from ${req.user.name}`;
+      let bodyText = message || '';
+      if (messageType === 'image') {
+        titleText = `📷 Image from ${req.user.name}`;
+        bodyText = 'Shared an image';
+      } else if (messageType === 'file') {
+        titleText = `📁 File from ${req.user.name}`;
+        bodyText = 'Shared a file';
+      }
+
+      for (const member of otherMembers) {
+        const targetUserIdStr = member.userId.toString();
+        const isMentioned = mentionedUserIds.has(targetUserIdStr);
+        
+        const type = isMentioned ? 'team' : 'message';
+        const notifTitle = isMentioned ? `You were mentioned in chat by ${req.user.name} 💬` : titleText;
+        const notifMsg = isMentioned ? `Mentioned you: "${bodyText}"` : bodyText;
+
+        await createNotification({
+          userId: member.userId,
+          organizationId: orgId,
+          type,
+          title: notifTitle,
+          message: notifMsg,
+          link: '/dashboard/team-chat',
+          metadata: { chatId, messageId: newMsg._id }
+        });
+      }
     }
 
     res.status(201).json({ success: true, data: { message: formattedMsg } });

@@ -5,6 +5,7 @@ const ContactGroup = require('../models/ContactGroup');
 const Contact = require('../models/Contact');
 const { verifyToken } = require('../middleware/auth');
 const { validateObjectId } = require('../middleware/validator');
+const { createNotification } = require('../services/notificationService');
 
 router.use(verifyToken);
 
@@ -100,6 +101,16 @@ router.post('/', async (req, res) => {
       name: name.trim(),
       description: description || '',
       createdBy: req.user._id,
+    });
+
+    await createNotification({
+      userId: req.user._id,
+      organizationId: req.organizationId,
+      type: 'contact', // Categorized as contact/group type
+      title: 'Contact Group Created 👥',
+      message: `Group "${group.name}" was successfully created.`,
+      link: '/dashboard/contacts/groups',
+      metadata: { groupId: group._id }
     });
 
     res.status(201).json({ success: true, data: { group }, message: 'Group created successfully' });
@@ -200,6 +211,16 @@ router.post('/:id/add-contact', ...validateObjectId('id'), async (req, res) => {
 
     const result = await ContactGroup.bulkWrite(ops);
 
+    await createNotification({
+      userId: req.user._id,
+      organizationId: req.organizationId,
+      type: 'contact',
+      title: 'Contacts Added to Group 👥',
+      message: `${result.upsertedCount || 0} contact(s) added to group "${group.name}".`,
+      link: '/dashboard/contacts/groups',
+      metadata: { groupId: group._id, addedCount: result.upsertedCount }
+    });
+
     res.json({
       success: true,
       data: {
@@ -230,6 +251,16 @@ router.post('/:id/remove-contact', ...validateObjectId('id'), async (req, res) =
       groupId: group._id,
       contactId: { $in: contactIds },
       organizationId: req.organizationId,
+    });
+
+    await createNotification({
+      userId: req.user._id,
+      organizationId: req.organizationId,
+      type: 'contact',
+      title: 'Contacts Removed from Group 👥',
+      message: `${deleteResult.deletedCount || 0} contact(s) removed from group "${group.name}".`,
+      link: '/dashboard/contacts/groups',
+      metadata: { groupId: group._id, removedCount: deleteResult.deletedCount }
     });
 
     res.json({

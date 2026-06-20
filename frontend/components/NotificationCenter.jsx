@@ -10,6 +10,42 @@ import { useRouter } from 'next/navigation';
 import { getSocket } from '../lib/socket';
 import { useConfirmStore } from '../lib/store';
 import { formatDateOnly } from '../lib/utils';
+import { toast } from 'react-hot-toast';
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.type = 'sine';
+    
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch (err) {
+    console.error('Audio synthesis failed:', err);
+  }
+}
+
+function showBrowserNotification(title, body) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body });
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        new Notification(title, { body });
+      }
+    });
+  }
+}
 
 const TYPE_CONFIG = {
   system: { icon: Shield, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
@@ -77,6 +113,11 @@ export default function NotificationCenter() {
     const socket = getSocket();
     if (!socket) return;
 
+    // Request notification permissions on client mount
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
     const handleNewNotification = (data) => {
       setNotifications(prev => [data, ...prev]);
       setUnreadCount(prev => prev + 1);
@@ -86,14 +127,62 @@ export default function NotificationCenter() {
       setUnreadCount(data.count);
     };
 
+    const handleTeamNewMessage = (data) => {
+      if (!data || !data.chatId || !data.message) return;
+      
+      const isWindowHidden = typeof document !== 'undefined' && (document.hidden || !document.hasFocus());
+      const isOnDifferentPage = typeof window !== 'undefined' && window.location.pathname !== '/dashboard/team-chat';
+      const isDifferentChat = typeof window !== 'undefined' && window.activeTeamChatId !== data.chatId;
+
+      if (isWindowHidden || isOnDifferentPage || isDifferentChat) {
+        // Play beep sound
+        playBeep();
+
+        // Show hot-toast
+        let msgBody = data.message.message || '';
+        if (data.message.messageType === 'image') msgBody = '📷 Shared an image';
+        else if (data.message.messageType === 'file') msgBody = '📁 Shared a file';
+
+        toast.custom((t) => (
+          <div
+            onClick={() => {
+              toast.dismiss(t.id);
+              router.push('/dashboard/team-chat');
+            }}
+            className={`${
+              t.visible ? 'animate-enter' : 'animate-leave'
+            } max-w-md w-full bg-white dark:bg-wa-dark-panel shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5 cursor-pointer`}
+          >
+            <div className="flex-1 w-0 p-4">
+              <div className="flex items-start">
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">
+                    New message from {data.message.senderName}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {msgBody}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ), { duration: 4000 });
+
+        // Trigger browser notification
+        showBrowserNotification(`New message from ${data.message.senderName}`, msgBody);
+      }
+    };
+
     socket.on('new_notification', handleNewNotification);
     socket.on('unread_notifications_count', handleUnreadCount);
+    socket.on('team_new_message', handleTeamNewMessage);
 
     return () => {
       socket.off('new_notification', handleNewNotification);
       socket.off('unread_notifications_count', handleUnreadCount);
+      socket.off('team_new_message', handleTeamNewMessage);
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (isOpen) fetchNotifications();
@@ -304,6 +393,19 @@ export default function NotificationCenter() {
                 })}
               </div>
             )}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-wa-border dark:border-wa-dark-border px-4 py-2.5 bg-wa-panel-header dark:bg-wa-dark-panel-header flex justify-center shrink-0">
+            <button
+              onClick={() => {
+                router.push('/dashboard/notifications');
+                setIsOpen(false);
+              }}
+              className="text-xs font-semibold text-wa-green hover:underline flex items-center gap-1"
+            >
+              View All Notifications <ExternalLink className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}

@@ -139,6 +139,28 @@ function getCampaignQueue(userId) {
         }
       } else {
         await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.failed': 1 } });
+
+        const isRateLimit = result.status === 429 || result.code === 429 || result.code === 130429 || result.error_subcode === 130429;
+        if (isRateLimit) {
+          try {
+            const User = require('../models/User');
+            const user = await User.findById(jobUserId).lean();
+            if (user && user.organizationId) {
+              const { createNotification } = require('./notificationService');
+              await createNotification({
+                userId: jobUserId,
+                organizationId: user.organizationId,
+                type: 'campaign',
+                title: 'Rate Limit Reached ⚠️',
+                message: `Meta API rate limit reached during campaign. Error: ${result.error || 'Too Many Requests'}.`,
+                link: '/dashboard/campaigns',
+                metadata: { campaignId, errorCode: result.code }
+              });
+            }
+          } catch (err) {
+            logger.error('Failed to trigger rate limit notification:', err.message);
+          }
+        }
       }
 
       // Emit progress
@@ -168,8 +190,45 @@ function getCampaignQueue(userId) {
       const waiting = await queue.getWaitingCount();
       const active = await queue.getActiveCount();
       if (waiting === 0 && active === 0) {
-        await Campaign.updateOne({ _id: campaignId }, { status: 'completed', completedAt: new Date() });
-        logger.info(`Campaign ${campaignId} completed`);
+        const campaignObj = await Campaign.findOne({ _id: campaignId, status: 'running' });
+        if (campaignObj) {
+          campaignObj.status = 'completed';
+          campaignObj.completedAt = new Date();
+          await campaignObj.save();
+
+          logger.info(`Campaign ${campaignId} completed`);
+
+          const totalFailed = campaignObj.stats?.failed || 0;
+          const totalSent = campaignObj.stats?.sent || 0;
+          const isFailedCampaign = totalFailed > 0 && totalSent === 0;
+
+          const User = require('../models/User');
+          const user = await User.findById(campaignObj.userId).lean();
+          if (user && user.organizationId) {
+            const { createNotification } = require('./notificationService');
+            if (isFailedCampaign) {
+              await createNotification({
+                userId: campaignObj.userId,
+                organizationId: user.organizationId,
+                type: 'campaign',
+                title: 'Campaign Failed ❌',
+                message: `Your campaign "${campaignObj.name}" failed completely. All messages failed to send.`,
+                link: '/dashboard/campaigns',
+                metadata: { campaignId }
+              });
+            } else {
+              await createNotification({
+                userId: campaignObj.userId,
+                organizationId: user.organizationId,
+                type: 'campaign',
+                title: 'Campaign Completed 🎉',
+                message: `Your campaign "${campaignObj.name}" has completed sending messages.`,
+                link: '/dashboard/campaigns',
+                metadata: { campaignId }
+              });
+            }
+          }
+        }
       }
     } catch (err) {
       logger.error('Campaign completion check error:', err.message);
@@ -285,6 +344,27 @@ async function startCampaign(campaignId, userId) {
   }
 
   logger.info(`Campaign ${campaignId} started with ${contacts.length} contacts`);
+
+  // Create persistent notification for campaign start
+  try {
+    const User = require('../models/User');
+    const user = await User.findById(userId).lean();
+    if (user && user.organizationId) {
+      const { createNotification } = require('./notificationService');
+      await createNotification({
+        userId,
+        organizationId: user.organizationId,
+        type: 'campaign',
+        title: 'Campaign Started 🚀',
+        message: `Your campaign "${campaign.name}" has started sending messages to ${contacts.length} contact(s).`,
+        link: '/dashboard/campaigns',
+        metadata: { campaignId: campaign._id }
+      });
+    }
+  } catch (err) {
+    logger.error('Failed to trigger campaign start notification:', err.message);
+  }
+
   return { totalContacts: contacts.length };
 }
 

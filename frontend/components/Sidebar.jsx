@@ -7,7 +7,7 @@ import {
   Settings, LogOut, Sun, Moon, MessageCircle, Shield,
   Users2, Clock, Zap, Terminal, PanelLeftClose, PanelLeft,
   Building, Activity, Globe, Lock, X, BarChart3, CreditCard,
-  FolderOpen, Calendar
+  FolderOpen, Calendar, ClipboardList
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
@@ -20,6 +20,7 @@ const navSections = [
       { href: '/dashboard/contacts', label: 'Contacts', icon: Users },
       { href: '/dashboard/contacts/groups', label: 'Groups', icon: FolderOpen },
       { href: '/dashboard/follow-ups', label: 'Follow-Ups', icon: Calendar },
+      { href: '/dashboard/tasks', label: 'Tasks', icon: ClipboardList },
       { href: '/dashboard/call-logs', label: 'Call Logs', icon: Clock },
       { href: '/dashboard/team', label: 'Team', icon: Users2 },
       { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle },
@@ -71,6 +72,7 @@ export default function Sidebar({ isOpen, onClose }) {
           title: 'Main',
           items: [
             { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, badge: true },
+            { href: '/dashboard/tasks', label: 'Tasks', icon: ClipboardList },
             { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle }
           ]
         }
@@ -88,6 +90,7 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/inbox', label: 'Conversations', icon: MessageSquare, badge: true },
             { href: '/dashboard/contacts/groups', label: 'Groups', icon: FolderOpen },
             { href: '/dashboard/follow-ups', label: 'Follow-Ups', icon: Calendar },
+            { href: '/dashboard/tasks', label: 'Tasks', icon: ClipboardList },
             { href: '/dashboard/call-logs', label: 'Call Logs', icon: Clock },
             { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
             { href: '/dashboard/admin?tab=subscriptions', label: 'Subscriptions', icon: Zap },

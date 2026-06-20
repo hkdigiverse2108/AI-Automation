@@ -5,6 +5,7 @@ const Contact = require('../models/Contact');
 const User = require('../models/User');
 const { verifyToken } = require('../middleware/auth');
 const { validateObjectId } = require('../middleware/validator');
+const { createNotification } = require('../services/notificationService');
 
 router.use(verifyToken);
 
@@ -129,6 +130,19 @@ router.post('/', async (req, res) => {
       createdBy: req.user._id,
     });
 
+    // Notify assignee
+    if (assignedTo.toString() !== req.user._id.toString()) {
+      await createNotification({
+        userId: assignedTo,
+        organizationId: req.organizationId,
+        type: 'contact',
+        title: 'New Follow-Up Assigned 📋',
+        message: `You have been assigned a new follow-up: "${title.trim()}".`,
+        link: '/dashboard/contacts',
+        metadata: { followUpId: followUp._id }
+      });
+    }
+
     res.status(201).json({ success: true, data: { followUp }, message: 'Follow-up scheduled successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create follow-up', code: 'CREATE_ERROR' });
@@ -143,6 +157,9 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
     if (!followUp) {
       return res.status(404).json({ success: false, error: 'Follow-up not found', code: 'NOT_FOUND' });
     }
+
+    const oldAssignedTo = followUp.assignedTo.toString();
+    const oldStatus = followUp.status;
 
     if (title !== undefined) followUp.title = title.trim();
     if (description !== undefined) followUp.description = description;
@@ -178,6 +195,44 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
 
     await followUp.save();
 
+    // Trigger reassignment notifications
+    if (assignedTo !== undefined && assignedTo.toString() !== oldAssignedTo) {
+      await createNotification({
+        userId: assignedTo,
+        organizationId: req.organizationId,
+        type: 'contact',
+        title: 'Follow-Up Assigned to You 📋',
+        message: `Follow-up "${followUp.title}" has been assigned to you.`,
+        link: '/dashboard/contacts',
+        metadata: { followUpId: followUp._id }
+      });
+    }
+
+    // Trigger status transition notifications
+    if (status !== undefined && status !== oldStatus) {
+      if (status === 'completed') {
+        await createNotification({
+          userId: followUp.assignedTo,
+          organizationId: req.organizationId,
+          type: 'contact',
+          title: 'Follow-Up Completed ✅',
+          message: `Follow-up "${followUp.title}" has been marked as completed.`,
+          link: '/dashboard/contacts',
+          metadata: { followUpId: followUp._id }
+        });
+      } else if (status === 'cancelled') {
+        await createNotification({
+          userId: followUp.assignedTo,
+          organizationId: req.organizationId,
+          type: 'contact',
+          title: 'Follow-Up Cancelled ❌',
+          message: `Follow-up "${followUp.title}" has been marked as cancelled.`,
+          link: '/dashboard/contacts',
+          metadata: { followUpId: followUp._id }
+        });
+      }
+    }
+
     res.json({ success: true, data: { followUp }, message: 'Follow-up updated successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to update follow-up', code: 'UPDATE_ERROR' });
@@ -211,6 +266,16 @@ router.post('/:id/complete', ...validateObjectId('id'), async (req, res) => {
     followUp.status = 'completed';
     followUp.completedAt = new Date();
     await followUp.save();
+
+    await createNotification({
+      userId: followUp.assignedTo,
+      organizationId: req.organizationId,
+      type: 'contact',
+      title: 'Follow-Up Completed ✅',
+      message: `Follow-up "${followUp.title}" has been marked as completed.`,
+      link: '/dashboard/contacts',
+      metadata: { followUpId: followUp._id }
+    });
 
     res.json({ success: true, data: { followUp }, message: 'Follow-up marked as completed' });
   } catch (error) {

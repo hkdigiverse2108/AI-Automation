@@ -5,6 +5,7 @@ const Contact = require('../models/Contact');
 const AuditLog = require('../models/AuditLog');
 const { verifyToken } = require('../middleware/auth');
 const { contactValidation, validateObjectId } = require('../middleware/validator');
+const { createNotification } = require('../services/notificationService');
 
 router.use(verifyToken);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -139,6 +140,16 @@ router.post('/', contactValidation, async (req, res) => {
 
     const contact = await Contact.create({ userId: req.userId, phone, name, email, source: source || 'manual', tags: tags || [] });
 
+    await createNotification({
+      userId: req.user._id,
+      organizationId: req.organizationId,
+      type: 'contact',
+      title: 'New Contact Created 👤',
+      message: `Contact "${name || phone}" was successfully created.`,
+      link: '/dashboard/contacts',
+      metadata: { contactId: contact._id }
+    });
+
     res.status(201).json({ success: true, data: { contact }, message: 'Contact created' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create contact', code: 'CREATE_ERROR' });
@@ -253,6 +264,16 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
     }
     await contact.save();
 
+    await createNotification({
+      userId: req.user._id,
+      organizationId: req.organizationId,
+      type: 'contact',
+      title: 'Contact Updated 👤',
+      message: `Contact "${contact.name || contact.phone}" details were updated.`,
+      link: '/dashboard/contacts',
+      metadata: { contactId: contact._id }
+    });
+
     res.json({ success: true, data: { contact }, message: 'Contact updated' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Update failed', code: 'UPDATE_ERROR' });
@@ -361,6 +382,16 @@ router.post('/:id/add-tag', ...validateObjectId('id'), async (req, res) => {
       await contact.save();
     }
 
+    await createNotification({
+      userId: req.user._id,
+      organizationId: req.organizationId,
+      type: 'contact',
+      title: 'Tag Added to Contact 🏷️',
+      message: `Tag "${tag.name}" was added to contact "${contact.name || contact.phone}".`,
+      link: '/dashboard/contacts',
+      metadata: { contactId: contact._id, tagId: tag._id }
+    });
+
     res.json({ success: true, data: { tags: contact.tags }, message: 'Tag added successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to add tag', details: error.message });
@@ -394,6 +425,16 @@ router.post('/:id/remove-tag', ...validateObjectId('id'), async (req, res) => {
 
     contact.tags = contact.tags.filter(t => t !== tag.name);
     await contact.save();
+
+    await createNotification({
+      userId: req.user._id,
+      organizationId: req.organizationId,
+      type: 'contact',
+      title: 'Tag Removed from Contact 🏷️',
+      message: `Tag "${tag.name}" was removed from contact "${contact.name || contact.phone}".`,
+      link: '/dashboard/contacts',
+      metadata: { contactId: contact._id, tagId: tag._id }
+    });
 
     res.json({ success: true, data: { tags: contact.tags }, message: 'Tag removed successfully' });
   } catch (error) {
@@ -440,6 +481,16 @@ router.post('/:id/notes', ...validateObjectId('id'), async (req, res) => {
     });
 
     await newNote.populate('createdBy', 'name email role');
+
+    await createNotification({
+      userId: req.user._id,
+      organizationId: req.organizationId,
+      type: 'contact',
+      title: 'New Note Added 📝',
+      message: `A new note was added to contact "${contact.name || contact.phone}".`,
+      link: '/dashboard/contacts',
+      metadata: { contactId: contact._id, noteId: newNote._id }
+    });
 
     res.status(201).json({ success: true, data: { note: newNote }, message: 'Note added successfully' });
   } catch (error) {

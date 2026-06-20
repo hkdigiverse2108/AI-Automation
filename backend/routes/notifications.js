@@ -9,11 +9,24 @@ router.get('/', verifyToken, async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const filter = req.query.filter; // 'unread', 'read', or undefined for all
+    const type = req.query.type;
+    const search = req.query.search;
     const skip = (page - 1) * limit;
 
-    const query = { user: req.user._id };
+    const query = { user: req.user._id, organization: req.organizationId };
     if (filter === 'unread') query.isRead = false;
     else if (filter === 'read') query.isRead = true;
+
+    if (type) {
+      query.type = type;
+    }
+
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { message: { $regex: search, $options: 'i' } }
+      ];
+    }
 
     const [notifications, total, unreadCount] = await Promise.all([
       Notification.find(query)
@@ -22,7 +35,7 @@ router.get('/', verifyToken, async (req, res) => {
         .limit(limit)
         .lean(),
       Notification.countDocuments(query),
-      Notification.countDocuments({ user: req.user._id, isRead: false }),
+      Notification.countDocuments({ user: req.user._id, organization: req.organizationId, isRead: false }),
     ]);
 
     res.json({
@@ -43,7 +56,7 @@ router.get('/', verifyToken, async (req, res) => {
 // GET /api/notifications/unread-count — Badge count
 router.get('/unread-count', verifyToken, async (req, res) => {
   try {
-    const count = await Notification.countDocuments({ user: req.user._id, isRead: false });
+    const count = await Notification.countDocuments({ user: req.user._id, organization: req.organizationId, isRead: false });
     res.json({ success: true, data: { count } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -54,7 +67,7 @@ router.get('/unread-count', verifyToken, async (req, res) => {
 router.put('/:id/read', verifyToken, async (req, res) => {
   try {
     const notif = await Notification.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: req.user._id, organization: req.organizationId },
       { isRead: true },
       { new: true }
     );
@@ -69,7 +82,7 @@ router.put('/:id/read', verifyToken, async (req, res) => {
 router.put('/read-all', verifyToken, async (req, res) => {
   try {
     await Notification.updateMany(
-      { user: req.user._id, isRead: false },
+      { user: req.user._id, organization: req.organizationId, isRead: false },
       { isRead: true }
     );
     res.json({ success: true, message: 'All notifications marked as read' });
@@ -81,7 +94,7 @@ router.put('/read-all', verifyToken, async (req, res) => {
 // DELETE /api/notifications/delete-all — Delete all notifications for the user
 router.delete('/delete-all', verifyToken, async (req, res) => {
   try {
-    await Notification.deleteMany({ user: req.user._id });
+    await Notification.deleteMany({ user: req.user._id, organization: req.organizationId });
     res.json({ success: true, message: 'All notifications deleted successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -93,7 +106,8 @@ router.delete('/:id', verifyToken, async (req, res) => {
   try {
     const notif = await Notification.findOneAndDelete({
       _id: req.params.id,
-      user: req.user._id
+      user: req.user._id,
+      organization: req.organizationId
     });
     if (!notif) return res.status(404).json({ success: false, error: 'Notification not found' });
     res.json({ success: true, message: 'Notification deleted' });

@@ -19,6 +19,14 @@ const followUpSchema = new mongoose.Schema(
       default: 'pending',
     },
     completedAt: { type: Date },
+    remindedHourBefore: {
+      type: Boolean,
+      default: false
+    },
+    remindedOverdue: {
+      type: Boolean,
+      default: false
+    },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true, strict: true }

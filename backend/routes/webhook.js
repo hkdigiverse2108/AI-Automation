@@ -160,6 +160,10 @@ async function processWebhook(body) {
   for (const entry of entries) {
     const changes = entry.changes || [];
     for (const change of changes) {
+      if (change.field === 'message_template_status_update') {
+        await handleTemplateStatusUpdate(change.value, entry.id);
+      }
+
       if (change.field !== 'messages') continue;
 
       const value = change.value || {};
@@ -180,6 +184,67 @@ async function processWebhook(body) {
         }
       }
     }
+  }
+}
+
+async function handleTemplateStatusUpdate(value, wabaId) {
+  try {
+    logger.info(`Received template status update: ${JSON.stringify(value)}`);
+    const { event, message_template_name, message_template_id, reason } = value;
+    if (!message_template_name || !event) return;
+
+    const Template = require('../models/Template');
+    const User = require('../models/User');
+    const { createNotification } = require('../services/notificationService');
+
+    // Find the template by name or metaTemplateId
+    const query = {};
+    if (message_template_id) {
+      query.$or = [
+        { metaTemplateId: message_template_id.toString() },
+        { name: message_template_name }
+      ];
+    } else {
+      query.name = message_template_name;
+    }
+
+    const template = await Template.findOne(query);
+    if (!template) {
+      logger.warn(`Template not found for status update: ${message_template_name}`);
+      return;
+    }
+
+    // Update template status
+    const newStatus = event.toUpperCase(); // APPROVED or REJECTED
+    if (['APPROVED', 'REJECTED', 'PENDING'].includes(newStatus)) {
+      template.status = newStatus;
+      if (message_template_id) {
+        template.metaTemplateId = message_template_id.toString();
+      }
+      await template.save();
+    }
+
+    // Get user organization details to notify
+    const user = await User.findById(template.userId).lean();
+    if (user && user.organizationId) {
+      const isApproved = newStatus === 'APPROVED';
+      const title = isApproved ? 'Template Approved 🎉' : 'Template Rejected ❌';
+      const messageText = isApproved
+        ? `Your WhatsApp template "${template.name}" has been approved by Meta.`
+        : `Your WhatsApp template "${template.name}" was rejected by Meta. Reason: ${reason || 'N/A'}`;
+
+      await createNotification({
+        userId: user._id,
+        organizationId: user.organizationId,
+        type: 'campaign',
+        title,
+        message: messageText,
+        link: '/dashboard/campaigns/templates',
+        metadata: { templateId: template._id, status: newStatus }
+      });
+    }
+  } catch (err) {
+    logger.error('Failed to handle template status update:', err.message);
   }
 }
 
