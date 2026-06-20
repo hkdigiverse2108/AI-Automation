@@ -1,6 +1,9 @@
 import axios from 'axios';
 
 const getBaseURL = () => {
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return 'http://localhost:5005/api';
+  }
   const rawUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
   if (rawUrl.endsWith('/api') || rawUrl.endsWith('/api/')) {
     return rawUrl;

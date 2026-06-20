@@ -9,6 +9,9 @@ export function getSocket() {
   if (!token) return null;
 
   let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    socketUrl = 'http://localhost:5005';
+  }
   if (!socketUrl && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
     socketUrl = window.location.origin;
   }
