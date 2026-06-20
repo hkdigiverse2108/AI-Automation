@@ -120,9 +120,7 @@ router.get('/monitoring-stats', async (req, res) => {
   }
 });
 
-router.use(requireRole('superadmin', 'owner', 'admin'));
-
-// GET /api/team — get agents and auto assignment rules
+// GET /api/team — get agents and auto assignment rules (accessible to all authenticated team members, rules restricted to admins)
 router.get('/', async (req, res) => {
   try {
     const ownerId = req.userId;
@@ -131,12 +129,21 @@ router.get('/', async (req, res) => {
       query.organizationId = req.user.organizationId;
     }
     const agents = await User.find(query).select('-passwordHash -passwordHistory').lean();
-    const rules = await AssignmentRule.find({ userId: ownerId }).sort('-createdAt').populate('agentId', 'name email').lean();
+
+    // Auto assignment rules should only be visible to admin / owner / superadmin
+    let rules = [];
+    const isAdmin = ['superadmin', 'owner', 'admin'].includes(req.user.role);
+    if (isAdmin) {
+      rules = await AssignmentRule.find({ userId: ownerId }).sort('-createdAt').populate('agentId', 'name email').lean();
+    }
+
     res.json({ success: true, data: { agents, rules } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch team details' });
   }
 });
+
+router.use(requireRole('superadmin', 'owner', 'admin'));
 
 // POST /api/team/agents — add a new agent
 router.post('/agents', async (req, res) => {

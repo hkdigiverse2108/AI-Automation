@@ -285,7 +285,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
       setNotes([]);
       prevContactIdRef.current = null;
     }
-  }, [conversation]);
+  }, [contact?._id]);
 
   // Auto-resize textarea based on content
   useEffect(() => {
