@@ -24,7 +24,6 @@ if (fs.existsSync(envPath)) {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['lucide-react'],
   images: { domains: ['localhost'] },
   eslint: {
     ignoreDuringBuilds: true,
@@ -50,6 +49,17 @@ const nextConfig = {
       { source: '/api/:path*', destination: `${backendUrl}/api/:path*` },
       { source: '/uploads/:path*', destination: `${backendUrl}/uploads/:path*` },
     ];
+  },
+  webpack(config, { dev }) {
+    if (!dev) {
+      config.cache = {
+        type: 'filesystem',
+        buildDependencies: {
+          config: [__filename],
+        },
+      };
+    }
+    return config;
   },
 };
 
