@@ -612,7 +612,7 @@ export default function TeamChatPage() {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex border-b border-wa-border dark:border-wa-dark-border overflow-x-auto scrollbar-none text-[10px] uppercase font-bold shrink-0 bg-white dark:bg-wa-dark-panel/40">
+        <div className="flex border-b border-wa-border dark:border-wa-dark-border overflow-x-auto scrollbar-none text-[10px] font-bold shrink-0 bg-white dark:bg-wa-dark-panel/40">
           {['all', 'unread', 'pinned', 'group', 'private', 'archived'].map(tab => (
             <button
               key={tab}
@@ -623,7 +623,7 @@ export default function TeamChatPage() {
                   : 'border-transparent text-wa-text-secondary hover:text-wa-text-primary'
               }`}
             >
-              {tab}
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
