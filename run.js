@@ -147,15 +147,7 @@ if (process.env.SKIP_BUILD === 'true') {
   // Start server directly after a tiny delay to let backend bind ports first
   setTimeout(startFrontendServer, 1000);
 } else {
-  // Only delete pages-manifest.json if it exists to avoid lock issues on Windows, keeping Next.js compiler cache
-  const manifestPath = path.join(__dirname, 'frontend', '.next', 'server', 'pages-manifest.json');
-  if (fs.existsSync(manifestPath)) {
-    try {
-      fs.unlinkSync(manifestPath);
-    } catch (err) {
-      // Ignore cleanup errors
-    }
-  }
+
 
   console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Building Next.js application (npm run build)...`);
   const buildProc = spawn('npm', ['run', 'build'], {
