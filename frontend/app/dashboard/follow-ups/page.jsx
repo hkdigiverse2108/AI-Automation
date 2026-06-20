@@ -123,7 +123,7 @@ export default function FollowUpsPage() {
     try {
       const { data } = await api.get('/team');
       if (data.success) {
-        setTeamMembers(data.data.team || []);
+        setTeamMembers(data.data.agents || data.data.team || []);
       }
     } catch (err) {
       console.error('Failed to load team members');

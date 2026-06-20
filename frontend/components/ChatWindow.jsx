@@ -264,20 +264,26 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     }
   };
 
+  const prevContactIdRef = useRef(null);
+
   // Initialize input fields when current contact changes
   useEffect(() => {
     if (contact && contact._id) {
-      setNotesText(contact.notes || '');
-      setNameInput(contact.name || '');
-      setEmailInput(contact.email || '');
-      setNewTag('');
-      setEditName(false);
-      setEditEmail(false);
-      setNewNoteText('');
-      setEditingNoteId(null);
-      fetchContactNotes();
+      if (prevContactIdRef.current !== contact._id) {
+        setNotesText(contact.notes || '');
+        setNameInput(contact.name || '');
+        setEmailInput(contact.email || '');
+        setNewTag('');
+        setEditName(false);
+        setEditEmail(false);
+        setNewNoteText('');
+        setEditingNoteId(null);
+        fetchContactNotes();
+        prevContactIdRef.current = contact._id;
+      }
     } else {
       setNotes([]);
+      prevContactIdRef.current = null;
     }
   }, [conversation]);
 
