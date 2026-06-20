@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   ClipboardList, Plus, Search, Calendar, Clock, Filter, List, Grid,
-  ChevronLeft, ChevronRight, RefreshCw, Loader2, ArrowUpDown, Shield, AlertCircle
+  ChevronLeft, ChevronRight, RefreshCw, Loader2, ArrowUpDown, Shield, AlertCircle, X
 } from 'lucide-react';
 import api from '../../../lib/api';
 import TaskDetailModal from '../../../components/TaskDetailModal';

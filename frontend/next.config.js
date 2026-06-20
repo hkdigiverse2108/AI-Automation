@@ -54,17 +54,6 @@ const nextConfig = {
       { source: '/uploads/:path*', destination: `${backendUrl}/uploads/:path*` },
     ];
   },
-  webpack(config, { dev }) {
-    if (!dev) {
-      config.cache = {
-        type: 'filesystem',
-        buildDependencies: {
-          config: [__filename],
-        },
-      };
-    }
-    return config;
-  },
 };
 
 module.exports = nextConfig;
