@@ -190,6 +190,9 @@ const notificationsRoute = require('./routes/notifications');
 const mediaRoute = require('./routes/media');
 const subscriptionRoute = require('./routes/subscription');
 const telephonyRoute = require('./routes/telephony');
+const groupsRoute = require('./routes/groups');
+const followUpsRoute = require('./routes/followups');
+const teamChatRoute = require('./routes/team-chat');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
@@ -211,6 +214,9 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/notifications`, notificationsRoute);
   app.use(`${prefix}/subscription`, subscriptionRoute);
   app.use(`${prefix}/telephony`, telephonyRoute);
+  app.use(`${prefix}/groups`, groupsRoute);
+  app.use(`${prefix}/follow-ups`, followUpsRoute);
+  app.use(`${prefix}/team-chat`, teamChatRoute);
 };
 
 // Mount versioned API routes
@@ -269,6 +275,14 @@ async function startServer() {
       startSubscriptionCron();
     } catch (err) {
       logger.warn('Subscription cron failed to start:', err.message);
+    }
+
+    // Init follow-up automation cron job
+    try {
+      const { startFollowUpCron } = require('./services/followUpCron');
+      startFollowUpCron();
+    } catch (err) {
+      logger.warn('Follow-up cron failed to start:', err.message);
     }
 
     server.listen(env.PORT, () => {

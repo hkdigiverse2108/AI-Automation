@@ -250,6 +250,11 @@ async function startCampaign(campaignId, userId) {
     contactQuery.tags = { $in: campaign.audience.tags };
   } else if (campaign.audience.type === 'upload' && campaign.audience.contactIds?.length) {
     contactQuery._id = { $in: campaign.audience.contactIds };
+  } else if (campaign.audience.type === 'group' && campaign.audience.groupIds?.length) {
+    const ContactGroup = require('../models/ContactGroup');
+    const mapping = await ContactGroup.find({ groupId: { $in: campaign.audience.groupIds } }).select('contactId').lean();
+    const contactIds = mapping.map(m => m.contactId);
+    contactQuery._id = { $in: contactIds };
   }
 
   const contacts = await Contact.find(contactQuery).select('_id').lean();

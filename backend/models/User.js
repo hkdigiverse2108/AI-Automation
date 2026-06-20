@@ -46,6 +46,7 @@ const userSchema = new mongoose.Schema(
     shiftTiming: { type: String, default: '' },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    lastSeenAt: { type: Date, default: Date.now },
   },
   { timestamps: true, strict: true }
 );

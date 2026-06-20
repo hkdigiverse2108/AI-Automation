@@ -93,6 +93,50 @@ export default function SettingsPage() {
   const [generating2Fa, setGenerating2Fa] = useState(false);
   const [verifying2Fa, setVerifying2Fa] = useState(false);
   const [copiedSecret, setCopiedSecret] = useState(false);
+
+  // Team Chat Settings
+  const [roleColors, setRoleColors] = useState({
+    admin: '#22c55e',
+    manager: '#3b82f6',
+    sales: '#f97316',
+    support: '#a855f7',
+    developer: '#ef4444',
+    agent: '#64748b'
+  });
+  const [fetchingChatSettings, setFetchingChatSettings] = useState(false);
+  const [savingChatSettings, setSavingChatSettings] = useState(false);
+
+  const fetchChatSettings = async () => {
+    setFetchingChatSettings(true);
+    try {
+      const { data } = await api.get('/team-chat/settings');
+      if (data.success && data.data?.roleColors) {
+        setRoleColors(prev => ({
+          ...prev,
+          ...data.data.roleColors
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to load chat settings', err.message);
+    } finally {
+      setFetchingChatSettings(false);
+    }
+  };
+
+  const handleSaveChatSettings = async (e) => {
+    if (e) e.preventDefault();
+    setSavingChatSettings(true);
+    try {
+      const { data } = await api.put('/team-chat/settings', { roleColors });
+      if (data.success) {
+        toast.success('Team Chat role colors updated successfully!');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update chat settings');
+    } finally {
+      setSavingChatSettings(false);
+    }
+  };
   useEffect(() => {
     if (user) {
       setProfileName(user.name || '');
@@ -210,6 +254,9 @@ export default function SettingsPage() {
     }
     if (activeTab === 'api-settings') {
       fetchApiKeyDetails();
+    }
+    if (activeTab === 'team-chat') {
+      fetchChatSettings();
     }
   }, [activeTab]);
 
@@ -388,6 +435,20 @@ export default function SettingsPage() {
           <Shield className="w-4 h-4" />
           <span>Two-Factor Lock</span>
         </button>
+
+        {['admin', 'owner', 'superadmin'].includes(user?.role) && (
+          <button
+            onClick={() => setActiveTab('team-chat')}
+            className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 -mb-[2px] transition-all duration-200 ${
+              activeTab === 'team-chat'
+                ? 'border-wa-green text-wa-green font-bold'
+                : 'border-transparent text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary dark:hover:text-white'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Team Chat Settings</span>
+          </button>
+        )}
       </div>
 
       {/* Tab Contents: PROFILE */}
@@ -1417,6 +1478,163 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab Contents: TEAM CHAT SETTINGS */}
+      {activeTab === 'team-chat' && ['admin', 'owner', 'superadmin'].includes(user?.role) && (
+        <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-6 space-y-6 shadow-sm animate-fade-in">
+          <div>
+            <h3 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-wa-green" /> Color-Coded Role Schemes
+            </h3>
+            <p className="text-xs text-wa-text-secondary mt-0.5">
+              Customize identification colors assigned to team roles and departments inside the internal chat window.
+            </p>
+          </div>
+
+          {fetchingChatSettings ? (
+            <div className="flex items-center justify-center py-12 gap-2 text-xs text-wa-text-secondary">
+              <Loader2 className="w-5 h-5 animate-spin text-wa-green" />
+              <span>Fetching team chat configuration...</span>
+            </div>
+          ) : (
+            <form onSubmit={handleSaveChatSettings} className="space-y-6 max-w-xl">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Admin */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary">Admin Role Color</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={roleColors.admin || '#22c55e'}
+                      onChange={(e) => setRoleColors({ ...roleColors, admin: e.target.value })}
+                      className="w-10 h-10 border-0 rounded-lg cursor-pointer bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={roleColors.admin || '#22c55e'}
+                      onChange={(e) => setRoleColors({ ...roleColors, admin: e.target.value })}
+                      className="flex-1 px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Manager */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary">Manager Role Color</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={roleColors.manager || '#3b82f6'}
+                      onChange={(e) => setRoleColors({ ...roleColors, manager: e.target.value })}
+                      className="w-10 h-10 border-0 rounded-lg cursor-pointer bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={roleColors.manager || '#3b82f6'}
+                      onChange={(e) => setRoleColors({ ...roleColors, manager: e.target.value })}
+                      className="flex-1 px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Sales */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary">Sales Team Color</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={roleColors.sales || '#f97316'}
+                      onChange={(e) => setRoleColors({ ...roleColors, sales: e.target.value })}
+                      className="w-10 h-10 border-0 rounded-lg cursor-pointer bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={roleColors.sales || '#f97316'}
+                      onChange={(e) => setRoleColors({ ...roleColors, sales: e.target.value })}
+                      className="flex-1 px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Support */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary">Support Team Color</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={roleColors.support || '#a855f7'}
+                      onChange={(e) => setRoleColors({ ...roleColors, support: e.target.value })}
+                      className="w-10 h-10 border-0 rounded-lg cursor-pointer bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={roleColors.support || '#a855f7'}
+                      onChange={(e) => setRoleColors({ ...roleColors, support: e.target.value })}
+                      className="flex-1 px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Developer */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary">Developers Color</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={roleColors.developer || '#ef4444'}
+                      onChange={(e) => setRoleColors({ ...roleColors, developer: e.target.value })}
+                      className="w-10 h-10 border-0 rounded-lg cursor-pointer bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={roleColors.developer || '#ef4444'}
+                      onChange={(e) => setRoleColors({ ...roleColors, developer: e.target.value })}
+                      className="flex-1 px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Agent */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary">Agents (Default) Color</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={roleColors.agent || '#64748b'}
+                      onChange={(e) => setRoleColors({ ...roleColors, agent: e.target.value })}
+                      className="w-10 h-10 border-0 rounded-lg cursor-pointer bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={roleColors.agent || '#64748b'}
+                      onChange={(e) => setRoleColors({ ...roleColors, agent: e.target.value })}
+                      className="flex-1 px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
+                <button
+                  type="button"
+                  onClick={fetchChatSettings}
+                  className="px-5 py-2.5 text-xs font-semibold border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg dark:hover:bg-wa-dark-hover rounded-xl text-wa-text-secondary"
+                >
+                  Reset Defaults
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingChatSettings}
+                  className="flex items-center gap-2 px-5 py-2.5 text-white bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 rounded-xl text-xs font-semibold shadow-md transition-all duration-200"
+                >
+                  {savingChatSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  <span>Save Color Schemes</span>
+                </button>
+              </div>
+            </form>
           )}
         </div>
       )}

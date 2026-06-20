@@ -7,9 +7,10 @@ const campaignSchema = new mongoose.Schema(
     templateId: { type: String },
     templateName: { type: String },
     audience: {
-      type: { type: String, enum: ['all', 'tag', 'segment', 'upload'], default: 'all' },
+      type: { type: String, enum: ['all', 'tag', 'segment', 'upload', 'group'], default: 'all' },
       tags: [String],
-      contactIds: [{ type: mongoose.Schema.Types.ObjectId }],
+      contactIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Contact' }],
+      groupIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
       totalCount: { type: Number, default: 0 },
     },
     variables: [{ type: String }],

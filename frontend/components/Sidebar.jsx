@@ -6,7 +6,8 @@ import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Bot, FileText,
   Settings, LogOut, Sun, Moon, MessageCircle, Shield,
   Users2, Clock, Zap, Terminal, PanelLeftClose, PanelLeft,
-  Building, Activity, Globe, Lock, X, BarChart3, CreditCard
+  Building, Activity, Globe, Lock, X, BarChart3, CreditCard,
+  FolderOpen, Calendar
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
@@ -17,8 +18,11 @@ const navSections = [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, badge: true },
       { href: '/dashboard/contacts', label: 'Contacts', icon: Users },
+      { href: '/dashboard/contacts/groups', label: 'Groups', icon: FolderOpen },
+      { href: '/dashboard/follow-ups', label: 'Follow-Ups', icon: Calendar },
       { href: '/dashboard/call-logs', label: 'Call Logs', icon: Clock },
       { href: '/dashboard/team', label: 'Team', icon: Users2 },
+      { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle },
     ]
   },
   {
@@ -66,7 +70,8 @@ export default function Sidebar({ isOpen, onClose }) {
         {
           title: 'Main',
           items: [
-            { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, badge: true }
+            { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, badge: true },
+            { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle }
           ]
         }
       ]
@@ -79,7 +84,10 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/admin?tab=organizations', label: 'Organizations', icon: Building },
             { href: '/dashboard/admin?tab=admins', label: 'Organization Admins', icon: Shield },
             { href: '/dashboard/team', label: 'Telecallers', icon: Users2 },
+            { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle },
             { href: '/dashboard/inbox', label: 'Conversations', icon: MessageSquare, badge: true },
+            { href: '/dashboard/contacts/groups', label: 'Groups', icon: FolderOpen },
+            { href: '/dashboard/follow-ups', label: 'Follow-Ups', icon: Calendar },
             { href: '/dashboard/call-logs', label: 'Call Logs', icon: Clock },
             { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
             { href: '/dashboard/admin?tab=subscriptions', label: 'Subscriptions', icon: Zap },

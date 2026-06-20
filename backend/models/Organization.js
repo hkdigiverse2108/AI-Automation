@@ -82,7 +82,22 @@ const organizationSchema = new mongoose.Schema(
       default: 'trial'
     },
     subscriptionExpiryDate: { type: Date },
-    currentSubscriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' }
+    currentSubscriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' },
+    chatConfig: {
+      roleColors: {
+        type: Object,
+        default: {
+          'admin': '#22c55e',
+          'owner': '#22c55e',
+          'superadmin': '#10b981',
+          'manager': '#3b82f6',
+          'sales': '#f97316',
+          'support': '#a855f7',
+          'developer': '#ef4444',
+          'agent': '#64748b'
+        }
+      }
+    }
   },
   { timestamps: true }
 );

@@ -123,33 +123,7 @@ formatStdout(backendProc.stderr, '[Backend][Error]', colors.red);
 const frontendEnv = { ...runnerEnv, NODE_ENV: 'production' };
 delete frontendEnv.PORT; // Delete backend's PORT to let Next.js use port 3000
 
-// Clean Next.js cache folder before building to prevent pages-manifest.json lock issues on Windows
-const nextCachePath = path.join(__dirname, 'frontend', '.next');
-if (fs.existsSync(nextCachePath)) {
-  try {
-    fs.rmSync(nextCachePath, { recursive: true, force: true });
-  } catch (err) {
-    // Ignore cleanup errors
-  }
-}
-
-console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Building Next.js application (npm run build)...`);
-const buildProc = spawn('npm', ['run', 'build'], {
-  cwd: path.join(__dirname, 'frontend'),
-  shell: true,
-  env: frontendEnv
-});
-
-formatStdout(buildProc.stdout, '[Frontend-Build]', colors.green);
-formatStdout(buildProc.stderr, '[Frontend-Build][Error]', colors.red);
-
-buildProc.on('exit', (code) => {
-  if (code !== 0) {
-    console.log(`\n${colors.bold}${colors.red}❌ Frontend build failed with code ${code}. Halting startup...${colors.reset}`);
-    handleShutdown('Frontend Build Failure');
-    return;
-  }
-
+const startFrontendServer = () => {
   console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Starting Next.js production server (npm run start)...`);
   frontendProc = spawn('npm', ['run', 'start'], {
     cwd: path.join(__dirname, 'frontend'),
@@ -166,7 +140,42 @@ buildProc.on('exit', (code) => {
       handleShutdown('Frontend Crash');
     }
   });
-});
+};
+
+if (process.env.SKIP_BUILD === 'true') {
+  console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} SKIP_BUILD is enabled. Skipping compilation build...`);
+  // Start server directly after a tiny delay to let backend bind ports first
+  setTimeout(startFrontendServer, 1000);
+} else {
+  // Clean Next.js cache folder before building to prevent pages-manifest.json lock issues on Windows
+  const nextCachePath = path.join(__dirname, 'frontend', '.next');
+  if (fs.existsSync(nextCachePath)) {
+    try {
+      fs.rmSync(nextCachePath, { recursive: true, force: true });
+    } catch (err) {
+      // Ignore cleanup errors
+    }
+  }
+
+  console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Building Next.js application (npm run build)...`);
+  const buildProc = spawn('npm', ['run', 'build'], {
+    cwd: path.join(__dirname, 'frontend'),
+    shell: true,
+    env: frontendEnv
+  });
+
+  formatStdout(buildProc.stdout, '[Frontend-Build]', colors.green);
+  formatStdout(buildProc.stderr, '[Frontend-Build][Error]', colors.red);
+
+  buildProc.on('exit', (code) => {
+    if (code !== 0) {
+      console.log(`\n${colors.bold}${colors.red}❌ Frontend build failed with code ${code}. Halting startup...${colors.reset}`);
+      handleShutdown('Frontend Build Failure');
+      return;
+    }
+    startFrontendServer();
+  });
+}
 
 // 5. Graceful shutdown handler
 let shuttingDown = false;

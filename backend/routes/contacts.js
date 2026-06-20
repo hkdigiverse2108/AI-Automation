@@ -12,8 +12,15 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 // GET /contacts
 router.get('/', async (req, res) => {
   try {
-    const { search, tags, source, optedOut, segment, page = 1, limit = 20, sort = '-createdAt' } = req.query;
+    const { search, tags, source, optedOut, segment, groupId, page = 1, limit = 20, sort = '-createdAt' } = req.query;
     const query = { userId: req.userId, isDeleted: { $ne: true } };
+
+    if (groupId && mongoose.Types.ObjectId.isValid(groupId)) {
+      const ContactGroup = require('../models/ContactGroup');
+      const mapping = await ContactGroup.find({ groupId, organizationId: req.organizationId }).select('contactId').lean();
+      const contactIds = mapping.map((m) => m.contactId);
+      query._id = { $in: contactIds };
+    }
 
     if (search) {
       const { getOekForUser, generateHMAC } = require('../services/oekService');
