@@ -34,7 +34,9 @@ export default function DashboardLayout({ children }) {
     if (!loading && !isAuthenticated) {
       router.push('/login');
     } else if (!loading && isAuthenticated && user?.role === 'agent') {
-      if (pathname !== '/dashboard/inbox' && !pathname.startsWith('/dashboard/inbox/')) {
+      const allowedPaths = ['/dashboard/inbox', '/dashboard/team-chat'];
+      const isAllowed = allowedPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+      if (!isAllowed) {
         router.push('/dashboard/inbox');
       }
     }
