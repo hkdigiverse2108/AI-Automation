@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import ContactTable from '../../../components/ContactTable';
 import api from '../../../lib/api';
 import { toast } from 'react-hot-toast';
-import { Tag as TagIcon, Users, Play, Plus, Trash2, X, Sparkles, Loader2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Tag as TagIcon, Users, Play, Plus, Trash2, X, Sparkles, Loader2, ToggleLeft, ToggleRight, Search, Edit2 } from 'lucide-react';
 import { useConfirmStore } from '../../../lib/store';
 
 export default function ContactsPage() {
@@ -19,6 +19,12 @@ export default function ContactsPage() {
   // New Tag Form state
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3b82f6');
+
+  // Edit Tag Form state
+  const [editingTag, setEditingTag] = useState(null);
+  const [editTagName, setEditTagName] = useState('');
+  const [editTagColor, setEditTagColor] = useState('');
+  const [tagSearchQuery, setTagSearchQuery] = useState('');
 
   // New Rule Form state
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
@@ -84,6 +90,28 @@ export default function ContactsPage() {
       }
     } catch (err) {
       toast.error('Failed to delete tag');
+    }
+  };
+
+  const handleEditTag = async (e) => {
+    e.preventDefault();
+    if (!editTagName.trim() || !editingTag) return;
+    
+    setSubmitting(true);
+    try {
+      const { data } = await api.put(`/tags/${editingTag._id}`, {
+        name: editTagName.trim(),
+        color: editTagColor
+      });
+      if (data.success) {
+        toast.success('Tag updated successfully');
+        setEditingTag(null);
+        fetchTagsAndRules();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update tag');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -247,7 +275,22 @@ export default function ContactsPage() {
 
           {/* List tags */}
           <div className="glass-card p-6 lg:col-span-2 space-y-4">
-            <h3 className="text-sm font-semibold text-wa-text-primary dark:text-wa-dark-text-primary">Central Tags Library</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-wa-border dark:border-wa-dark-border pb-3">
+              <h3 className="text-sm font-semibold text-wa-text-primary dark:text-wa-dark-text-primary">Central Tags Library</h3>
+              
+              {/* Search tags */}
+              <div className="relative w-full sm:w-48">
+                <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-wa-text-secondary" />
+                <input
+                  type="text"
+                  placeholder="Search tags..."
+                  value={tagSearchQuery}
+                  onChange={(e) => setTagSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 transition-all"
+                />
+              </div>
+            </div>
+
             {loading ? (
               <div className="py-12 text-center text-wa-text-secondary flex items-center justify-center gap-1.5 text-xs">
                 <Loader2 className="w-4 h-4 animate-spin text-wa-green" /> Loading tags...
@@ -256,21 +299,37 @@ export default function ContactsPage() {
               <p className="text-xs text-wa-text-secondary italic py-12 text-center">No tags in the library. Create one to classify contacts.</p>
             ) : (
               <div className="flex flex-wrap gap-3">
-                {tags.map(tag => (
-                  <span
-                    key={tag._id}
-                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border border-wa-border dark:border-wa-dark-border bg-wa-panel shadow-sm hover:scale-[1.02] transition-all"
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
-                    <span className="capitalize text-wa-text-primary dark:text-white">{tag.name}</span>
-                    <button
-                      onClick={() => handleDeleteTag(tag.name)}
-                      className="hover:text-red-500 font-bold ml-1 transition-colors text-sm text-wa-text-secondary shrink-0"
+                {tags
+                  .filter(tag => tag.name.toLowerCase().includes(tagSearchQuery.toLowerCase()))
+                  .map(tag => (
+                    <span
+                      key={tag._id}
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border border-wa-border dark:border-wa-dark-border bg-wa-panel shadow-sm hover:scale-[1.02] transition-all"
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                      <span className="capitalize text-wa-text-primary dark:text-white">{tag.name}</span>
+                      
+                      <button
+                        onClick={() => {
+                          setEditingTag(tag);
+                          setEditTagName(tag.name);
+                          setEditTagColor(tag.color);
+                        }}
+                        className="text-blue-500 hover:text-blue-600 transition-colors ml-1"
+                        title="Edit Tag"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      
+                      <button
+                        onClick={() => handleDeleteTag(tag.name)}
+                        className="hover:text-red-500 font-bold ml-0.5 transition-colors text-sm text-wa-text-secondary shrink-0"
+                        title="Delete Tag"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
               </div>
             )}
           </div>
@@ -434,6 +493,73 @@ export default function ContactsPage() {
                 <button type="submit" disabled={submitting} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
                   {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Save Auto-Tag Rule
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT TAG MODAL */}
+      {editingTag && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden animate-slide-up flex flex-col max-h-[85vh] shadow-wa-lg">
+            <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
+              <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-wa-green" /> Edit Tag
+              </h3>
+              <button onClick={() => setEditingTag(null)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors">
+                <X className="w-5 h-5 text-wa-text-secondary" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditTag} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-wa-text-secondary mb-1.5 uppercase">Tag Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editTagName}
+                  onChange={(e) => setEditTagName(e.target.value)}
+                  className="input-field py-2 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-wa-text-secondary mb-1.5 uppercase">Color Hex *</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="color"
+                    value={editTagColor}
+                    onChange={(e) => setEditTagColor(e.target.value)}
+                    className="w-10 h-10 p-0 border border-wa-border dark:border-wa-dark-border rounded-xl cursor-pointer bg-transparent"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={editTagColor}
+                    onChange={(e) => setEditTagColor(e.target.value)}
+                    className="input-field py-2 text-xs flex-1"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {colorsPreset.map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setEditTagColor(c)}
+                      className="w-6 h-6 rounded-full border border-white dark:border-slate-800"
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
+                <button type="button" onClick={() => setEditingTag(null)} className="btn-secondary py-2 text-xs px-4" disabled={submitting}>Cancel</button>
+                <button type="submit" disabled={submitting} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Save Changes
                 </button>
               </div>
             </form>

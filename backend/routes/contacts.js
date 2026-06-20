@@ -23,27 +23,85 @@ router.get('/', async (req, res) => {
     }
 
     if (search) {
-      const { getOekForUser, generateHMAC } = require('../services/oekService');
+      const { getOekForUser, generateHMAC, decryptAES } = require('../services/oekService');
       const rawOek = await getOekForUser(req.userId);
+      
+      const Tag = require('../models/Tag');
+      const ContactNote = require('../models/ContactNote');
+
+      // 1. Search tags by name
+      const matchedTags = await Tag.find({ organizationId: req.organizationId, name: { $regex: search, $options: 'i' } }).select('name').lean();
+      const matchedTagNames = matchedTags.map(t => t.name);
+
+      // 2. Search notes by text
+      let noteContactIds = [];
+      if (rawOek) {
+        const allNotes = await ContactNote.find({ organizationId: req.organizationId }).select('contactId note isEncrypted').lean();
+        for (const n of allNotes) {
+          const decNote = n.isEncrypted ? decryptAES(n.note, rawOek) : n.note;
+          if (decNote && decNote.toLowerCase().includes(search.toLowerCase())) {
+            noteContactIds.push(n.contactId);
+          }
+        }
+      } else {
+        const matchedNotes = await ContactNote.find({
+          organizationId: req.organizationId,
+          note: { $regex: search, $options: 'i' }
+        }).select('contactId').lean();
+        noteContactIds = matchedNotes.map(n => n.contactId);
+      }
+
+      // 3. Search standard fields
+      let searchConditions = [];
       if (rawOek) {
         const hmacSearch = generateHMAC(search, rawOek);
-        query.$or = [
+        searchConditions = [
           { nameHash: hmacSearch },
           { phoneHash: hmacSearch },
           { emailHash: hmacSearch },
         ];
       } else {
-        query.$or = [
+        searchConditions = [
           { name: { $regex: search, $options: 'i' } },
           { phone: { $regex: search, $options: 'i' } },
           { email: { $regex: search, $options: 'i' } },
         ];
+      }
+
+      // 4. Combine search conditions
+      query.$or = [...searchConditions];
+      if (matchedTagNames.length > 0) {
+        query.$or.push({ tags: { $in: matchedTagNames } });
+      }
+      if (noteContactIds.length > 0) {
+        query.$or.push({ _id: { $in: noteContactIds } });
       }
     }
     if (tags) query.tags = { $in: tags.split(',') };
     if (source) query.source = source;
     if (segment) query.segment = segment;
     if (optedOut !== undefined) query.optedOut = optedOut === 'true';
+
+    // Additional filters
+    if (req.query.assignedAgent) {
+      if (mongoose.Types.ObjectId.isValid(req.query.assignedAgent)) {
+        query.assignedAgent = req.query.assignedAgent;
+      } else if (req.query.assignedAgent === 'unassigned') {
+        query.assignedAgent = { $exists: false };
+      }
+    }
+
+    if (req.query.startDate || req.query.endDate) {
+      query.createdAt = {};
+      if (req.query.startDate) query.createdAt.$gte = new Date(req.query.startDate);
+      if (req.query.endDate) query.createdAt.$lte = new Date(req.query.endDate);
+    }
+
+    if (req.query.lastActivityStart || req.query.lastActivityEnd) {
+      query.lastMessageAt = {};
+      if (req.query.lastActivityStart) query.lastMessageAt.$gte = new Date(req.query.lastActivityStart);
+      if (req.query.lastActivityEnd) query.lastMessageAt.$lte = new Date(req.query.lastActivityEnd);
+    }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const [contacts, total] = await Promise.all([
@@ -263,6 +321,129 @@ router.get('/:id', ...validateObjectId('id'), async (req, res) => {
     res.json({ success: true, data: { contact } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Fetch failed', code: 'FETCH_ERROR' });
+  }
+});
+
+// POST /contacts/:id/add-tag — assign tag to contact
+router.post('/:id/add-tag', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const contactId = req.params.id;
+    const { tagId, tagName } = req.body;
+    if (!tagId && !tagName) {
+      return res.status(400).json({ success: false, error: 'tagId or tagName is required' });
+    }
+
+    const contact = await Contact.findOne({ _id: contactId, userId: req.userId, isDeleted: { $ne: true } });
+    if (!contact) return res.status(404).json({ success: false, error: 'Contact not found' });
+
+    const Tag = require('../models/Tag');
+    let tag;
+    if (tagId) {
+      tag = await Tag.findOne({ _id: tagId, organizationId: req.organizationId });
+    } else {
+      tag = await Tag.findOne({ name: tagName.trim().toLowerCase(), organizationId: req.organizationId });
+    }
+
+    if (!tag) return res.status(404).json({ success: false, error: 'Tag not found in library' });
+
+    const ContactTag = require('../models/ContactTag');
+    const existingLink = await ContactTag.findOne({ contactId, tagId: tag._id });
+    if (!existingLink) {
+      await ContactTag.create({
+        organizationId: req.organizationId,
+        contactId,
+        tagId: tag._id
+      });
+    }
+
+    if (!contact.tags.includes(tag.name)) {
+      contact.tags.push(tag.name);
+      await contact.save();
+    }
+
+    res.json({ success: true, data: { tags: contact.tags }, message: 'Tag added successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to add tag', details: error.message });
+  }
+});
+
+// POST /contacts/:id/remove-tag — remove tag from contact
+router.post('/:id/remove-tag', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const contactId = req.params.id;
+    const { tagId, tagName } = req.body;
+    if (!tagId && !tagName) {
+      return res.status(400).json({ success: false, error: 'tagId or tagName is required' });
+    }
+
+    const contact = await Contact.findOne({ _id: contactId, userId: req.userId, isDeleted: { $ne: true } });
+    if (!contact) return res.status(404).json({ success: false, error: 'Contact not found' });
+
+    const Tag = require('../models/Tag');
+    let tag;
+    if (tagId) {
+      tag = await Tag.findOne({ _id: tagId, organizationId: req.organizationId });
+    } else {
+      tag = await Tag.findOne({ name: tagName.trim().toLowerCase(), organizationId: req.organizationId });
+    }
+
+    if (!tag) return res.status(404).json({ success: false, error: 'Tag not found' });
+
+    const ContactTag = require('../models/ContactTag');
+    await ContactTag.deleteOne({ contactId, tagId: tag._id });
+
+    contact.tags = contact.tags.filter(t => t !== tag.name);
+    await contact.save();
+
+    res.json({ success: true, data: { tags: contact.tags }, message: 'Tag removed successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to remove tag', details: error.message });
+  }
+});
+
+// GET /contacts/:id/notes — fetch notes list
+router.get('/:id/notes', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const contactId = req.params.id;
+    const contact = await Contact.findOne({ _id: contactId, userId: req.userId, isDeleted: { $ne: true } });
+    if (!contact) return res.status(404).json({ success: false, error: 'Contact not found' });
+
+    const ContactNote = require('../models/ContactNote');
+    const notes = await ContactNote.find({ contactId, organizationId: req.organizationId })
+      .populate('createdBy', 'name email role')
+      .sort({ isPinned: -1, createdAt: -1 });
+
+    res.json({ success: true, data: { notes } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch contact notes', details: error.message });
+  }
+});
+
+// POST /contacts/:id/notes — add a note
+router.post('/:id/notes', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const contactId = req.params.id;
+    const { note } = req.body;
+    if (!note || !note.trim()) {
+      return res.status(400).json({ success: false, error: 'Note content is required' });
+    }
+
+    const contact = await Contact.findOne({ _id: contactId, userId: req.userId, isDeleted: { $ne: true } });
+    if (!contact) return res.status(404).json({ success: false, error: 'Contact not found' });
+
+    const ContactNote = require('../models/ContactNote');
+    const newNote = await ContactNote.create({
+      organizationId: req.organizationId,
+      contactId,
+      note: note.trim(),
+      createdBy: req.user._id,
+    });
+
+    await newNote.populate('createdBy', 'name email role');
+
+    res.status(201).json({ success: true, data: { note: newNote }, message: 'Note added successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to create note', details: error.message });
   }
 });
 

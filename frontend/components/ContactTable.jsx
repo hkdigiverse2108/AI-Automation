@@ -4,11 +4,13 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { 
   Search, Plus, Upload, Trash2, Filter, ChevronLeft, ChevronRight, 
-  X, Mail, Phone, User, Tag, HelpCircle, Loader2, MessageSquare, Edit2, CheckSquare, Square
+  X, Mail, Phone, User, Tag, HelpCircle, Loader2, MessageSquare, Edit2, CheckSquare, Square,
+  Calendar, Eye
 } from 'lucide-react';
 import api from '../lib/api';
 import { ScoreBadge } from './ContactScoreCard';
 import { useConfirmStore } from '../lib/store';
+import ContactDetailsModal from './ContactDetailsModal';
 
 // Helper to generate a soft color class based on user initials
 const getAvatarBg = (name) => {
@@ -52,6 +54,19 @@ export default function ContactTable() {
   const [pages, setPages] = useState(1);
   const [limit] = useState(10);
   const [loading, setLoading] = useState(false);
+
+  // Advanced Filters State
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [agents, setAgents] = useState([]);
+  const [assignedAgent, setAssignedAgent] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [lastActivityStart, setLastActivityStart] = useState('');
+  const [lastActivityEnd, setLastActivityEnd] = useState('');
+
+  // Contact Details Modal State
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [detailsContactId, setDetailsContactId] = useState(null);
 
   // Row selection
   const [selectedIds, setSelectedIds] = useState([]);
@@ -135,6 +150,21 @@ export default function ContactTable() {
     }
   };
 
+  const fetchAgents = async () => {
+    try {
+      const { data } = await api.get('/team-chat/users');
+      if (data.success) {
+        setAgents(data.data.users || []);
+      }
+    } catch (err) {
+      console.error('Failed to load agents list', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAgents();
+  }, []);
+
   const fetchContacts = async () => {
     setLoading(true);
     try {
@@ -145,7 +175,12 @@ export default function ContactTable() {
         tags: selectedTag || undefined,
         source: source || undefined,
         optedOut: optedOut === '' ? undefined : optedOut,
-        segment: segment || undefined
+        segment: segment || undefined,
+        assignedAgent: assignedAgent || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        lastActivityStart: lastActivityStart || undefined,
+        lastActivityEnd: lastActivityEnd || undefined,
       };
       
       const { data } = await api.get('/contacts', { params });
@@ -173,7 +208,10 @@ export default function ContactTable() {
 
   useEffect(() => {
     fetchContacts();
-  }, [page, selectedTag, source, optedOut, segment, debouncedSearch]);
+  }, [
+    page, selectedTag, source, optedOut, segment, debouncedSearch,
+    assignedAgent, startDate, endDate, lastActivityStart, lastActivityEnd
+  ]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -452,8 +490,84 @@ export default function ContactTable() {
             <option value="false">Active Subscribers</option>
             <option value="true">Opted Out</option>
           </select>
+
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className={`flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-semibold transition-all duration-200 ${
+              showAdvancedFilters 
+                ? 'bg-wa-green/10 text-wa-green border-wa-green/30' 
+                : 'border-wa-border dark:border-wa-dark-border text-wa-text-secondary dark:text-wa-dark-text-secondary bg-white dark:bg-wa-dark-panel hover:bg-wa-bg'
+            }`}
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>Advanced Filters</span>
+          </button>
         </div>
       </div>
+
+      {showAdvancedFilters && (
+        <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 shadow-sm animate-fade-in">
+          {/* Assigned Agent */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-wa-text-secondary uppercase">Assigned User</label>
+            <select
+              value={assignedAgent}
+              onChange={(e) => { setAssignedAgent(e.target.value); setPage(1); }}
+              className="w-full px-3 py-1.5 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-2 focus:ring-wa-green/30"
+            >
+              <option value="">All Agents</option>
+              <option value="unassigned">Unassigned</option>
+              {agents.map(agent => (
+                <option key={agent._id} value={agent._id}>{agent.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Created Start */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-wa-text-secondary uppercase">Created From</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+              className="w-full px-3 py-1 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-2 focus:ring-wa-green/30"
+            />
+          </div>
+
+          {/* Date Created End */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-wa-text-secondary uppercase">Created To</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+              className="w-full px-3 py-1 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-2 focus:ring-wa-green/30"
+            />
+          </div>
+
+          {/* Last Activity Start */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-wa-text-secondary uppercase">Activity From</label>
+            <input
+              type="date"
+              value={lastActivityStart}
+              onChange={(e) => { setLastActivityStart(e.target.value); setPage(1); }}
+              className="w-full px-3 py-1 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-2 focus:ring-wa-green/30"
+            />
+          </div>
+
+          {/* Last Activity End */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-wa-text-secondary uppercase">Activity To</label>
+            <input
+              type="date"
+              value={lastActivityEnd}
+              onChange={(e) => { setLastActivityEnd(e.target.value); setPage(1); }}
+              className="w-full px-3 py-1 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-2 focus:ring-wa-green/30"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Table view */}
       <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl overflow-hidden shadow-sm">
@@ -528,10 +642,11 @@ export default function ContactTable() {
                             {initials}
                           </div>
                           <div>
-                            <span className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary block hover:underline cursor-pointer" onClick={() => openEditModal(contact)}>
-                              {contact.name}
+                            <span className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary block hover:underline cursor-pointer flex items-center gap-1 group/name" onClick={() => { setDetailsContactId(contact._id); setIsDetailsModalOpen(true); }}>
+                              <span>{contact.name}</span>
+                              <Eye className="w-3.5 h-3.5 opacity-0 group-hover/name:opacity-100 transition-opacity text-wa-green" />
                             </span>
-                            <span className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider bg-wa-bg dark:bg-wa-dark-header px-1.5 py-0.5 rounded border border-wa-border dark:border-wa-dark-border font-mono">
+                            <span className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider bg-wa-bg dark:bg-wa-dark-header px-1.5 py-0.5 rounded border border-wa-border dark:border-wa-dark-border font-mono mt-0.5 inline-block">
                               ID: {contact._id.substring(contact._id.length - 6)}
                             </span>
                           </div>
@@ -594,11 +709,11 @@ export default function ContactTable() {
                             <MessageSquare className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => openEditModal(contact)}
+                            onClick={() => { setDetailsContactId(contact._id); setIsDetailsModalOpen(true); }}
                             className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-xl transition-all duration-200"
-                            title="Edit Contact"
+                            title="View / Edit Details"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Eye className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => handleDeleteContact(contact._id)}
@@ -647,8 +762,9 @@ export default function ContactTable() {
                           {initials}
                         </div>
                         <div>
-                          <span className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary block hover:underline cursor-pointer" onClick={() => openEditModal(contact)}>
-                            {contact.name}
+                          <span className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary block hover:underline cursor-pointer flex items-center gap-1 group/name" onClick={() => { setDetailsContactId(contact._id); setIsDetailsModalOpen(true); }}>
+                            <span>{contact.name}</span>
+                            <Eye className="w-3.5 h-3.5 opacity-0 group-hover/name:opacity-100 transition-opacity text-wa-green" />
                           </span>
                           <span className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider font-mono">
                             ID: {contact._id.substring(contact._id.length - 6)}
@@ -729,11 +845,11 @@ export default function ContactTable() {
                           <MessageSquare className="w-4 h-4" />
                         </button>
                         <button 
-                          onClick={() => openEditModal(contact)}
+                          onClick={() => { setDetailsContactId(contact._id); setIsDetailsModalOpen(true); }}
                           className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-xl transition-all duration-200"
-                          title="Edit Contact"
+                          title="View / Edit Details"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => handleDeleteContact(contact._id)}
@@ -1184,6 +1300,14 @@ export default function ContactTable() {
             </div>
           </div>
         </div>
+      )}
+
+      {isDetailsModalOpen && (
+        <ContactDetailsModal
+          contactId={detailsContactId}
+          onClose={() => setIsDetailsModalOpen(false)}
+          onUpdateSuccess={() => fetchContacts()}
+        />
       )}
     </div>
   );

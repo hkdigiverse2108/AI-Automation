@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const mongoose = require('mongoose');
 const Tag = require('../models/Tag');
 const AutoTagRule = require('../models/AutoTagRule');
 const Contact = require('../models/Contact');
@@ -11,11 +12,29 @@ router.use(verifyToken);
 router.get('/', async (req, res) => {
   try {
     const userId = req.userId;
-    const tags = await Tag.find({ userId }).sort('name').lean();
+    const query = req.organizationId ? { organizationId: req.organizationId } : { userId };
+    
+    const tags = await Tag.find(query).sort('name').lean();
     const rules = await AutoTagRule.find({ userId }).sort('-createdAt').lean();
     res.json({ success: true, data: { tags, rules } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch tags data' });
+  }
+});
+
+// GET /api/tags/:id — fetch single tag details
+router.get('/:id', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const query = req.organizationId
+      ? { _id: req.params.id, organizationId: req.organizationId }
+      : { _id: req.params.id, userId: req.userId };
+    
+    const tag = await Tag.findOne(query).lean();
+    if (!tag) return res.status(404).json({ success: false, error: 'Tag not found' });
+    
+    res.json({ success: true, data: { tag } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch tag details' });
   }
 });
 
@@ -28,16 +47,22 @@ router.post('/', async (req, res) => {
     const userId = req.userId;
     const normalizedName = name.trim().toLowerCase();
 
-    // Check if tag already exists
-    const existing = await Tag.findOne({ userId, name: normalizedName });
+    // Check if tag already exists in organization context
+    const query = req.organizationId
+      ? { organizationId: req.organizationId, name: normalizedName }
+      : { userId, name: normalizedName };
+
+    const existing = await Tag.findOne(query);
     if (existing) {
       return res.status(400).json({ success: false, error: 'Tag already exists' });
     }
 
     const tag = await Tag.create({
       userId,
+      organizationId: req.organizationId,
       name: normalizedName,
       color: color || '#3b82f6',
+      createdBy: req.user._id,
     });
 
     res.status(201).json({ success: true, data: { tag }, message: 'Tag created successfully' });
@@ -46,17 +71,75 @@ router.post('/', async (req, res) => {
   }
 });
 
-// DELETE /api/tags/:name — delete a tag and pull it from all contacts
-router.delete('/:name', async (req, res) => {
+// PUT /api/tags/:id — update a tag entry
+router.put('/:id', ...validateObjectId('id'), async (req, res) => {
   try {
-    const userId = req.userId;
-    const tagName = req.params.name.trim().toLowerCase();
+    const { name, color } = req.body;
+    const query = req.organizationId
+      ? { _id: req.params.id, organizationId: req.organizationId }
+      : { _id: req.params.id, userId: req.userId };
 
-    const tag = await Tag.findOneAndDelete({ userId, name: tagName });
+    const tag = await Tag.findOne(query);
     if (!tag) return res.status(404).json({ success: false, error: 'Tag not found' });
 
-    // Pull from all contact tags
-    await Contact.updateMany({ userId, tags: tagName }, { $pull: { tags: tagName } });
+    if (name !== undefined) {
+      const normalizedName = name.trim().toLowerCase();
+      if (!normalizedName) return res.status(400).json({ success: false, error: 'Tag name cannot be empty' });
+
+      if (normalizedName !== tag.name) {
+        // Prevent duplicate name
+        const dupQuery = req.organizationId
+          ? { organizationId: req.organizationId, name: normalizedName }
+          : { userId: req.userId, name: normalizedName };
+
+        const dup = await Tag.findOne(dupQuery);
+        if (dup) return res.status(400).json({ success: false, error: 'Tag name already exists' });
+
+        // Update tag name in all contacts
+        const oldName = tag.name;
+        await Contact.updateMany(
+          { userId: req.userId, tags: oldName },
+          { $set: { "tags.$[elem]": normalizedName } },
+          { arrayFilters: [{ "elem": oldName }] }
+        );
+        tag.name = normalizedName;
+      }
+    }
+
+    if (color !== undefined) {
+      tag.color = color;
+    }
+
+    await tag.save();
+    res.json({ success: true, data: { tag }, message: 'Tag updated successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update tag', details: error.message });
+  }
+});
+
+// DELETE /api/tags/:idOrName — delete a tag and pull it from all contacts
+router.delete('/:idOrName', async (req, res) => {
+  try {
+    const userId = req.userId;
+    const param = req.params.idOrName.trim();
+    let tag;
+
+    const baseQuery = req.organizationId ? { organizationId: req.organizationId } : { userId };
+
+    if (mongoose.Types.ObjectId.isValid(param)) {
+      tag = await Tag.findOneAndDelete({ ...baseQuery, _id: param });
+    }
+
+    if (!tag) {
+      tag = await Tag.findOneAndDelete({ ...baseQuery, name: param.toLowerCase() });
+    }
+
+    if (!tag) return res.status(404).json({ success: false, error: 'Tag not found' });
+
+    // Delete mappings from ContactTag and pull from contact.tags array
+    const ContactTag = require('../models/ContactTag');
+    await ContactTag.deleteMany({ tagId: tag._id });
+    await Contact.updateMany({ userId, tags: tag.name }, { $pull: { tags: tag.name } });
 
     res.json({ success: true, message: 'Tag deleted and removed from contacts' });
   } catch (error) {

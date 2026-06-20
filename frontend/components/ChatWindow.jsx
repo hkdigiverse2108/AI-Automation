@@ -6,7 +6,7 @@ import {
   Send, Paperclip, Smile, Check, CheckCheck, User, Bot, Sparkles,
   Phone, MoreVertical, Search, Mic, Image, FileText, Camera,
   UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, Trash2, Mail, Loader2, MessageSquare, ChevronLeft,
-  Download
+  Download, Pin, Plus, Save
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -221,6 +221,13 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   const [newTag, setNewTag] = useState('');
   const [updatingCrm, setUpdatingCrm] = useState(false);
 
+  // CRM Notes Timeline States
+  const [notes, setNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
+
   // Quick Replies (WABA templates) States
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [templates, setTemplates] = useState([]);
@@ -242,15 +249,35 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
   const contact = conversation?.contactId || {};
 
+  const fetchContactNotes = async () => {
+    if (!contact || !contact._id) return;
+    setNotesLoading(true);
+    try {
+      const { data } = await api.get(`/contacts/${contact._id}/notes`);
+      if (data.success) {
+        setNotes(data.data.notes);
+      }
+    } catch (err) {
+      console.error('Failed to load notes', err);
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
   // Initialize input fields when current contact changes
   useEffect(() => {
-    if (contact) {
+    if (contact && contact._id) {
       setNotesText(contact.notes || '');
       setNameInput(contact.name || '');
       setEmailInput(contact.email || '');
       setNewTag('');
       setEditName(false);
       setEditEmail(false);
+      setNewNoteText('');
+      setEditingNoteId(null);
+      fetchContactNotes();
+    } else {
+      setNotes([]);
     }
   }, [conversation]);
 
@@ -482,27 +509,116 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     setEditEmail(false);
   };
 
-  const handleSaveNotes = async () => {
-    await saveCrmField({ notes: notesText.trim() });
+  const handleCreateNote = async (e) => {
+    e.preventDefault();
+    if (!newNoteText.trim()) return;
+
+    setUpdatingCrm(true);
+    try {
+      const { data } = await api.post(`/contacts/${contact._id}/notes`, { note: newNoteText.trim() });
+      if (data.success) {
+        toast.success('Note added');
+        setNewNoteText('');
+        fetchContactNotes();
+      }
+    } catch (err) {
+      toast.error('Failed to add note');
+    } finally {
+      setUpdatingCrm(false);
+    }
+  };
+
+  const handlePinNote = async (noteId, currentPinned) => {
+    try {
+      const { data } = await api.put(`/notes/${noteId}`, { isPinned: !currentPinned });
+      if (data.success) {
+        toast.success(currentPinned ? 'Note unpinned' : 'Note pinned');
+        fetchContactNotes();
+      }
+    } catch (err) {
+      toast.error('Failed to update note pin');
+    }
+  };
+
+  const handleSaveEditNote = async (noteId) => {
+    if (!editingNoteText.trim()) return;
+    try {
+      const { data } = await api.put(`/notes/${noteId}`, { note: editingNoteText.trim() });
+      if (data.success) {
+        toast.success('Note updated');
+        setEditingNoteId(null);
+        fetchContactNotes();
+      }
+    } catch (err) {
+      toast.error('Failed to update note');
+    }
+  };
+
+  const handleDeleteNote = async (noteId) => {
+    if (!window.confirm('Are you sure you want to delete this note?')) return;
+    try {
+      const { data } = await api.delete(`/notes/${noteId}`);
+      if (data.success) {
+        toast.success('Note deleted');
+        fetchContactNotes();
+      }
+    } catch (err) {
+      toast.error('Failed to delete note');
+    }
   };
 
   const handleAddTag = async (e) => {
     if (e.key === 'Enter' && newTag.trim()) {
       e.preventDefault();
+      const tagName = newTag.trim();
       const existingTags = contact.tags || [];
-      if (existingTags.includes(newTag.trim())) {
+      if (existingTags.includes(tagName)) {
         toast.error('Tag already exists');
         return;
       }
-      const updatedTags = [...existingTags, newTag.trim()];
-      await saveCrmField({ tags: updatedTags });
-      setNewTag('');
+
+      setUpdatingCrm(true);
+      try {
+        // 1. Fetch tags to find if it exists in library
+        const tagsRes = await api.get('/tags');
+        let targetTag = tagsRes.data?.data?.tags?.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+        
+        if (!targetTag) {
+          // Create tag in library first
+          const createRes = await api.post('/tags', { name: tagName });
+          targetTag = createRes.data?.data?.tag;
+        }
+
+        // 2. Attach tag to contact
+        const { data } = await api.post(`/contacts/${contact._id}/add-tag`, { tagId: targetTag._id });
+        if (data.success) {
+          toast.success('Tag assigned');
+          setNewTag('');
+          await fetchConversations();
+          await fetchMessages(conversation._id);
+        }
+      } catch (err) {
+        toast.error(err.response?.data?.error || 'Failed to add tag');
+      } finally {
+        setUpdatingCrm(false);
+      }
     }
   };
 
   const handleRemoveTag = async (tagToRemove) => {
-    const updatedTags = (contact.tags || []).filter(t => t !== tagToRemove);
-    await saveCrmField({ tags: updatedTags });
+    setUpdatingCrm(true);
+    try {
+      const { data } = await api.post(`/contacts/${contact._id}/remove-tag`, { tagName: tagToRemove });
+      if (data.success) {
+        toast.success('Tag removed');
+        await fetchConversations();
+        await fetchMessages(conversation._id);
+      }
+    } catch (err) {
+      toast.error('Failed to remove tag');
+    } finally {
+      setUpdatingCrm(false);
+    }
   };
 
   const handleToggleOptOut = async () => {
@@ -1396,27 +1512,151 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
             {/* Notes Section card */}
             <div className="space-y-3 pt-1">
-              <span className="block text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-widest px-1">Internal Notes</span>
+              <span className="block text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-widest px-1">Internal Notes & Timeline</span>
               
               <div className="bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 space-y-3 shadow-sm">
-                <textarea
-                  rows={4}
-                  placeholder="Type customer notes here... (CRM internal only)"
-                  value={notesText}
-                  onChange={(e) => setNotesText(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green scrollbar-thin resize-none transition-all"
-                />
+                
+                {/* Note Entry Area */}
+                <form onSubmit={handleCreateNote} className="space-y-2">
+                  <textarea
+                    rows={2}
+                    placeholder="Add internal note..."
+                    value={newNoteText}
+                    onChange={(e) => setNewNoteText(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green resize-none transition-all"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={updatingCrm || !newNoteText.trim()}
+                      className="px-3 py-1 bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 text-white font-semibold text-[11px] rounded-lg flex items-center gap-1 shadow-sm transition-all"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Note</span>
+                    </button>
+                  </div>
+                </form>
 
-                {notesText.trim() !== (contact.notes || '') && (
-                  <button
-                    onClick={handleSaveNotes}
-                    disabled={updatingCrm}
-                    className="w-full py-2 bg-wa-green hover:bg-wa-green-dark disabled:opacity-50 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm hover:shadow active:scale-[0.98] transition-all"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save Notes</span>
-                  </button>
-                )}
+                {/* Notes History list */}
+                <div className="space-y-3 pt-2 max-h-[300px] overflow-y-auto scrollbar-thin divide-y divide-slate-100 dark:divide-slate-800">
+                  {notesLoading ? (
+                    <div className="py-4 text-center text-wa-text-secondary flex items-center justify-center gap-2 text-xs">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-wa-green" /> Loading notes...
+                    </div>
+                  ) : notes.length === 0 ? (
+                    <div className="py-4 text-center text-wa-text-secondary italic text-xs">
+                      No internal notes logged yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-3 pt-2">
+                      {notes.map((note) => {
+                        const author = note.createdBy || {};
+                        const authorInitials = author.name ? author.name.substring(0, 2).toUpperCase() : 'US';
+                        const isEditing = editingNoteId === note._id;
+                        
+                        return (
+                          <div 
+                            key={note._id} 
+                            className={`group border relative transition-all duration-200 rounded-xl p-3 shadow-xs bg-white dark:bg-wa-dark-panel ${
+                              note.isPinned 
+                                ? 'border-wa-green/35 dark:border-wa-green/30 bg-wa-green/[0.01]' 
+                                : 'border-wa-border dark:border-wa-dark-border/60 hover:border-wa-border-hover'
+                            }`}
+                          >
+                            {/* Note Header */}
+                            <div className="flex justify-between items-start mb-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-5 h-5 rounded-full bg-wa-bg dark:bg-wa-dark-header flex items-center justify-center font-bold text-[9px] text-wa-text-secondary border border-wa-border shrink-0">
+                                  {authorInitials}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="font-bold text-wa-text-primary dark:text-white text-[11px] block leading-none truncate">
+                                    {author.name || 'User'}
+                                  </span>
+                                  <span className="text-[8px] text-wa-text-secondary font-mono">
+                                    {new Date(note.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handlePinNote(note._id, note.isPinned)}
+                                  className={`p-1 rounded hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors ${
+                                    note.isPinned ? 'text-wa-green' : 'text-wa-text-light'
+                                  }`}
+                                  title={note.isPinned ? 'Unpin' : 'Pin'}
+                                >
+                                  <Pin className={`w-3 h-3 ${note.isPinned ? '' : 'rotate-45'}`} />
+                                </button>
+                                {!isEditing && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setEditingNoteId(note._id); setEditingNoteText(note.note); }}
+                                    className="p-1 rounded hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-blue-500 transition-colors"
+                                    title="Edit"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteNote(note._id)}
+                                  className="p-1 rounded hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-red-500 transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Note Body */}
+                            <div className="text-[11px] text-wa-text-primary dark:text-wa-dark-text-primary leading-relaxed font-medium pl-6">
+                              {isEditing ? (
+                                <div className="space-y-1.5 mt-1">
+                                  <textarea
+                                    rows={2}
+                                    value={editingNoteText}
+                                    onChange={(e) => setEditingNoteText(e.target.value)}
+                                    className="w-full px-2 py-1 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-lg text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green resize-none"
+                                  />
+                                  <div className="flex justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingNoteId(null)}
+                                      className="px-2 py-1 bg-wa-bg dark:bg-wa-dark-panel hover:bg-wa-hover border border-wa-border dark:border-wa-dark-border text-[9px] font-bold text-wa-text-secondary rounded transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveEditNote(note._id)}
+                                      className="px-2 py-1 bg-wa-green hover:bg-wa-green-hover text-white text-[9px] font-bold rounded transition-colors flex items-center gap-0.5"
+                                    >
+                                      <Save className="w-2.5 h-2.5" /> Save
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="whitespace-pre-wrap">{note.note}</p>
+                              )}
+                            </div>
+
+                            {/* Pin label */}
+                            {note.isPinned && (
+                              <span className="absolute top-0 right-14 text-[8px] bg-wa-green/10 text-wa-green px-1 py-0.2 rounded-b border-b border-x border-wa-green/20 font-bold uppercase tracking-wider scale-90 origin-top">
+                                Pinned
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
               </div>
             </div>
 

@@ -193,6 +193,7 @@ const telephonyRoute = require('./routes/telephony');
 const groupsRoute = require('./routes/groups');
 const followUpsRoute = require('./routes/followups');
 const teamChatRoute = require('./routes/team-chat');
+const notesRoute = require('./routes/notes');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
@@ -217,6 +218,7 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/groups`, groupsRoute);
   app.use(`${prefix}/follow-ups`, followUpsRoute);
   app.use(`${prefix}/team-chat`, teamChatRoute);
+  app.use(`${prefix}/notes`, notesRoute);
 };
 
 // Mount versioned API routes
