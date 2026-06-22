@@ -265,6 +265,12 @@ router.get('/chats/:chatId/messages', async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(parseInt(limit, 10))
       .populate('senderId', 'name email role avatar department designation')
+      .populate('reactions.userId', 'name avatar')
+      .populate({
+        path: 'parentMessageId',
+        select: 'message senderId messageType fileUrl',
+        populate: { path: 'senderId', select: 'name' }
+      })
       .lean();
 
     const org = await Organization.findById(req.user.organizationId).lean();
@@ -668,7 +674,7 @@ router.delete('/chats/:chatId', async (req, res) => {
 // POST /api/team-chat/messages - Send a message
 router.post('/messages', async (req, res) => {
   try {
-    const { chatId, messageType = 'text', message, fileUrl } = req.body;
+    const { chatId, messageType = 'text', message, fileUrl, parentMessageId } = req.body;
     const orgId = req.user.organizationId;
     const userId = req.user._id;
 
@@ -696,6 +702,7 @@ router.post('/messages', async (req, res) => {
       messageType,
       message: message || '',
       fileUrl: fileUrl || '',
+      parentMessageId: parentMessageId || undefined,
       readReceipts: [{ userId, status: 'read', timestamp: new Date() }]
     });
 
@@ -710,6 +717,12 @@ router.post('/messages', async (req, res) => {
     // Populate sender details for Socket broadcast
     const populatedMsg = await TeamChatMessage.findById(newMsg._id)
       .populate('senderId', 'name email role avatar department designation')
+      .populate('reactions.userId', 'name avatar')
+      .populate({
+        path: 'parentMessageId',
+        select: 'message senderId messageType fileUrl',
+        populate: { path: 'senderId', select: 'name' }
+      })
       .lean();
 
     const orgConfig = await Organization.findById(orgId).lean();
@@ -1005,6 +1018,99 @@ router.put('/settings', async (req, res) => {
     res.json({ success: true, data: { roleColors: org.chatConfig.roleColors }, message: 'Settings updated successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to update settings', details: error.message });
+  }
+});
+
+// POST /api/team-chat/messages/:messageId/reactions - Add or update a reaction to a message
+router.post('/messages/:messageId/reactions', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user._id;
+
+    if (!emoji || !emoji.trim()) {
+      return res.status(400).json({ success: false, error: 'Emoji is required' });
+    }
+
+    const msg = await TeamChatMessage.findById(messageId);
+    if (!msg) return res.status(404).json({ success: false, error: 'Message not found' });
+
+    // Verify membership
+    const membership = await TeamChatMember.findOne({ chatId: msg.chatId, userId });
+    if (!membership) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    // Check if user already reacted
+    const existingIndex = msg.reactions.findIndex(r => r.userId.toString() === userId.toString());
+    if (existingIndex > -1) {
+      // Update existing reaction
+      msg.reactions[existingIndex].emoji = emoji;
+    } else {
+      // Add new reaction
+      msg.reactions.push({ userId, emoji });
+    }
+
+    await msg.save();
+
+    // Populate user details for reaction response
+    const populatedMsg = await TeamChatMessage.findById(messageId)
+      .populate('reactions.userId', 'name avatar')
+      .lean();
+
+    // Broadcast reaction update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`team_chat_${msg.chatId.toString()}`).emit('team_message_reaction_updated', {
+        chatId: msg.chatId,
+        messageId,
+        reactions: populatedMsg.reactions
+      });
+    }
+
+    res.json({ success: true, data: { reactions: populatedMsg.reactions } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to react to message', details: error.message });
+  }
+});
+
+// DELETE /api/team-chat/messages/:messageId/reactions - Remove a reaction from a message
+router.delete('/messages/:messageId/reactions', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user._id;
+
+    const msg = await TeamChatMessage.findById(messageId);
+    if (!msg) return res.status(404).json({ success: false, error: 'Message not found' });
+
+    // Verify membership
+    const membership = await TeamChatMember.findOne({ chatId: msg.chatId, userId });
+    if (!membership) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    // Filter out user's reaction
+    msg.reactions = msg.reactions.filter(r => r.userId.toString() !== userId.toString());
+    await msg.save();
+
+    // Populate user details for response
+    const populatedMsg = await TeamChatMessage.findById(messageId)
+      .populate('reactions.userId', 'name avatar')
+      .lean();
+
+    // Broadcast reaction update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`team_chat_${msg.chatId.toString()}`).emit('team_message_reaction_updated', {
+        chatId: msg.chatId,
+        messageId,
+        reactions: populatedMsg.reactions
+      });
+    }
+
+    res.json({ success: true, data: { reactions: populatedMsg.reactions } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to remove reaction', details: error.message });
   }
 });
 

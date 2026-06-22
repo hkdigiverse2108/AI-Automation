@@ -37,6 +37,23 @@ const teamChatMessageSchema = new mongoose.Schema(
     editedAt: {
       type: Date
     },
+    parentMessageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TeamChatMessage'
+    },
+    reactions: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true
+        },
+        emoji: {
+          type: String,
+          required: true
+        }
+      }
+    ],
     deletedFor: [
       {
         type: mongoose.Schema.Types.ObjectId,

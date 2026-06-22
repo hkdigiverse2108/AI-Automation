@@ -8,7 +8,8 @@ import toast from 'react-hot-toast';
 import {
   Search, MessageSquare, Plus, Users, User, Phone, CheckCircle2,
   Trash2, Edit3, X, Paperclip, Send, Smile, MoreVertical,
-  Pin, Archive, Info, Loader2, Volume2, VolumeX, LogOut, Check, CheckCheck
+  Pin, Archive, Info, Loader2, Volume2, VolumeX, LogOut, Check, CheckCheck,
+  Copy, CornerUpLeft
 } from 'lucide-react';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 
@@ -80,6 +81,21 @@ export default function TeamChatPage() {
   // Editing state
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editText, setEditText] = useState('');
+
+  // Replying & Reactions States
+  const [replyingToMessage, setReplyingToMessage] = useState(null);
+  const [activeReactionPickerId, setActiveReactionPickerId] = useState(null);
+  const [activeMenuDropdownId, setActiveMenuDropdownId] = useState(null);
+
+  // Global click listener to dismiss menus
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setActiveReactionPickerId(null);
+      setActiveMenuDropdownId(null);
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, []);
 
   // Modals
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
@@ -206,6 +222,15 @@ export default function TeamChatPage() {
         }
       });
 
+      // Listen for reaction updates
+      socket.on('team_message_reaction_updated', (data) => {
+        if (activeChat && activeChat._id === data.chatId) {
+          setMessages(prev =>
+            prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m)
+          );
+        }
+      });
+
       // Listen for deletions for everyone
       socket.on('team_message_deleted_everyone', (data) => {
         if (activeChat && activeChat._id === data.chatId) {
@@ -281,6 +306,7 @@ export default function TeamChatPage() {
         socketRef.current.off('team_new_message');
         socketRef.current.off('team_typing_update');
         socketRef.current.off('team_message_edited');
+        socketRef.current.off('team_message_reaction_updated');
         socketRef.current.off('team_message_deleted_everyone');
         socketRef.current.off('team_read_receipt');
         socketRef.current.off('team_chat_created');
@@ -359,8 +385,10 @@ export default function TeamChatPage() {
       await api.post('/team-chat/messages', {
         chatId: activeChat._id,
         messageType: 'text',
-        message: textToSend
+        message: textToSend,
+        parentMessageId: replyingToMessage?._id || undefined
       });
+      setReplyingToMessage(null);
       // Listing refetches automatically on socket callback
     } catch (err) {
       toast.error('Failed to send message');
@@ -533,6 +561,38 @@ export default function TeamChatPage() {
     } catch (err) {
       toast.error('Failed to edit message');
     }
+  };
+
+  // React to message
+  const handleReactToMessage = async (messageId, emoji) => {
+    setActiveReactionPickerId(null);
+    try {
+      const targetMsg = messages.find(m => m._id === messageId);
+      const existingReaction = targetMsg?.reactions?.find(
+        r => r.userId?._id?.toString() === user?._id?.toString() || r.userId?.toString() === user?._id?.toString()
+      );
+
+      let response;
+      if (existingReaction && existingReaction.emoji === emoji) {
+        response = await api.delete(`/team-chat/messages/${messageId}/reactions`);
+      } else {
+        response = await api.post(`/team-chat/messages/${messageId}/reactions`, { emoji });
+      }
+
+      if (response.data.success) {
+        setMessages(prev =>
+          prev.map(m => m._id === messageId ? { ...m, reactions: response.data.data.reactions } : m)
+        );
+      }
+    } catch (err) {
+      toast.error('Failed to update reaction');
+    }
+  };
+
+  // Copy message text
+  const handleCopyMessage = (text) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Message copied to clipboard!');
   };
 
   // Pin / Archive / Unread Preferences
@@ -924,6 +984,7 @@ export default function TeamChatPage() {
                   return (
                     <div
                       key={msg._id}
+                      id={`msg-${msg._id}`}
                       className={`flex gap-3 max-w-[70%] group relative ${isSelf ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
                     >
                       {/* Avatar */}
@@ -951,11 +1012,42 @@ export default function TeamChatPage() {
                           </div>
                         )}
 
-                        <div className={`p-3.5 rounded-2xl relative shadow-sm text-xs leading-relaxed transition-all ${
-                          isSelf 
-                            ? 'bg-wa-green text-white rounded-tr-none' 
-                            : 'bg-white dark:bg-wa-dark-panel text-wa-text-primary dark:text-wa-dark-text-primary rounded-tl-none border border-wa-border dark:border-wa-dark-border'
-                        } ${isDeleted ? 'italic opacity-60' : ''}`}>
+                        <div
+                          id={`msg-bubble-${msg._id}`}
+                          className={`p-3.5 rounded-2xl relative shadow-sm text-xs leading-relaxed transition-all duration-300 ${
+                            isSelf 
+                              ? 'bg-wa-green text-white rounded-tr-none' 
+                              : 'bg-white dark:bg-wa-dark-panel text-wa-text-primary dark:text-wa-dark-text-primary rounded-tl-none border border-wa-border dark:border-wa-dark-border'
+                          } ${isDeleted ? 'italic opacity-60' : ''}`}
+                        >
+                          {/* Replied-to message preview */}
+                          {msg.parentMessageId && (
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const parentId = msg.parentMessageId._id || msg.parentMessageId;
+                                const el = document.getElementById(`msg-${parentId}`);
+                                if (el) {
+                                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  const bubble = document.getElementById(`msg-bubble-${parentId}`);
+                                  if (bubble) {
+                                    bubble.classList.add('ring-4', 'ring-wa-green/45');
+                                    setTimeout(() => {
+                                      bubble.classList.remove('ring-4', 'ring-wa-green/45');
+                                    }, 2000);
+                                  }
+                                }
+                              }}
+                              className="mb-2 p-2 rounded bg-black/5 dark:bg-white/5 border-l-4 border-wa-green text-[10px] cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-left"
+                            >
+                              <div className="font-bold text-wa-green truncate">
+                                {msg.parentMessageId.senderId?.name || 'User'}
+                              </div>
+                              <div className="truncate opacity-80 mt-0.5">
+                                {msg.parentMessageId.messageType === 'text' ? msg.parentMessageId.message : `📎 [${msg.parentMessageId.messageType}]`}
+                              </div>
+                            </div>
+                          )}
                           
                           {/* File Content Renderer */}
                           {!isDeleted && msg.messageType !== 'text' && (
@@ -1020,41 +1112,148 @@ export default function TeamChatPage() {
                               </span>
                             )}
                           </div>
+
+                          {/* Reactions display */}
+                          {msg.reactions && msg.reactions.length > 0 && (
+                            <div
+                              title={msg.reactions.map(r => r.userId?.name || 'Someone').join(', ')}
+                              className={`absolute bottom-[-10px] flex items-center gap-1 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-full px-1.5 py-0.5 shadow-sm text-[10px] select-none z-10 ${
+                                isSelf ? 'right-3' : 'left-3'
+                              }`}
+                            >
+                              <div className="flex -space-x-0.5">
+                                {Array.from(new Set(msg.reactions.map(r => r.emoji))).map((emoji, idx) => (
+                                  <span key={idx} className="scale-90">{emoji}</span>
+                                ))}
+                              </div>
+                              {msg.reactions.length > 0 && (
+                                <span className="text-[9px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary pl-0.5">
+                                  {msg.reactions.length}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Hover action menu for messages */}
                       {!isDeleted && (
-                        <div className={`absolute top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1.5 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-md p-1 z-20 ${
+                        <div className={`absolute top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-md p-0.5 z-20 ${
                           isSelf ? 'right-full mr-2' : 'left-full ml-2'
                         }`}>
-                          {/* Edit Message (Self and text type only) */}
-                          {isSelf && msg.messageType === 'text' && (
+                          {/* Emoji Trigger */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveReactionPickerId(activeReactionPickerId === msg._id ? null : msg._id);
+                              setActiveMenuDropdownId(null);
+                            }}
+                            className="p-1 hover:bg-wa-bg rounded-lg text-wa-text-secondary hover:text-wa-green animate-none"
+                            title="React"
+                          >
+                            <Smile className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Options Trigger */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuDropdownId(activeMenuDropdownId === msg._id ? null : msg._id);
+                              setActiveReactionPickerId(null);
+                            }}
+                            className="p-1 hover:bg-wa-bg rounded-lg text-wa-text-secondary hover:text-wa-green animate-none"
+                            title="More Actions"
+                          >
+                            <MoreVertical className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Emoji Picker Popover */}
+                      {activeReactionPickerId === msg._id && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className={`absolute bottom-full mb-1 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-1.5 shadow-wa-lg z-30 flex gap-1 animate-scale-up ${
+                            isSelf ? 'right-0' : 'left-0'
+                          }`}
+                        >
+                          {['👍', '❤️', '😂', '😮', '😢', '🙏', '🥰'].map(emoji => {
+                            const userReacted = msg.reactions?.some(
+                              r => (r.userId?._id?.toString() === user?._id?.toString() || r.userId?.toString() === user?._id?.toString()) && r.emoji === emoji
+                            );
+                            return (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => handleReactToMessage(msg._id, emoji)}
+                                className={`text-base p-1 hover:scale-125 transition-transform rounded-lg ${
+                                  userReacted ? 'bg-wa-green/20' : ''
+                                }`}
+                              >
+                                {emoji}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Actions Dropdown Menu */}
+                      {activeMenuDropdownId === msg._id && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className={`absolute bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-wa-lg py-1.5 min-w-[120px] z-30 animate-slide-up ${
+                            isSelf ? 'right-0 top-full mt-1' : 'left-0 top-full mt-1'
+                          }`}
+                        >
+                          {/* Reply */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplyingToMessage({
+                                _id: msg._id,
+                                senderName: msg.senderName,
+                                message: msg.message,
+                                messageType: msg.messageType
+                              });
+                              setActiveMenuDropdownId(null);
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-bg dark:hover:bg-wa-dark-hover flex items-center gap-2"
+                          >
+                            <CornerUpLeft className="w-3.5 h-3.5 text-wa-text-secondary" />
+                            <span>Reply</span>
+                          </button>
+
+                          {/* Copy */}
+                          {msg.messageType === 'text' && (
                             <button
+                              type="button"
                               onClick={() => {
-                                setEditingMessageId(msg._id);
-                                setEditText(msg.message);
+                                handleCopyMessage(msg.message);
+                                setActiveMenuDropdownId(null);
                               }}
-                              className="p-1.5 text-wa-text-secondary hover:text-wa-green hover:bg-wa-bg rounded-lg"
-                              title="Edit message"
+                              className="w-full text-left px-3 py-1.5 text-xs text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-bg dark:hover:bg-wa-dark-hover flex items-center gap-2"
                             >
-                              <Edit3 className="w-3.5 h-3.5" />
+                              <Copy className="w-3.5 h-3.5 text-wa-text-secondary" />
+                              <span>Copy</span>
                             </button>
                           )}
-                          
-                          {/* Delete Message */}
+
+                          {/* Delete */}
                           <button
+                            type="button"
                             onClick={() => {
-                              const opts = isSelf ? ['Delete for me', 'Delete for everyone'] : ['Delete for me'];
                               const delFor = isSelf && confirm('Do you want to delete this message for everyone? (Select Cancel to delete only for yourself)')
                                 ? 'everyone'
                                 : 'me';
                               handleDeleteMessage(msg._id, delFor);
+                              setActiveMenuDropdownId(null);
                             }}
-                            className="p-1.5 text-wa-text-secondary hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg"
-                            title="Delete message"
+                            className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-2"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                            <span>Delete</span>
                           </button>
                         </div>
                       )}
@@ -1083,6 +1282,25 @@ export default function TeamChatPage() {
             {/* Input Composer Panel */}
             <div className="p-3 border-t border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel shrink-0 z-10">
               
+              {/* Message Composer Reply overlay */}
+              {replyingToMessage && (
+                <div className="bg-wa-bg dark:bg-wa-dark-header/80 p-2.5 border border-wa-border dark:border-wa-dark-border rounded-xl flex items-center justify-between mb-2 text-xs animate-slide-down">
+                  <div className="flex items-center gap-2 truncate text-wa-text-secondary">
+                    <CornerUpLeft className="w-3.5 h-3.5 text-wa-green shrink-0" />
+                    <span className="truncate">
+                      Replying to <strong>{replyingToMessage.senderName}</strong>: <span className="font-sans italic">{replyingToMessage.message || `[${replyingToMessage.messageType}]`}</span>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReplyingToMessage(null)}
+                    className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-wa-text-secondary"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               {/* Message Composer Edit overlay */}
               {editingMessageId && (
                 <div className="bg-wa-bg dark:bg-wa-dark-header/80 p-2 border border-wa-border dark:border-wa-dark-border rounded-xl flex items-center justify-between mb-2 text-xs animate-slide-down">
