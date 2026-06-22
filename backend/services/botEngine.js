@@ -301,6 +301,11 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     }
 
 
+    // Run WhatsApp Commerce Engine check
+    const commerceEngine = require('./commerceEngine');
+    const handledByCommerce = await commerceEngine.handleCommerceMessage(userId, conversation, contact, savedMsg, phoneNumberId, token, io);
+    if (handledByCommerce) return;
+
     // Run keyword triggers, auto-tags, auto-routing
     const handledByAutomations = await runAutomations(userId, conversation, contact, savedMsg, phoneNumberId, token, io);
     if (handledByAutomations) return;

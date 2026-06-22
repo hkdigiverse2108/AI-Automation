@@ -388,21 +388,50 @@ router.post('/checkout', async (req, res) => {
       }
     }
 
-    // Generate unique orderNumber
-    const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    // Generate unique orderNumber (HKD-1001 format)
+    const orderCount = await Order.countDocuments({ organizationId: req.organizationId });
+    const orderNumber = `HKD-${1000 + orderCount + 1}`;
 
     // Resolve Order Assingee (default to contact assignedAgent, else current user)
     const assignedTo = contact.assignedAgent || req.user._id;
+
+    // Resolve checkout details from body
+    const { customerName, phoneNumber, address = '', notes = '' } = req.body;
 
     // Create Order
     const order = await Order.create({
       organizationId: req.organizationId,
       orderNumber,
       contactId: customerId,
+      customerName: customerName || contact.name || contact.phone,
+      phoneNumber: phoneNumber || contact.phone,
+      address,
+      notes,
       assignedTo,
       totalAmount: data.totals.grandTotal,
-      status: 'created',
+      status: 'Pending Payment',
       createdBy: req.user._id
+    });
+
+    // Create OrderItems
+    const OrderItem = require('../models/OrderItem');
+    for (const item of data.items) {
+      await OrderItem.create({
+        orderId: order._id,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice
+      });
+    }
+
+    // Create OrderStatusHistory
+    const OrderStatusHistory = require('../models/OrderStatusHistory');
+    await OrderStatusHistory.create({
+      orderId: order._id,
+      status: 'Pending Payment',
+      notes: 'Order created via console checkout',
+      changedBy: req.user._id
     });
 
     // Mark cart as checked out
@@ -417,9 +446,103 @@ router.post('/checkout', async (req, res) => {
         type: 'order',
         title: 'New Order Created 📦',
         message: `Order #${orderNumber} (₹${data.totals.grandTotal}) has been created for ${contact.name || contact.phone}.`,
-        link: '/dashboard/contacts',
+        link: '/dashboard/catalog',
         metadata: { orderId: order._id }
       });
+    }
+
+    // Send WhatsApp payment confirmation & QR Code
+    try {
+      const WhatsAppAccount = require('../models/WhatsAppAccount');
+      const { decryptField } = require('../services/encryption');
+      const whatsapp = require('../services/whatsapp');
+      const Message = require('../models/Message');
+      const Conversation = require('../models/Conversation');
+      const { getOekForUser, decryptMessage } = require('../services/oekService');
+      
+      const waAccount = await WhatsAppAccount.findOne({ userId: req.userId, isActive: true });
+      if (waAccount) {
+        const token = decryptField(waAccount.accessToken);
+        const phoneNumberId = waAccount.phoneNumberId;
+        
+        // Dynamic UPI Link & QR
+        const upiLink = `upi://pay?pa=hkdigiverse@oksbi&pn=HKDigiverse&am=${data.totals.grandTotal.toFixed(2)}&tn=${orderNumber}`;
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiLink)}`;
+        
+        let itemsSummary = '';
+        data.items.forEach(item => {
+          itemsSummary += `- ${item.name} x ${item.quantity}\n`;
+        });
+        
+        const confirmMsg = `Thank you for your order! 🙏
+
+*Order ID:* #${orderNumber}
+
+*Products purchased:*
+${itemsSummary}
+*Total amount:* *₹${data.totals.grandTotal.toFixed(2)}*
+
+Please complete the payment using the static UPI ID below:
+
+*UPI ID:* hkdigiverse@oksbi
+
+Scan the QR code below using GPay, PhonePe, Paytm, or BHIM:`;
+
+        // Send Image first (QR Code)
+        const imgResult = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, qrCodeUrl, confirmMsg);
+        
+        // Send follow-up text asking for UTR / Screenshot
+        const instruction = `Once paid, please reply with your *12-digit UPI Transaction ID (UTR)* OR upload a *Screenshot* of the payment receipt.`;
+        const txtResult = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, instruction);
+        
+        // Save outbound message to DB and emit Socket.io
+        let conversation = await Conversation.findOne({ userId: req.userId, contactId: contact._id });
+        if (conversation) {
+          const savedImgMsg = await Message.create({
+            userId: req.userId,
+            conversationId: conversation._id,
+            contactId: contact._id,
+            direction: 'outbound',
+            type: 'image',
+            content: { text: confirmMsg, mediaUrl: imgResult.sentUrl || qrCodeUrl },
+            status: imgResult.success ? 'sent' : 'failed',
+            metaMessageId: imgResult.data?.messages?.[0]?.id,
+            sentBy: 'system'
+          });
+          
+          const savedTxtMsg = await Message.create({
+            userId: req.userId,
+            conversationId: conversation._id,
+            contactId: contact._id,
+            direction: 'outbound',
+            type: 'text',
+            content: { text: instruction },
+            status: txtResult.success ? 'sent' : 'failed',
+            metaMessageId: txtResult.data?.messages?.[0]?.id,
+            sentBy: 'system'
+          });
+          
+          conversation.lastMessageAt = new Date();
+          await conversation.save();
+          
+          const io = req.app.get('io');
+          if (io) {
+            const rawOek = await getOekForUser(req.userId);
+            io.to(`user_${req.userId}`).emit('new_message', {
+              message: decryptMessage(savedImgMsg, rawOek),
+              contact: contact.toObject(),
+              conversationId: conversation._id
+            });
+            io.to(`user_${req.userId}`).emit('new_message', {
+              message: decryptMessage(savedTxtMsg, rawOek),
+              contact: contact.toObject(),
+              conversationId: conversation._id
+            });
+          }
+        }
+      }
+    } catch (waErr) {
+      console.error('Failed to send WhatsApp payment notification on console checkout:', waErr.message);
     }
 
     res.status(201).json({

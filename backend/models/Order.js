@@ -23,10 +23,27 @@ const orderSchema = new mongoose.Schema(
       index: true,
       alias: 'contact_id'
     },
+    customerName: {
+      type: String,
+      trim: true,
+      alias: 'customer_name'
+    },
+    phoneNumber: {
+      type: String,
+      trim: true,
+      alias: 'phone_number'
+    },
+    address: {
+      type: String,
+      trim: true
+    },
+    notes: {
+      type: String,
+      trim: true
+    },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
       index: true,
       alias: 'assigned_to'
     },
@@ -37,22 +54,29 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['created', 'confirmed', 'shipped', 'delivered', 'cancelled'],
-      default: 'created',
+      enum: [
+        'Pending Payment',
+        'Payment Submitted',
+        'Payment Verified',
+        'Confirmed',
+        'Processing',
+        'Shipped',
+        'Delivered',
+        'Cancelled'
+      ],
+      default: 'Pending Payment',
       index: true
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
       alias: 'created_by'
     }
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' }, strict: true }
 );
 
-// Compound indexes for listings
+// Compound indexes for listings and isolation
 orderSchema.index({ organizationId: 1, status: 1 });
-orderSchema.index({ contactId: 1 });
 
 module.exports = mongoose.model('Order', orderSchema);
