@@ -8,6 +8,19 @@ const { validateObjectId } = require('../middleware/validator');
 
 router.use(verifyToken);
 
+// Middleware to restrict tag library changes to Admins and Managers
+function requireAdminOrManager(req, res, next) {
+  const privilege = req.user.role;
+  const isManager = 
+    (req.user.designation && /manager/i.test(req.user.designation)) || 
+    (req.user.department && /manager/i.test(req.user.department));
+  const isAdminOrManager = ['superadmin', 'owner', 'admin'].includes(privilege) || isManager;
+  if (!isAdminOrManager) {
+    return res.status(403).json({ success: false, error: 'Unauthorized. Only admins and managers can perform this action.' });
+  }
+  next();
+}
+
 // GET /api/tags — list tags and auto tag rules
 router.get('/', async (req, res) => {
   try {
@@ -39,7 +52,7 @@ router.get('/:id', ...validateObjectId('id'), async (req, res) => {
 });
 
 // POST /api/tags — create a tag entry
-router.post('/', async (req, res) => {
+router.post('/', requireAdminOrManager, async (req, res) => {
   try {
     const { name, color } = req.body;
     if (!name) return res.status(400).json({ success: false, error: 'Tag name is required' });
@@ -72,7 +85,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/tags/:id — update a tag entry
-router.put('/:id', ...validateObjectId('id'), async (req, res) => {
+router.put('/:id', ...validateObjectId('id'), requireAdminOrManager, async (req, res) => {
   try {
     const { name, color } = req.body;
     const query = req.organizationId
@@ -118,7 +131,7 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
 });
 
 // DELETE /api/tags/:idOrName — delete a tag and pull it from all contacts
-router.delete('/:idOrName', async (req, res) => {
+router.delete('/:idOrName', requireAdminOrManager, async (req, res) => {
   try {
     const userId = req.userId;
     const param = req.params.idOrName.trim();
@@ -148,7 +161,7 @@ router.delete('/:idOrName', async (req, res) => {
 });
 
 // POST /api/tags/rules — add auto-tag assignment rule
-router.post('/rules', async (req, res) => {
+router.post('/rules', requireAdminOrManager, async (req, res) => {
   try {
     const { ruleName, triggerType, triggerValue, tagToAssign } = req.body;
     if (!ruleName || !triggerType || !triggerValue || !tagToAssign) {
@@ -171,7 +184,7 @@ router.post('/rules', async (req, res) => {
 });
 
 // PUT /api/tags/rules/:id — update auto-tag rule
-router.put('/rules/:id', ...validateObjectId('id'), async (req, res) => {
+router.put('/rules/:id', ...validateObjectId('id'), requireAdminOrManager, async (req, res) => {
   try {
     const { ruleName, triggerType, triggerValue, tagToAssign, isActive } = req.body;
     const userId = req.userId;
@@ -193,7 +206,7 @@ router.put('/rules/:id', ...validateObjectId('id'), async (req, res) => {
 });
 
 // DELETE /api/tags/rules/:id — delete auto-tag rule
-router.delete('/rules/:id', ...validateObjectId('id'), async (req, res) => {
+router.delete('/rules/:id', ...validateObjectId('id'), requireAdminOrManager, async (req, res) => {
   try {
     const userId = req.userId;
     const rule = await AutoTagRule.findOneAndDelete({ _id: req.params.id, userId });

@@ -15,14 +15,18 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
   
   // Notes states
   const [notes, setNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(false);
   const [newNoteText, setNewNoteText] = useState('');
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteText, setEditingNoteText] = useState('');
+  const [pinningNoteId, setPinningNoteId] = useState(null);
+  const [deletingNoteId, setDeletingNoteId] = useState(null);
 
   // Tags states
   const [availableTags, setAvailableTags] = useState([]);
   const [tagSearch, setTagSearch] = useState('');
   const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const [tagActionLoading, setTagActionLoading] = useState(false);
   const tagDropdownRef = useRef(null);
 
   useEffect(() => {
@@ -70,6 +74,14 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Helper to re-sort notes locally: pinned first, then by date descending
+  const sortNotesArray = (noteArray) => {
+    return [...noteArray].sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return b.isPinned ? -1 : 1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+  };
+
   // Notes operations
   const handleAddNote = async (e) => {
     e.preventDefault();
@@ -94,15 +106,21 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
     }
   };
 
-  const handleTogglePin = async (noteId, currentPinned) => {
+  const handleTogglePin = async (noteId) => {
+    setPinningNoteId(noteId);
     try {
-      const { data } = await api.put(`/notes/${noteId}`, { isPinned: !currentPinned });
+      const { data } = await api.post(`/notes/${noteId}/pin`);
       if (data.success) {
-        toast.success(currentPinned ? 'Note unpinned' : 'Note pinned');
-        setNotes(notes.map(n => n._id === noteId ? data.data.note : n));
+        toast.success(data.data.note.isPinned ? 'Note pinned' : 'Note unpinned');
+        setNotes(prevNotes => {
+          const updated = prevNotes.map(n => n._id === noteId ? data.data.note : n);
+          return sortNotesArray(updated);
+        });
       }
     } catch (err) {
-      toast.error('Failed to update note status');
+      toast.error(err.response?.data?.error || 'Failed to update note status');
+    } finally {
+      setPinningNoteId(null);
     }
   };
 
@@ -117,16 +135,20 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
       const { data } = await api.put(`/notes/${noteId}`, { note: editingNoteText.trim() });
       if (data.success) {
         toast.success('Note updated successfully');
-        setNotes(notes.map(n => n._id === noteId ? data.data.note : n));
+        setNotes(prevNotes => {
+          const updated = prevNotes.map(n => n._id === noteId ? data.data.note : n);
+          return sortNotesArray(updated);
+        });
         setEditingNoteId(null);
       }
     } catch (err) {
-      toast.error('Failed to save note');
+      toast.error(err.response?.data?.error || 'Failed to save note');
     }
   };
 
   const handleDeleteNote = async (noteId) => {
     if (!window.confirm('Are you sure you want to delete this note?')) return;
+    setDeletingNoteId(noteId);
     try {
       const { data } = await api.delete(`/notes/${noteId}`);
       if (data.success) {
@@ -134,7 +156,9 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
         setNotes(notes.filter(n => n._id !== noteId));
       }
     } catch (err) {
-      toast.error('Failed to delete note');
+      toast.error(err.response?.data?.error || 'Failed to delete note');
+    } finally {
+      setDeletingNoteId(null);
     }
   };
 
@@ -144,6 +168,7 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
       toast.error('Tag already assigned');
       return;
     }
+    setTagActionLoading(true);
     try {
       const { data } = await api.post(`/contacts/${contactId}/add-tag`, { tagId: tag._id });
       if (data.success) {
@@ -153,10 +178,13 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
       }
     } catch (err) {
       toast.error('Failed to assign tag');
+    } finally {
+      setTagActionLoading(false);
     }
   };
 
   const handleDetachTag = async (tagName) => {
+    setTagActionLoading(true);
     try {
       const { data } = await api.post(`/contacts/${contactId}/remove-tag`, { tagName });
       if (data.success) {
@@ -166,11 +194,14 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
       }
     } catch (err) {
       toast.error('Failed to remove tag');
+    } finally {
+      setTagActionLoading(false);
     }
   };
 
   const handleCreateAndAttachTag = async () => {
     if (!tagSearch.trim()) return;
+    setTagActionLoading(true);
     try {
       const { data } = await api.post('/tags', { name: tagSearch.trim() });
       if (data.success) {
@@ -183,6 +214,8 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to create tag');
+    } finally {
+      setTagActionLoading(false);
     }
   };
 
@@ -349,7 +382,8 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
                             <button
                               key={tag._id}
                               onClick={() => handleAttachTag(tag)}
-                              className="w-full text-left py-2 px-2 text-xs text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover flex items-center justify-between"
+                              disabled={tagActionLoading}
+                              className="w-full text-left py-2 px-2 text-xs text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover flex items-center justify-between disabled:opacity-50"
                             >
                               <span className="flex items-center gap-1.5">
                                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
@@ -382,7 +416,8 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
                         <span className="capitalize">{tagName}</span>
                         <button 
                           onClick={() => handleDetachTag(tagName)}
-                          className="hover:text-red-500 font-bold shrink-0 ml-1 transition-colors"
+                          disabled={tagActionLoading}
+                          className="hover:text-red-500 font-bold shrink-0 ml-1 transition-colors disabled:opacity-50"
                           title="Remove Tag"
                         >
                           ×
@@ -479,10 +514,11 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
                           {/* Note actions toolbar */}
                           <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                             <button
-                              onClick={() => handleTogglePin(note._id, note.isPinned)}
+                              onClick={() => handleTogglePin(note._id)}
+                              disabled={pinningNoteId === note._id}
                               className={`p-1.5 rounded-lg hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors ${
                                 note.isPinned ? 'text-wa-green' : 'text-wa-text-light'
-                              }`}
+                              } disabled:opacity-50`}
                               title={note.isPinned ? 'Unpin note' : 'Pin note'}
                             >
                               <Pin className={`w-3.5 h-3.5 ${note.isPinned ? '' : 'rotate-45'}`} />
@@ -490,7 +526,8 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
                             {!isEditing && (
                               <button
                                 onClick={() => handleStartEditNote(note)}
-                                className="p-1.5 rounded-lg hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-blue-500 transition-colors"
+                                disabled={deletingNoteId === note._id || pinningNoteId === note._id}
+                                className="p-1.5 rounded-lg hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-blue-500 transition-colors disabled:opacity-50"
                                 title="Edit note"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
@@ -498,7 +535,8 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
                             )}
                             <button
                               onClick={() => handleDeleteNote(note._id)}
-                              className="p-1.5 rounded-lg hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-red-500 transition-colors"
+                              disabled={deletingNoteId === note._id}
+                              className="p-1.5 rounded-lg hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-red-500 transition-colors disabled:opacity-50"
                               title="Delete note"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
