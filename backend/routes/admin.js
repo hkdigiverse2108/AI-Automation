@@ -284,7 +284,7 @@ router.get('/organizations', async (req, res) => {
         // Find admin user (can be admin or owner role)
         const adminUser = await User.findOne({ 
           organizationId: org._id, 
-          role: { $in: ['admin', 'owner'] }, 
+          role: { $in: ['admin', 'owner', 'superadmin'] }, 
           isDeleted: { $ne: true } 
         }).lean();
 
