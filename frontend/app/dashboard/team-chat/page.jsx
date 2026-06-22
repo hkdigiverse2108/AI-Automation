@@ -985,7 +985,7 @@ export default function TeamChatPage() {
                     <div
                       key={msg._id}
                       id={`msg-${msg._id}`}
-                      className={`flex gap-3 max-w-[70%] group relative ${isSelf ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
+                      className={`flex gap-3 max-w-[70%] group relative w-fit ${isSelf ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
                     >
                       {/* Avatar */}
                       {!isSelf && (
@@ -999,7 +999,7 @@ export default function TeamChatPage() {
                       )}
 
                       {/* Bubble Body */}
-                      <div className="space-y-1">
+                      <div className="space-y-1 w-fit">
                         {/* Sender tag for groups */}
                         {!isSelf && activeChat.type === 'group' && (
                           <div className="flex items-center gap-1.5 px-0.5">
