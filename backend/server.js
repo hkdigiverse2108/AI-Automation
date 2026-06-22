@@ -150,6 +150,10 @@ app.get('/api/uploads/:filename', handleUploadsFallback);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Serve static public folder (for cached TTS audio files)
+app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use('/api/public', express.static(path.join(__dirname, 'public')));
+
 // Security
 applySecurity(app);
 
@@ -199,6 +203,8 @@ const categoriesRoute = require('./routes/categories');
 const productsRoute = require('./routes/products');
 const cartRoute = require('./routes/cart');
 const ordersRoute = require('./routes/orders');
+const myoperatorRoute = require('./routes/myoperator');
+const telephonyAdminRoute = require('./routes/telephonyAdmin');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
@@ -209,7 +215,9 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/campaigns`, campaignsRoute);
   app.use(`${prefix}/flows`, flowsRoute);
   app.use(`${prefix}/templates`, templatesRoute);
-  app.use(`${prefix}/admin`, adminRoute);
+  app.use(`${prefix}/admin`, telephonyAdminRoute); // Telephony admin routes (accessible by tenant owners/admins)
+  app.use(`${prefix}/admin`, adminRoute); // Superadmin platform config routes
+  app.use(`${prefix}/myoperator`, myoperatorRoute); // MyOperator webhook integrations
   app.use(`${prefix}/settings/integrations`, integrationsRoute);
   app.use(`${prefix}/team`, teamRoute);
   app.use(`${prefix}/tags`, tagsRoute);
