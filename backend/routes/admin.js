@@ -281,8 +281,12 @@ router.get('/organizations', async (req, res) => {
 
     const data = await Promise.all(
       orgs.map(async (org) => {
-        // Find admin user
-        const adminUser = await User.findOne({ organizationId: org._id, role: 'admin', isDeleted: { $ne: true } }).lean();
+        // Find admin user (can be admin or owner role)
+        const adminUser = await User.findOne({ 
+          organizationId: org._id, 
+          role: { $in: ['admin', 'owner'] }, 
+          isDeleted: { $ne: true } 
+        }).lean();
 
         let activeTelecallers = 0;
         let totalLeads = 0;
