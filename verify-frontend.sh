@@ -15,7 +15,7 @@ fi
 cd frontend
 
 echo "╔════════════════════════════════════════════════════════╗"
-echo "║  Frontend RBAC System Verification & Build Check      ║"
+echo "║  Frontend RBAC System Verification & Build Check       ║"
 echo "╚════════════════════════════════════════════════════════╝"
 echo ""
 
