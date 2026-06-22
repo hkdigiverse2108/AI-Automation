@@ -89,7 +89,15 @@ export default function TeamChatPage() {
 
   // Global click listener to dismiss menus
   useEffect(() => {
-    const handleOutsideClick = () => {
+    const handleOutsideClick = (e) => {
+      // Prevent closing if clicking inside active pickers, dropdowns, or trigger buttons
+      if (
+        e.target.closest('.reaction-picker') || 
+        e.target.closest('.menu-dropdown') || 
+        e.target.closest('.action-trigger')
+      ) {
+        return;
+      }
       setActiveReactionPickerId(null);
       setActiveMenuDropdownId(null);
     };
@@ -166,6 +174,11 @@ export default function TeamChatPage() {
     const socket = getSocket();
     if (socket) {
       socketRef.current = socket;
+      
+      // Auto-join active chat if socket just connected/reconnected
+      if (activeChat) {
+        socket.emit('team_join_chat', activeChat._id);
+      }
 
       // Listen for presence
       socket.on('team_user_online', (data) => {
@@ -323,8 +336,9 @@ export default function TeamChatPage() {
       loadMessages(activeChat._id);
       
       // Join socket room
-      if (socketRef.current) {
-        socketRef.current.emit('team_join_chat', activeChat._id);
+      const socket = getSocket();
+      if (socket) {
+        socket.emit('team_join_chat', activeChat._id);
       }
 
       // Mark unread as read
@@ -1153,10 +1167,10 @@ export default function TeamChatPage() {
                               setActiveReactionPickerId(activeReactionPickerId === msg._id ? null : msg._id);
                               setActiveMenuDropdownId(null);
                             }}
-                            className="p-1 hover:bg-wa-bg rounded-lg text-wa-text-secondary hover:text-wa-green animate-none"
+                            className="p-1 hover:bg-wa-bg rounded-lg text-wa-text-secondary hover:text-wa-green animate-none action-trigger"
                             title="React"
                           >
-                            <Smile className="w-3.5 h-3.5" />
+                            <Smile className="w-3.5 h-3.5 pointer-events-none" />
                           </button>
 
                           {/* Options Trigger */}
@@ -1167,10 +1181,10 @@ export default function TeamChatPage() {
                               setActiveMenuDropdownId(activeMenuDropdownId === msg._id ? null : msg._id);
                               setActiveReactionPickerId(null);
                             }}
-                            className="p-1 hover:bg-wa-bg rounded-lg text-wa-text-secondary hover:text-wa-green animate-none"
+                            className="p-1 hover:bg-wa-bg rounded-lg text-wa-text-secondary hover:text-wa-green animate-none action-trigger"
                             title="More Actions"
                           >
-                            <MoreVertical className="w-3.5 h-3.5" />
+                            <MoreVertical className="w-3.5 h-3.5 pointer-events-none" />
                           </button>
                         </div>
                       )}
@@ -1179,7 +1193,7 @@ export default function TeamChatPage() {
                       {activeReactionPickerId === msg._id && (
                         <div
                           onClick={(e) => e.stopPropagation()}
-                          className={`absolute bottom-full mb-1 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-1.5 shadow-wa-lg z-30 flex gap-1 animate-scale-up ${
+                          className={`absolute bottom-full mb-1 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-1.5 shadow-wa-lg z-30 flex gap-1 animate-scale-up reaction-picker ${
                             isSelf ? 'right-0' : 'left-0'
                           }`}
                         >
@@ -1207,7 +1221,7 @@ export default function TeamChatPage() {
                       {activeMenuDropdownId === msg._id && (
                         <div
                           onClick={(e) => e.stopPropagation()}
-                          className={`absolute bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-wa-lg py-1.5 min-w-[120px] z-30 animate-slide-up ${
+                          className={`absolute bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-wa-lg py-1.5 min-w-[120px] z-30 animate-slide-up menu-dropdown ${
                             isSelf ? 'right-0 top-full mt-1' : 'left-0 top-full mt-1'
                           }`}
                         >
