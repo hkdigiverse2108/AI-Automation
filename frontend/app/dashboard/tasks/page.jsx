@@ -549,7 +549,7 @@ export default function TasksPage() {
             ) : (
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-wa-dark-border/10 text-wa-text-secondary dark:text-wa-dark-text-secondary font-bold border-b border-wa-border dark:border-wa-dark-border">
+                  <tr className="bg-slate-50 dark:bg-wa-dark-panel-header text-wa-text-secondary dark:text-wa-dark-text-secondary font-bold border-b border-wa-border dark:border-wa-dark-border">
                     <th className="p-4 w-1/3">Task Details</th>
                     <th className="p-4">Assigned To</th>
                     <th className="p-4">Priority</th>
@@ -662,7 +662,7 @@ export default function TasksPage() {
             )}
 
             {calendarMode === 'month' && (
-              <div className="grid grid-cols-7 grid-rows-6 auto-rows-fr flex-grow bg-slate-100 dark:bg-wa-dark-border/20 gap-px">
+              <div className="grid grid-cols-7 grid-rows-6 auto-rows-fr flex-grow bg-slate-100 dark:bg-wa-dark-border gap-px">
                 {getDaysInMonth(currentDate).map(({ date, isCurrentMonth }, i) => {
                   const dayTasks = getTasksForDate(date);
                   const isToday = new Date().toDateString() === date.toDateString();

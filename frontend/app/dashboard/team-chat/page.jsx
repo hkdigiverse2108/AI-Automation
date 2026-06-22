@@ -655,7 +655,7 @@ export default function TeamChatPage() {
   return (
     <div className="flex h-[calc(100vh-80px)] border border-wa-border dark:border-wa-dark-border rounded-2xl overflow-hidden bg-white dark:bg-wa-dark-panel shadow-sm">
       {/* 1. CHATS SIDEBAR PANEL */}
-      <div className="w-80 border-r border-wa-border dark:border-wa-dark-border flex flex-col h-full bg-slate-50/50 dark:bg-wa-dark-header/20 shrink-0">
+      <div className="w-80 border-r border-wa-border dark:border-wa-dark-border flex flex-col h-full bg-slate-50/50 dark:bg-wa-dark-panel shrink-0">
         
         {/* Header toolbar */}
         <div className="p-4 border-b border-wa-border dark:border-wa-dark-border space-y-3 shrink-0">
@@ -697,7 +697,7 @@ export default function TeamChatPage() {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex border-b border-wa-border dark:border-wa-dark-border overflow-x-auto scrollbar-none text-[10px] font-bold shrink-0 bg-white dark:bg-wa-dark-panel/40">
+        <div className="flex border-b border-wa-border dark:border-wa-dark-border overflow-x-auto scrollbar-none text-[10px] font-bold shrink-0 bg-white dark:bg-wa-dark-panel">
           {['all', 'unread', 'pinned', 'group', 'private', 'archived'].map(tab => (
             <button
               key={tab}
@@ -736,7 +736,7 @@ export default function TeamChatPage() {
                   key={chat._id}
                   onClick={() => setActiveChat(chat)}
                   className={`flex gap-3 p-3.5 cursor-pointer relative hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors ${
-                    isActive ? 'bg-wa-green/10 dark:bg-wa-green/15 border-l-3 border-wa-green' : 'bg-white dark:bg-wa-dark-panel/20'
+                    isActive ? 'bg-wa-green/10 dark:bg-wa-green/15 border-l-3 border-wa-green' : 'bg-white dark:bg-wa-dark-panel'
                   }`}
                 >
                   {/* Avatar with Presence dot */}
@@ -807,7 +807,7 @@ export default function TeamChatPage() {
       </div>
 
       {/* 2. CHAT FEED & WORKSPACE PANEL */}
-      <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-wa-dark-header/10 relative">
+      <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-wa-dark-chat-bg relative">
         {activeChat ? (
           <>
             {/* Active Chat Header */}
@@ -960,7 +960,7 @@ export default function TeamChatPage() {
                   placeholder="Filter messages in this conversation..."
                   value={messageSearchQuery}
                   onChange={(e) => setMessageSearchQuery(e.target.value)}
-                  className="flex-1 text-xs bg-slate-50 dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-lg px-3 py-1.5 text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
+                  className="flex-1 text-xs bg-slate-50 dark:bg-wa-dark-input border border-wa-border dark:border-wa-dark-border rounded-lg px-3 py-1.5 text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
                 />
                 <button
                   onClick={() => {
@@ -975,7 +975,7 @@ export default function TeamChatPage() {
             )}
 
             {/* Messages Feed list */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scroll-smooth bg-slate-50 dark:bg-wa-dark-header/5">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scroll-smooth bg-slate-50 dark:bg-wa-dark-chat-bg">
               {loadingMessages ? (
                 <div className="flex flex-col items-center justify-center h-full gap-2 text-xs text-wa-text-secondary">
                   <Loader2 className="w-6 h-6 animate-spin text-wa-green" />
@@ -1396,7 +1396,7 @@ export default function TeamChatPage() {
                   placeholder="Type a message to team channels..."
                   value={messageText}
                   onChange={handleMessageChange}
-                  className="flex-1 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white placeholder-wa-text-secondary focus:outline-none focus:ring-1 focus:ring-wa-green font-sans"
+                  className="flex-1 bg-wa-bg dark:bg-wa-dark-input border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white placeholder-wa-text-secondary focus:outline-none focus:ring-1 focus:ring-wa-green font-sans"
                 />
 
                 {/* Submit button */}
@@ -1412,7 +1412,7 @@ export default function TeamChatPage() {
           </>
         ) : (
           /* Empty State Chat Window */
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-xs text-wa-text-secondary gap-3 bg-slate-50 dark:bg-wa-dark-header/5">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-xs text-wa-text-secondary gap-3 bg-slate-50 dark:bg-wa-dark-chat-bg">
             <div className="w-16 h-16 rounded-full bg-wa-green/10 flex items-center justify-center text-wa-green shadow-sm">
               <MessageSquare className="w-8 h-8" />
             </div>
