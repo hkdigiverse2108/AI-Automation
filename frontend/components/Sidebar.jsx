@@ -7,7 +7,7 @@ import {
   Settings, LogOut, Sun, Moon, MessageCircle, Shield,
   Users2, Clock, Zap, Terminal, PanelLeftClose, PanelLeft,
   Building, Activity, Globe, Lock, X, BarChart3, CreditCard,
-  FolderOpen, Calendar, ClipboardList
+  FolderOpen, Calendar, ClipboardList, ShoppingBag
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
@@ -18,6 +18,7 @@ const navSections = [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, badge: true },
       { href: '/dashboard/contacts', label: 'Contacts', icon: Users },
+      { href: '/dashboard/catalog', label: 'Catalog', icon: ShoppingBag },
       { href: '/dashboard/contacts/groups', label: 'Groups', icon: FolderOpen },
       { href: '/dashboard/follow-ups', label: 'Follow-Ups', icon: Calendar },
       { href: '/dashboard/tasks', label: 'Tasks', icon: ClipboardList },
@@ -73,7 +74,8 @@ export default function Sidebar({ isOpen, onClose }) {
           items: [
             { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, badge: true },
             { href: '/dashboard/tasks', label: 'Tasks', icon: ClipboardList },
-            { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle }
+            { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle },
+            { href: '/dashboard/catalog', label: 'Catalog', icon: ShoppingBag }
           ]
         }
       ]
@@ -87,6 +89,7 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/admin?tab=admins', label: 'Organization Admins', icon: Shield },
             { href: '/dashboard/team', label: 'Telecallers', icon: Users2 },
             { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle },
+            { href: '/dashboard/catalog', label: 'Catalog', icon: ShoppingBag },
             { href: '/dashboard/inbox', label: 'Conversations', icon: MessageSquare, badge: true },
             { href: '/dashboard/contacts/groups', label: 'Groups', icon: FolderOpen },
             { href: '/dashboard/follow-ups', label: 'Follow-Ups', icon: Calendar },

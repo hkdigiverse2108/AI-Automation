@@ -195,6 +195,9 @@ const followUpsRoute = require('./routes/followups');
 const teamChatRoute = require('./routes/team-chat');
 const notesRoute = require('./routes/notes');
 const tasksRoute = require('./routes/tasks');
+const categoriesRoute = require('./routes/categories');
+const productsRoute = require('./routes/products');
+const cartRoute = require('./routes/cart');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
@@ -221,6 +224,9 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/team-chat`, teamChatRoute);
   app.use(`${prefix}/notes`, notesRoute);
   app.use(`${prefix}/tasks`, tasksRoute);
+  app.use(`${prefix}/categories`, categoriesRoute);
+  app.use(`${prefix}/products`, productsRoute);
+  app.use(`${prefix}/cart`, cartRoute);
 };
 
 // Mount versioned API routes

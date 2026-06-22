@@ -38,7 +38,8 @@ export default function DashboardLayout({ children }) {
         '/dashboard/inbox',
         '/dashboard/team-chat',
         '/dashboard/tasks',
-        '/dashboard/notifications'
+        '/dashboard/notifications',
+        '/dashboard/catalog'
       ];
       const isAllowed = allowedPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
       if (!isAllowed) {
