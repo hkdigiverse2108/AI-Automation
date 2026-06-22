@@ -1138,8 +1138,12 @@ export default function TeamChatPage() {
 
                       {/* Hover action menu for messages */}
                       {!isDeleted && (
-                        <div className={`absolute top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-md p-0.5 z-20 ${
-                          isSelf ? 'right-full mr-2' : 'left-full ml-2'
+                        <div className={`absolute top-1/2 -translate-y-1/2 items-center gap-1 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-md p-0.5 z-20 before:absolute before:top-0 before:bottom-0 before:w-4 ${
+                          isSelf ? 'right-full mr-2 before:-right-4' : 'left-full ml-2 before:-left-4'
+                        } ${
+                          activeReactionPickerId === msg._id || activeMenuDropdownId === msg._id
+                            ? 'flex'
+                            : 'hidden group-hover:flex'
                         }`}>
                           {/* Emoji Trigger */}
                           <button
