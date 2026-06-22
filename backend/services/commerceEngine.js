@@ -110,14 +110,22 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
 
     return true;
   } catch (error) {
-    logger.error('Error in handleCommerceMessage:', error);
+    logger.error('Error in handleCommerceMessage:', {
+      message: error.message,
+      stack: error.stack,
+      contactPhone: contact?.phone,
+      conversationId: conversation?._id,
+      orgId: conversation?.organization_id
+    });
     return false;
   }
 }
 
 // 1. Render Product Categories List
 async function renderCategories(userId, conversation, contact, phoneNumberId, token) {
+  logger.info(`[COMMERCE DEBUG] renderCategories called. orgId=${conversation.organization_id}, phone=${contact.phone}, phoneNumberId=${phoneNumberId}`);
   const categories = await Category.find({ organizationId: conversation.organization_id }).lean();
+  logger.info(`[COMMERCE DEBUG] Found ${categories?.length || 0} categories`);
   
   if (!categories || categories.length === 0) {
     await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Welcome to our shop! 🛍️\nNo product categories are configured currently. Please contact support.");
@@ -127,6 +135,7 @@ async function renderCategories(userId, conversation, contact, phoneNumberId, to
   conversation.flowVariables.set('commerce_state', 'browsing_categories');
   conversation.flowVariables.set('in_commerce', 'true');
   await conversation.save();
+  logger.info(`[COMMERCE DEBUG] Saved conversation state. Sending list message...`);
 
   // Construct list sections
   const rows = categories.map(cat => ({
@@ -139,8 +148,10 @@ async function renderCategories(userId, conversation, contact, phoneNumberId, to
   const bodyText = "Welcome to our Catalog! 🛍️\nPlease select a category to view our products:";
   
   const result = await whatsapp.sendListMessage(phoneNumberId, token, contact.phone, bodyText, sections, "Browse Shop", "Product Categories");
+  logger.info(`[COMMERCE DEBUG] sendListMessage result: ${JSON.stringify({ success: result.success, error: result.error, data: result.data?.messages })}`);
   if (!result.success) {
     // Fallback text message if list fails
+    logger.info(`[COMMERCE DEBUG] List message failed, sending fallback text message`);
     let text = `${bodyText}\n\n`;
     categories.forEach((cat, index) => {
       text += `*${index + 1}.* ${cat.name} ${cat.description ? `(${cat.description})` : ''}\n`;
