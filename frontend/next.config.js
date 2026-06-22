@@ -31,10 +31,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  experimental: {
-    cpus: 1,
-    workerThreads: false,
-  },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || rootEnv.NEXT_PUBLIC_API_URL || `http://localhost:${process.env.PORT || rootEnv.PORT || '5000'}`,
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL || rootEnv.NEXT_PUBLIC_SOCKET_URL || '',
