@@ -1355,7 +1355,7 @@ async function sendReplyForTrigger(userId, conversation, contact, trigger, phone
       const tmpl = await Template.findById(tid);
       if (!tmpl) continue;
 
-      const result = await whatsapp.sendTemplateMessage(phoneNumberId, token, contact.phone, tmpl.name, 'en', []);
+      const result = await whatsapp.sendTemplateMessage(phoneNumberId, token, contact.phone, tmpl.name, tmpl.language || 'en', []);
       if (result.success) {
         // Resolve template text for visual chat bubbles
         const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');

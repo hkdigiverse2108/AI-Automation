@@ -73,7 +73,12 @@ function getCampaignQueue(userId) {
         });
       }
 
-      const result = await whatsapp.sendTemplateMessage(phoneNumberId, token, contact.phone, templateName, 'en', templateComponents);
+      // Resolve template language dynamically
+      const Template = require('../models/Template');
+      const tmpl = await Template.findOne({ name: templateName, userId: jobUserId });
+      const languageCode = tmpl ? (tmpl.language || 'en') : 'en';
+
+      const result = await whatsapp.sendTemplateMessage(phoneNumberId, token, contact.phone, templateName, languageCode, templateComponents);
 
       if (result.success) {
         await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.sent': 1 } });
@@ -525,12 +530,16 @@ async function processDueSequences() {
         }
 
         const token = decryptField(waAccount.accessToken);
+        const Template = require('../models/Template');
+        const tmpl = await Template.findOne({ name: msgStep.templateName, userId: exec.userId });
+        const languageCode = tmpl ? (tmpl.language || 'en') : 'en';
+
         const result = await whatsapp.sendTemplateMessage(
           waAccount.phoneNumberId,
           token,
           contact.phone,
           msgStep.templateName,
-          'en',
+          languageCode,
           []
         );
 

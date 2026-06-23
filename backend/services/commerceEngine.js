@@ -166,7 +166,7 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
         responseBody: { message: error.message, stack: error.stack },
         statusCode: 500
       });
-    } catch (_) {}
+    } catch (_) { }
     return false;
   }
 }
@@ -176,7 +176,7 @@ async function renderCategories(userId, conversation, contact, phoneNumberId, to
   logger.info(`[COMMERCE DEBUG] renderCategories called. orgId=${conversation.organization_id}, phone=${contact.phone}, phoneNumberId=${phoneNumberId}`);
   const categories = await Category.find({ organizationId: conversation.organization_id }).lean();
   logger.info(`[COMMERCE DEBUG] Found ${categories?.length || 0} categories`);
-  
+
   if (!categories || categories.length === 0) {
     const text = "Welcome to our shop! 🛍️\nNo product categories are configured currently. Please contact support.";
     const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
@@ -203,7 +203,7 @@ async function renderCategories(userId, conversation, contact, phoneNumberId, to
 
   const sections = [{ title: "Categories Available", rows }];
   const bodyText = "Welcome to our Catalog! 🛍️\nPlease select a category to view our products:";
-  
+
   const result = await whatsapp.sendListMessage(phoneNumberId, token, contact.phone, bodyText, sections, "Browse Shop", "Product Categories");
   logger.info(`[COMMERCE DEBUG] sendListMessage result: ${JSON.stringify({ success: result.success, error: result.error, data: result.data?.messages })}`);
   await saveAndEmitOutboundMessage(userId, conversation, contact, bodyText, 'interactive', { interactive: { type: 'list', body: { text: bodyText }, action: { button: 'Choose', sections } } }, result, io);
@@ -327,7 +327,7 @@ async function handleProductSelection(userId, conversation, contact, textVal, ph
 
   // Find images
   const primaryImage = await ProductImage.findOne({ productId: product._id, isPrimary: true }).lean() || await ProductImage.findOne({ productId: product._id }).lean();
-  
+
   const finalPrice = product.discountPrice !== null ? product.discountPrice : product.price;
   const hasDiscount = product.discountPrice !== null;
 
@@ -722,7 +722,7 @@ Scan the QR code below using GPay, PhonePe, Paytm, or BHIM:`;
 
   const imgResult = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, qrCodeUrl, confirmMsg);
   await saveAndEmitOutboundMessage(userId, conversation, contact, confirmMsg, 'image', { mediaUrl: imgResult.sentUrl || qrCodeUrl }, imgResult, io);
-  
+
   // Ask for payment verification attachment / UTR
   const instruction = `Once paid, please reply with your *12-digit UPI Transaction ID (UTR)* OR upload a *Screenshot* of the payment receipt.`;
   const instResult = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, instruction);
