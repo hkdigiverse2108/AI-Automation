@@ -190,11 +190,16 @@ async function renderCategories(userId, conversation, contact, phoneNumberId, to
   logger.info(`[COMMERCE DEBUG] Saved conversation state. Sending list message...`);
 
   // Construct list sections
-  const rows = categories.map(cat => ({
-    id: `cat_${cat._id}`,
-    title: cat.name.slice(0, 24),
-    description: (cat.description || '').slice(0, 72)
-  }));
+  const rows = categories.map(cat => {
+    const row = {
+      id: `cat_${cat._id}`,
+      title: cat.name.slice(0, 24)
+    };
+    if (cat.description && cat.description.trim()) {
+      row.description = cat.description.trim().slice(0, 72);
+    }
+    return row;
+  });
 
   const sections = [{ title: "Categories Available", rows }];
   const bodyText = "Welcome to our Catalog! 🛍️\nPlease select a category to view our products:";
