@@ -525,6 +525,15 @@ async function createTemplate(wabaId, token, templateData) {
   return metaApiCall('post', `${META_API_URL}/${wabaId}/message_templates`, templateData, token);
 }
 
+async function deleteTemplate(wabaId, token, templateName) {
+  if (token === 'demo' || token === 'mock' || token?.startsWith('mock_')) {
+    logger.info(`[MOCK SANDBOX] Intercepted deleteTemplate for name: ${templateName}`);
+    return { success: true, data: { success: true } };
+  }
+  const deleteUrl = `${META_API_URL}/${wabaId}/message_templates?name=${encodeURIComponent(templateName)}`;
+  return metaApiCall('delete', deleteUrl, null, token);
+}
+
 async function sendContactMessage(phoneNumberId, token, to, name, phone) {
   if (token === 'demo' || token === 'mock' || token?.startsWith('mock_')) {
     logger.info(`[MOCK SANDBOX] Intercepted sendContactMessage to ${to}`);
@@ -663,6 +672,7 @@ module.exports = {
   downloadMedia,
   getTemplates,
   createTemplate,
+  deleteTemplate,
   sendContactMessage,
   getResumableUploadHandleFromMediaId,
   sendUnofficialMessage,

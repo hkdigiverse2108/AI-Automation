@@ -302,9 +302,23 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
 // DELETE /templates/:id
 router.delete('/:id', ...validateObjectId('id'), async (req, res) => {
   try {
-    const template = await Template.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+    const template = await Template.findOne({ _id: req.params.id, userId: req.userId });
     if (!template) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
-    res.json({ success: true, message: 'Template deleted' });
+
+    if (!template.isCustom && template.metaTemplateId) {
+      // It's a Meta template, let's delete it from Meta first
+      const waAccount = await WhatsAppAccount.findOne({ userId: req.userId, isActive: true });
+      if (waAccount) {
+        const token = decryptField(waAccount.accessToken);
+        const result = await whatsappService.deleteTemplate(waAccount.wabaId, token, template.name);
+        if (!result.success) {
+          console.error(`[TEMPLATES ROUTE] Failed to delete template "${template.name}" from Meta:`, result.error);
+        }
+      }
+    }
+
+    await Template.deleteOne({ _id: template._id });
+    res.json({ success: true, message: 'Template deleted successfully from local database and Meta' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Delete failed', code: 'DELETE_ERROR' });
   }
