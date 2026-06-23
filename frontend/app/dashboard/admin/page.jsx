@@ -343,10 +343,37 @@ export default function AdminPanel() {
     // Find the Admin user _id for resetting
     api.get('/admin/users').then(({ data }) => {
       const users = data.data || [];
-      const admin = users.find(u => u.email === org.adminEmail);
+      
+      // 1. Try to find by matching adminEmail case-insensitively
+      let admin = users.find(u => 
+        u.email && org.adminEmail && 
+        u.email.trim().toLowerCase() === org.adminEmail.trim().toLowerCase()
+      );
+      
+      // 2. Try to find by matching contactEmail case-insensitively (fallback)
+      if (!admin) {
+        admin = users.find(u => 
+          u.email && org.contactEmail && 
+          u.email.trim().toLowerCase() === org.contactEmail.trim().toLowerCase()
+        );
+      }
+      
+      // 3. Try to find by organization ID and administrative role (fallback)
+      if (!admin && org._id) {
+        admin = users.find(u => 
+          u.organizationId === org._id && 
+          ['superadmin', 'owner', 'admin'].includes(u.role)
+        );
+      }
+      
+      // 4. Try to find any user belonging to the organization (fallback)
+      if (!admin && org._id) {
+        admin = users.find(u => u.organizationId === org._id);
+      }
+
       if (admin) {
         setResetUserId(admin._id);
-        setResetEmail(org.adminEmail);
+        setResetEmail(admin.email);
         setIsPasswordModalOpen(true);
       } else {
         toast.error('Admin user account not found for password reset');

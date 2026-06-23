@@ -214,7 +214,7 @@ router.post('/queues/control', async (req, res) => {
 router.get('/users', async (req, res) => {
   try {
     const users = await User.find({ isDeleted: { $ne: true } })
-      .select('name email role plan isSuspended isEmailVerified createdAt')
+      .select('name email role plan isSuspended isEmailVerified organizationId createdAt')
       .sort('-createdAt')
       .lean();
 
