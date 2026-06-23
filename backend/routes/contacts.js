@@ -8,6 +8,8 @@ const { contactValidation, validateObjectId } = require('../middleware/validator
 const { createNotification } = require('../services/notificationService');
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('contacts'));
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // GET /contacts

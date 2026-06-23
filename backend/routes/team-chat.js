@@ -36,6 +36,8 @@ const upload = multer({
 });
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('team-chat'));
 
 // Helper: Determine User Privilege Level
 function getUserPrivilegeLevel(user) {

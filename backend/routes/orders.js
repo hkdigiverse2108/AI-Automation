@@ -15,6 +15,8 @@ const { createNotification } = require('../services/notificationService');
 const { decryptField } = require('../services/encryption');
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('catalog'));
 
 // Helper: Get WABA account for an organization
 async function getWabaAccountForOrg(organizationId) {

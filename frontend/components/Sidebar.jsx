@@ -59,7 +59,7 @@ const navSections = [
 
 export default function Sidebar({ isOpen, onClose }) {
   const pathname = usePathname();
-  const { user, logout } = useAuthStore();
+  const { user, permissions, logout } = useAuthStore();
   const { dark, toggle } = useThemeStore();
   const hasUnread = useConversationStore((state) => state.conversations.some(c => c.unreadCount > 0));
   const [collapsed, setCollapsed] = useState(false);
@@ -67,7 +67,29 @@ export default function Sidebar({ isOpen, onClose }) {
   const [hoveredItem, setHoveredItem] = useState(null);
   const menuRef = useRef(null);
 
-  // Filter navigation sections based on user role
+  // Map route paths to feature slugs for permission filtering
+  const routeToSlugMap = {
+    '/dashboard': 'dashboard',
+    '/dashboard/inbox': 'inbox',
+    '/dashboard/contacts': 'contacts',
+    '/dashboard/catalog': 'catalog',
+    '/dashboard/contacts/groups': 'groups',
+    '/dashboard/follow-ups': 'follow-ups',
+    '/dashboard/tasks': 'tasks',
+    '/dashboard/call-logs': 'call-logs',
+    '/dashboard/team': 'team',
+    '/dashboard/team-chat': 'team-chat',
+    '/dashboard/campaigns': 'campaigns',
+    '/dashboard/unofficial-campaigns': 'unofficial-campaigns',
+    '/dashboard/templates': 'templates',
+    '/dashboard/bot-builder': 'bot-builder',
+    '/dashboard/analytics': 'analytics',
+    '/dashboard/subscription': 'subscription',
+    '/dashboard/chat-logs': 'chat-logs',
+    '/dashboard/settings': 'settings',
+  };
+
+  // Filter navigation sections based on user role and feature permissions
   const allSections = user?.role === 'agent'
     ? [
         {
@@ -109,7 +131,16 @@ export default function Sidebar({ isOpen, onClose }) {
           ]
         }
       ]
-    : navSections;
+    : // Admin role: filter navSections by feature permissions
+      navSections.map(section => ({
+        ...section,
+        items: section.items.filter(item => {
+          if (!permissions) return true; // null = all access
+          const slug = routeToSlugMap[item.href];
+          if (!slug) return true; // No slug mapping = always show (e.g. settings)
+          return permissions.includes(slug);
+        })
+      })).filter(section => section.items.length > 0);
 
   // Close user menu on outside click
   useEffect(() => {

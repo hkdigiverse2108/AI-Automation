@@ -48,6 +48,8 @@ async function persistFileBuffer(buffer, originalname, mimetype) {
 }
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('inbox'));
 
 // POST /messages/upload — upload file
 router.post('/upload', upload.single('file'), async (req, res) => {

@@ -5,6 +5,8 @@ const { verifyToken } = require('../middleware/auth');
 const { validateObjectId } = require('../middleware/validator');
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('catalog'));
 
 // Middleware to restrict category modifications to Admins and Managers
 function requireAdminOrManager(req, res, next) {

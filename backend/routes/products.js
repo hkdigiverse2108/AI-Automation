@@ -12,6 +12,8 @@ const cloudinaryService = require('../services/cloudinaryService');
 const { createNotification } = require('../services/notificationService');
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('catalog'));
 
 // Configure multer storage for local file uploads fallback
 const storage = multer.diskStorage({

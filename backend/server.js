@@ -274,6 +274,14 @@ async function startServer() {
   try {
     await connectDB();
 
+    // Seed default system features
+    try {
+      const { seedFeatures } = require('./config/seedFeatures');
+      await seedFeatures(logger);
+    } catch (seedErr) {
+      logger.error('Failed to run seedFeatures:', seedErr.message);
+    }
+
     // Init socket service
     initSocketService(io);
     webhookRoutes.setIO(io);

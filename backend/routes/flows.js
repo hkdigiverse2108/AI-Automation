@@ -6,6 +6,8 @@ const { verifyToken } = require('../middleware/auth');
 const { flowValidation, validateObjectId } = require('../middleware/validator');
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('bot-builder'));
 
 // GET /flows
 router.get('/', async (req, res) => {

@@ -5,6 +5,8 @@ const { verifyToken } = require('../middleware/auth');
 const { getOekForUser, decryptContact, decryptMessage } = require('../services/oekService');
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('chat-logs'));
 
 // GET /api/chat-logs — fetch log categories
 router.get('/', async (req, res) => {

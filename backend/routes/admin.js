@@ -6,6 +6,8 @@ const multer = require('multer');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
+const Feature = require('../models/Feature');
+const AdminFeaturePermission = require('../models/AdminFeaturePermission');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const queueService = require('../services/queueService');
 
@@ -668,6 +670,211 @@ router.get('/logs', async (req, res) => {
     res.json({ success: true, data: lastLines });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to read logs', details: error.message });
+  }
+});
+
+// ==================== FEATURE PERMISSION MANAGEMENT ====================
+
+/**
+ * GET /api/admin/features
+ * List all system features grouped by section.
+ */
+router.get('/features', async (req, res) => {
+  try {
+    const features = await Feature.find({ is_active: true }).sort({ sort_order: 1 }).lean();
+    res.json({ success: true, data: { features } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch features', details: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/admins
+ * List all tenant admin accounts (role = 'admin') for permission assignment.
+ */
+router.get('/admins', async (req, res) => {
+  try {
+    const admins = await User.find({ role: 'admin', isDeleted: { $ne: true } })
+      .select('name email avatar role isSuspended createdAt lastLogin')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ success: true, data: { admins } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch admins', details: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/permissions/:adminId
+ * Get all feature permissions for a specific admin.
+ */
+router.get('/permissions/:adminId', async (req, res) => {
+  try {
+    const { adminId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(adminId)) {
+      return res.status(400).json({ success: false, error: 'Invalid admin ID' });
+    }
+
+    const features = await Feature.find({ is_active: true }).sort({ sort_order: 1 }).lean();
+    const permissions = await AdminFeaturePermission.find({ admin_id: adminId }).lean();
+
+    // Build a lookup map
+    const permMap = {};
+    permissions.forEach(p => {
+      permMap[p.feature_id.toString()] = p.can_view;
+    });
+
+    // Merge: default to true (enabled) if no explicit permission record exists
+    const result = features.map(f => ({
+      _id: f._id,
+      name: f.name,
+      slug: f.slug,
+      section: f.section,
+      icon: f.icon,
+      route: f.route,
+      sort_order: f.sort_order,
+      can_view: permMap[f._id.toString()] !== undefined ? permMap[f._id.toString()] : true,
+    }));
+
+    res.json({ success: true, data: { permissions: result } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch permissions', details: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/permissions/:adminId
+ * Update feature permissions for a specific admin.
+ * Body: { permissions: [{ feature_id: '...', can_view: true/false }, ...] }
+ */
+router.post('/permissions/:adminId', async (req, res) => {
+  try {
+    const { adminId } = req.params;
+    const { permissions } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(adminId)) {
+      return res.status(400).json({ success: false, error: 'Invalid admin ID' });
+    }
+    if (!Array.isArray(permissions)) {
+      return res.status(400).json({ success: false, error: 'permissions must be an array' });
+    }
+
+    // Verify admin exists
+    const admin = await User.findOne({ _id: adminId, role: 'admin', isDeleted: { $ne: true } });
+    if (!admin) {
+      return res.status(404).json({ success: false, error: 'Admin not found' });
+    }
+
+    // Upsert each permission
+    const ops = permissions.map(p => ({
+      updateOne: {
+        filter: { admin_id: adminId, feature_id: p.feature_id },
+        update: { $set: { can_view: p.can_view } },
+        upsert: true,
+      }
+    }));
+
+    await AdminFeaturePermission.bulkWrite(ops);
+
+    await AuditLog.log({
+      userId: req.user._id,
+      action: 'UPDATE_FEATURE_PERMISSIONS',
+      resource: 'AdminFeaturePermission',
+      resourceId: adminId,
+      details: `Updated ${permissions.length} feature permissions`,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true, message: `Updated ${permissions.length} permissions for admin` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update permissions', details: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/permissions/copy
+ * Copy permissions from one admin to another.
+ * Body: { sourceAdminId: '...', targetAdminId: '...' }
+ */
+router.post('/permissions/copy', async (req, res) => {
+  try {
+    const { sourceAdminId, targetAdminId } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(sourceAdminId) || !mongoose.Types.ObjectId.isValid(targetAdminId)) {
+      return res.status(400).json({ success: false, error: 'Invalid admin IDs' });
+    }
+
+    const sourcePerms = await AdminFeaturePermission.find({ admin_id: sourceAdminId }).lean();
+
+    if (sourcePerms.length === 0) {
+      return res.status(404).json({ success: false, error: 'No permissions found for source admin' });
+    }
+
+    // Delete existing target permissions and insert copies
+    await AdminFeaturePermission.deleteMany({ admin_id: targetAdminId });
+    const newPerms = sourcePerms.map(p => ({
+      admin_id: targetAdminId,
+      feature_id: p.feature_id,
+      can_view: p.can_view,
+    }));
+    await AdminFeaturePermission.insertMany(newPerms);
+
+    await AuditLog.log({
+      userId: req.user._id,
+      action: 'COPY_FEATURE_PERMISSIONS',
+      resource: 'AdminFeaturePermission',
+      details: `Copied permissions from ${sourceAdminId} to ${targetAdminId}`,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true, message: `Copied ${newPerms.length} permissions successfully` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to copy permissions', details: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/permissions/bulk
+ * Bulk enable/disable features for multiple admins.
+ * Body: { adminIds: ['...'], featureIds: ['...'], can_view: true/false }
+ */
+router.post('/permissions/bulk', async (req, res) => {
+  try {
+    const { adminIds, featureIds, can_view } = req.body;
+
+    if (!Array.isArray(adminIds) || !Array.isArray(featureIds) || typeof can_view !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'adminIds, featureIds (arrays) and can_view (boolean) are required' });
+    }
+
+    const ops = [];
+    for (const adminId of adminIds) {
+      for (const featureId of featureIds) {
+        ops.push({
+          updateOne: {
+            filter: { admin_id: adminId, feature_id: featureId },
+            update: { $set: { can_view } },
+            upsert: true,
+          }
+        });
+      }
+    }
+
+    await AdminFeaturePermission.bulkWrite(ops);
+
+    await AuditLog.log({
+      userId: req.user._id,
+      action: 'BULK_UPDATE_FEATURE_PERMISSIONS',
+      resource: 'AdminFeaturePermission',
+      details: `Bulk updated ${ops.length} permissions (can_view: ${can_view})`,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true, message: `Bulk updated ${ops.length} permissions` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to bulk update permissions', details: error.message });
   }
 });
 

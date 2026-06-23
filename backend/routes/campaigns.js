@@ -9,6 +9,8 @@ const multer = require('multer');
 const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('campaigns'));
 
 // GET /campaigns
 router.get('/', async (req, res) => {

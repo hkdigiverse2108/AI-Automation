@@ -90,6 +90,8 @@ async function preprocessComponents(components, headerMediaId, token) {
 }
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('templates'));
 
 // GET /templates — list all
 router.get('/', async (req, res) => {

@@ -33,6 +33,8 @@ const screenshotUpload = multer({
 });
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('subscription'));
 
 // ============================================================
 //  ADMIN (ORGANIZATION) ROUTES

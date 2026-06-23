@@ -4,6 +4,7 @@ import { useAuthStore, useConfirmStore } from '../../../lib/store';
 import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 import { formatDateOnly } from '../../../lib/utils';
+import FeaturePermissionsTab from '../../../components/FeaturePermissionsTab';
 import {
   Shield, Activity, Database, Cpu, Layers, UserX, UserCheck,
   RefreshCw, Play, Pause, Trash2, Search, Users, CheckCircle2,
@@ -517,6 +518,17 @@ export default function AdminPanel() {
         >
           <CreditCard className="w-4 h-4" />
           <span>Subscriptions{pendingPayments.length > 0 ? ` (${pendingPayments.length})` : ''}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('permissions')}
+          className={`px-5 py-3 font-semibold text-sm transition-colors border-b-2 -mb-[2px] flex items-center gap-2 ${
+            activeTab === 'permissions'
+              ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+              : 'border-transparent text-dark-500 hover:text-dark-800 dark:hover:text-dark-200'
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          <span>Feature Permissions</span>
         </button>
       </div>
 
@@ -1080,6 +1092,11 @@ export default function AdminPanel() {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* 5. FEATURE PERMISSIONS TAB */}
+            {activeTab === 'permissions' && (
+              <FeaturePermissionsTab />
             )}
           </>
         )}

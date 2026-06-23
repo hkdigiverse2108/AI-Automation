@@ -3,6 +3,7 @@ import api from './api';
 
 export const useAuthStore = create((set) => ({
   user: null,
+  permissions: null, // Array of enabled feature slugs (null = all access for superadmin)
   isAuthenticated: false,
   loading: true,
 
@@ -11,7 +12,7 @@ export const useAuthStore = create((set) => ({
     if (data.success && !data.data.requires2FA) {
       localStorage.setItem('accessToken', data.data.accessToken);
       localStorage.setItem('refreshToken', data.data.refreshToken);
-      set({ user: data.data.user, isAuthenticated: true });
+      set({ user: data.data.user, permissions: data.data.permissions || null, isAuthenticated: true });
     }
     return data;
   },
@@ -21,7 +22,7 @@ export const useAuthStore = create((set) => ({
     if (data.success) {
       localStorage.setItem('accessToken', data.data.accessToken);
       localStorage.setItem('refreshToken', data.data.refreshToken);
-      set({ user: data.data.user, isAuthenticated: true });
+      set({ user: data.data.user, permissions: data.data.permissions || null, isAuthenticated: true });
     }
     return data;
   },
@@ -43,7 +44,7 @@ export const useAuthStore = create((set) => ({
     } catch {}
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-    set({ user: null, isAuthenticated: false });
+    set({ user: null, permissions: null, isAuthenticated: false });
   },
 
   checkAuth: async () => {
@@ -51,7 +52,7 @@ export const useAuthStore = create((set) => ({
       const token = localStorage.getItem('accessToken');
       if (!token) { set({ loading: false }); return; }
       const { data } = await api.get('/auth/me');
-      if (data.success) set({ user: data.data.user, isAuthenticated: true, loading: false });
+      if (data.success) set({ user: data.data.user, permissions: data.data.permissions || null, isAuthenticated: true, loading: false });
       else set({ loading: false });
     } catch {
       set({ loading: false });

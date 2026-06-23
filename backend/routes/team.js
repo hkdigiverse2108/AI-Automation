@@ -5,6 +5,8 @@ const { verifyToken, requireRole } = require('../middleware/auth');
 const { validateObjectId } = require('../middleware/validator');
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('team'));
 
 // GET /api/team/monitoring-stats — get admin monitoring details (accessible by all verified team members, including agents)
 router.get('/monitoring-stats', async (req, res) => {

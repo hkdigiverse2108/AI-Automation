@@ -6,9 +6,10 @@ const Message = require('../models/Message');
 const Contact = require('../models/Contact');
 const Conversation = require('../models/Conversation');
 const Campaign = require('../models/Campaign');
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
 
 // GET /api/analytics/overview — Aggregated dashboard metrics
-router.get('/overview', verifyToken, async (req, res) => {
+router.get('/overview', verifyToken, checkFeatureAccess('analytics'), async (req, res) => {
   try {
     const userId = req.userId;
     const now = new Date();
@@ -62,7 +63,7 @@ router.get('/overview', verifyToken, async (req, res) => {
 });
 
 // GET /api/analytics/message-trends — Time-series message data
-router.get('/message-trends', verifyToken, async (req, res) => {
+router.get('/message-trends', verifyToken, checkFeatureAccess('analytics'), async (req, res) => {
   try {
     const userId = req.userId;
     const days = parseInt(req.query.days) || 30;
@@ -108,7 +109,7 @@ router.get('/message-trends', verifyToken, async (req, res) => {
 });
 
 // GET /api/analytics/contact-growth — Contact acquisition over time
-router.get('/contact-growth', verifyToken, async (req, res) => {
+router.get('/contact-growth', verifyToken, checkFeatureAccess('analytics'), async (req, res) => {
   try {
     const userId = req.userId;
     const days = parseInt(req.query.days) || 30;
@@ -147,7 +148,7 @@ router.get('/contact-growth', verifyToken, async (req, res) => {
 });
 
 // GET /api/analytics/campaign-performance — Campaign metrics breakdown
-router.get('/campaign-performance', verifyToken, async (req, res) => {
+router.get('/campaign-performance', verifyToken, checkFeatureAccess('analytics'), async (req, res) => {
   try {
     const userId = req.userId;
 
@@ -182,7 +183,7 @@ router.get('/campaign-performance', verifyToken, async (req, res) => {
 });
 
 // GET /api/analytics/hourly-activity — Active hours heatmap data
-router.get('/hourly-activity', verifyToken, async (req, res) => {
+router.get('/hourly-activity', verifyToken, checkFeatureAccess('analytics'), async (req, res) => {
   try {
     const userId = req.userId;
     const days = parseInt(req.query.days) || 30;
@@ -224,7 +225,7 @@ router.get('/hourly-activity', verifyToken, async (req, res) => {
 });
 
 // GET /api/analytics/conversation-stats — Bot vs Human ratio & status breakdown
-router.get('/conversation-stats', verifyToken, async (req, res) => {
+router.get('/conversation-stats', verifyToken, checkFeatureAccess('analytics'), async (req, res) => {
   try {
     const userId = req.userId;
 

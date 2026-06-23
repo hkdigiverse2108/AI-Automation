@@ -12,6 +12,8 @@ const { validateObjectId } = require('../middleware/validator');
 const { createNotification } = require('../services/notificationService');
 
 router.use(verifyToken);
+const checkFeatureAccess = require('../middleware/checkFeatureAccess');
+router.use(checkFeatureAccess('catalog'));
 
 // Helper to determine if user has Admin or Manager privileges
 function getUserPrivilege(user) {

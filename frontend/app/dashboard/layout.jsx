@@ -6,6 +6,7 @@ import Sidebar from '../../components/Sidebar';
 import NotificationCenter from '../../components/NotificationCenter';
 import ConfirmModal from '../../components/ConfirmModal';
 import SubscriptionExpiredGate from '../../components/SubscriptionExpiredGate';
+import RouteGuard from '../../components/RouteGuard';
 import api from '../../lib/api';
 import { Menu, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -164,11 +165,11 @@ export default function DashboardLayout({ children }) {
         {/* Main Content Area */}
         {pathname === '/dashboard/inbox' || pathname.startsWith('/dashboard/inbox/') ? (
           <main className="flex-1 overflow-hidden focus:outline-none">
-            {children}
+            <RouteGuard>{children}</RouteGuard>
           </main>
         ) : (
           <main className="flex-1 overflow-y-auto focus:outline-none">
-            <div className="p-4 sm:p-6 lg:p-8">{children}</div>
+            <div className="p-4 sm:p-6 lg:p-8"><RouteGuard>{children}</RouteGuard></div>
           </main>
         )}
         <ConfirmModal />

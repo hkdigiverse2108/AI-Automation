@@ -11,6 +11,25 @@ const { generateTokens, verifyToken, refreshAccessToken } = require('../middlewa
 const { registerValidation, loginValidation } = require('../middleware/validator');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { encryptField } = require('../services/encryption');
+const Feature = require('../models/Feature');
+const AdminFeaturePermission = require('../models/AdminFeaturePermission');
+
+// Helper: Get enabled feature slugs for a user
+async function getFeaturePermissions(userId, role) {
+  // Superadmins get all features
+  if (role === 'superadmin') return null; // null = no filtering (all access)
+  
+  const features = await Feature.find({ is_active: true }).lean();
+  const permissions = await AdminFeaturePermission.find({ admin_id: userId }).lean();
+  
+  const permMap = {};
+  permissions.forEach(p => { permMap[p.feature_id.toString()] = p.can_view; });
+  
+  // Default: feature enabled unless explicitly disabled
+  return features
+    .filter(f => permMap[f._id.toString()] !== false)
+    .map(f => f.slug);
+}
 
 // Common passwords check (top 100 for brevity)
 const COMMON_PASSWORDS = new Set([
@@ -76,9 +95,11 @@ router.post('/login', authLimiter, loginValidation, async (req, res) => {
 
     await AuditLog.log({ userId: user._id, action: 'LOGIN', resource: 'User', ip: req.ip, userAgent: req.headers['user-agent'] });
 
+    const permissions = await getFeaturePermissions(user._id, user.role);
+
     res.json({
       success: true,
-      data: { user: user.toSafeObject(), ...tokens },
+      data: { user: user.toSafeObject(), ...tokens, permissions },
       message: 'Login successful',
     });
   } catch (error) {
@@ -118,9 +139,11 @@ router.post('/verify-2fa', authLimiter, async (req, res) => {
 
     const tokens = await generateTokens(user, req);
 
+    const permissions = await getFeaturePermissions(user._id, user.role);
+
     res.json({
       success: true,
-      data: { user: user.toSafeObject(), ...tokens },
+      data: { user: user.toSafeObject(), ...tokens, permissions },
       message: '2FA verified, login successful',
     });
   } catch (error) {
@@ -321,7 +344,8 @@ router.post('/whatsapp', verifyToken, async (req, res) => {
 
 // GET /auth/me
 router.get('/me', verifyToken, async (req, res) => {
-  res.json({ success: true, data: { user: req.user.toSafeObject() } });
+  const permissions = await getFeaturePermissions(req.user._id, req.user.role);
+  res.json({ success: true, data: { user: req.user.toSafeObject(), permissions } });
 });
 
 // PUT /auth/profile - Update name and avatar
