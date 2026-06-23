@@ -314,6 +314,7 @@ router.get('/organizations', async (req, res) => {
 
         return {
           ...org,
+          adminId: adminUser ? adminUser._id : null,
           adminName: adminUser ? adminUser.name : 'N/A',
           adminEmail: adminUser ? adminUser.email : 'N/A',
           adminPhone: adminUser ? (adminUser.mobileNumber || '') : '',

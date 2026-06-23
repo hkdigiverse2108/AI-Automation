@@ -340,7 +340,15 @@ export default function AdminPanel() {
   };
 
   const openResetPasswordModal = (org) => {
-    // Find the Admin user _id for resetting
+    // 1. Prioritize direct adminId matching if present
+    if (org.adminId && org.adminId !== 'None' && org.adminEmail && org.adminEmail !== 'N/A') {
+      setResetUserId(org.adminId);
+      setResetEmail(org.adminEmail);
+      setIsPasswordModalOpen(true);
+      return;
+    }
+
+    // Fallback: Find the Admin user _id for resetting by querying user list
     api.get('/admin/users').then(({ data }) => {
       const users = data.data || [];
       
