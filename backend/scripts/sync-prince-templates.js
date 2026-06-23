@@ -61,7 +61,14 @@ async function run() {
       synced++;
     }
 
-    console.log(`\nSuccessfully synced ${synced} templates in the local database!`);
+    const metaIds = metaTemplates.map(mt => mt.id);
+    const deleteResult = await Template.deleteMany({
+      userId: user._id,
+      isCustom: { $ne: true },
+      metaTemplateId: { $exists: true, $nin: metaIds }
+    });
+
+    console.log(`\nSuccessfully synced ${synced} templates in the local database! Deleted ${deleteResult.deletedCount} stale templates.`);
     await disconnectDB();
   } catch (err) {
     console.error('Error during execution:', err.message);

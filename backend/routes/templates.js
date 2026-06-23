@@ -135,7 +135,18 @@ router.post('/sync', async (req, res) => {
       synced++;
     }
 
-    res.json({ success: true, data: { synced }, message: `${synced} templates synced` });
+    const metaIds = metaTemplates.map(mt => mt.id);
+    const deleteResult = await Template.deleteMany({
+      userId: req.userId,
+      isCustom: { $ne: true },
+      metaTemplateId: { $exists: true, $nin: metaIds }
+    });
+
+    res.json({
+      success: true,
+      data: { synced, deletedCount: deleteResult.deletedCount },
+      message: `${synced} templates synced, ${deleteResult.deletedCount} stale templates removed`
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Sync failed', code: 'SYNC_ERROR' });
   }
