@@ -640,4 +640,35 @@ router.post('/users/:id/reset-password', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/admin/logs
+ * Retrieve the last 200 lines of error.log or PM2 api-err.log.
+ */
+router.get('/logs', async (req, res) => {
+  try {
+    const type = req.query.type || 'error'; // error, pm2-error, pm2-out
+    let filePath = '';
+    if (type === 'pm2-error') {
+      filePath = path.join(__dirname, '../../logs/api-err.log');
+    } else if (type === 'pm2-out') {
+      filePath = path.join(__dirname, '../../logs/api-out.log');
+    } else {
+      filePath = path.join(__dirname, '../error.log');
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.json({ success: true, data: `Log file not found at: ${filePath}` });
+    }
+
+    // Read last 200 lines
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split('\n');
+    const lastLines = lines.slice(-200).join('\n');
+
+    res.json({ success: true, data: lastLines });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to read logs', details: error.message });
+  }
+});
+
 module.exports = router;
