@@ -631,6 +631,22 @@ async function getResumableUploadHandleFromMediaId(mediaId, token) {
   }
 }
 
+async function sendUnofficialMessage(phoneNumberId, token, to, text, mediaId = null) {
+  // Option A (High-Fidelity Simulation): Bypasses Meta API and returns success: true.
+  // This can be modified to call any custom unofficial gateway URL if provided.
+  logger.info(`[UNOFFICIAL MESSAGING] Sending message to ${to}: ${text} (Media: ${mediaId})`);
+  
+  // High fidelity simulation latency (e.g. 50ms)
+  await new Promise(r => setTimeout(r, 50));
+  
+  return {
+    success: true,
+    data: {
+      messages: [{ id: "msg_unofficial_" + Math.floor(Math.random() * 1000000000) }]
+    }
+  };
+}
+
 module.exports = {
   sendTextMessage,
   sendImageMessage,
@@ -649,4 +665,5 @@ module.exports = {
   createTemplate,
   sendContactMessage,
   getResumableUploadHandleFromMediaId,
+  sendUnofficialMessage,
 };

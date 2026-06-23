@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { X, Play, Calendar, Users, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import api from '../lib/api';
 
-export default function CampaignForm({ campaign, onClose, onSuccess }) {
+export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficial }) {
   const [templates, setTemplates] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -135,6 +135,7 @@ export default function CampaignForm({ campaign, onClose, onSuccess }) {
         },
         variables,
         headerMediaId,
+        isUnofficial: isUnofficial !== undefined ? isUnofficial : (campaign ? campaign.isUnofficial : false),
         scheduledAt: isScheduled ? new Date(scheduledAt).toISOString() : undefined
       };
 

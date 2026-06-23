@@ -6,6 +6,7 @@ const campaignSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     templateId: { type: String },
     templateName: { type: String },
+    isUnofficial: { type: Boolean, default: false },
     audience: {
       type: { type: String, enum: ['all', 'tag', 'segment', 'upload', 'group'], default: 'all' },
       tags: [String],

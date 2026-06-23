@@ -31,6 +31,7 @@ const navSections = [
     title: 'Marketing',
     items: [
       { href: '/dashboard/campaigns', label: 'Campaigns', icon: Megaphone },
+      { href: '/dashboard/unofficial-campaigns', label: 'Unofficial Campaigns', icon: Zap },
       { href: '/dashboard/templates', label: 'Templates', icon: FileText },
     ]
   },
@@ -91,6 +92,7 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle },
             { href: '/dashboard/catalog', label: 'Catalog', icon: ShoppingBag },
             { href: '/dashboard/inbox', label: 'Conversations', icon: MessageSquare, badge: true },
+            { href: '/dashboard/unofficial-campaigns', label: 'Unofficial Campaigns', icon: Zap },
             { href: '/dashboard/contacts/groups', label: 'Groups', icon: FolderOpen },
             { href: '/dashboard/follow-ups', label: 'Follow-Ups', icon: Calendar },
             { href: '/dashboard/tasks', label: 'Tasks', icon: ClipboardList },

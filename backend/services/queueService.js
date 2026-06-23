@@ -19,37 +19,43 @@ const campaignQueues = new Map();
 let scheduleQueue = null;
 let ioInstance = null;
 
-function getCampaignQueue(userId) {
-  const queueName = `campaign-messages-${userId}`;
-  if (campaignQueues.has(queueName)) {
-    return campaignQueues.get(queueName);
-  }
+async function processCampaignJob(job, isUnofficial) {
+  const { campaignId, contactId, userId: jobUserId, templateName, variables, phoneNumberId, accessToken, headerMediaId } = job.data;
 
-  const queue = new Queue(queueName, env.REDIS_URL, {
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 2000 },
-      removeOnComplete: 100,
-      removeOnFail: 50,
-    },
-    limiter: {
-      max: parseInt(process.env.TENANT_CAMPAIGN_LIMIT_MAX, 10) || 10,
-      duration: 1000,
-    },
-  });
+  try {
+    const contact = await Contact.findOne({ _id: contactId, userId: jobUserId, optedOut: { $ne: true }, isDeleted: { $ne: true } });
+    if (!contact) {
+      await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.failed': 1 } });
+      return { skipped: true, reason: 'Contact not found or opted out' };
+    }
 
-  // Process campaign messages
-  queue.process(async (job) => {
-    const { campaignId, contactId, userId: jobUserId, templateName, variables, phoneNumberId, accessToken, headerMediaId } = job.data;
+    const token = decryptField(accessToken);
+    let result;
 
-    try {
-      const contact = await Contact.findOne({ _id: contactId, userId: jobUserId, optedOut: { $ne: true }, isDeleted: { $ne: true } });
-      if (!contact) {
-        await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.failed': 1 } });
-        return { skipped: true, reason: 'Contact not found or opted out' };
+    if (isUnofficial) {
+      // Resolve template text for visual chat bubbles
+      let templateText = '';
+      try {
+        const Template = require('../models/Template');
+        const tmpl = await Template.findOne({ userId: jobUserId, name: templateName });
+        if (tmpl) {
+          const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+          if (bodyComp && bodyComp.text) {
+            templateText = bodyComp.text;
+            if (variables && variables.length > 0) {
+              templateText = templateText.replace(/\{\{([0-9]+)\}\}/g, (_, num) => {
+                const idx = parseInt(num, 10) - 1;
+                return variables[idx] !== undefined ? variables[idx] : `{{${num}}}`;
+              });
+            }
+          }
+        }
+      } catch (err) {
+        logger.error(`Error looking up template for log text: ${err.message}`);
       }
 
-      const token = decryptField(accessToken);
+      result = await whatsapp.sendUnofficialMessage(phoneNumberId, token, contact.phone, templateText || `[Template: ${templateName}]`, headerMediaId);
+    } else {
       const templateComponents = [];
 
       if (headerMediaId) {
@@ -78,117 +84,118 @@ function getCampaignQueue(userId) {
       const tmpl = await Template.findOne({ name: templateName, userId: jobUserId });
       const languageCode = tmpl ? (tmpl.language || 'en') : 'en';
 
-      const result = await whatsapp.sendTemplateMessage(phoneNumberId, token, contact.phone, templateName, languageCode, templateComponents);
+      result = await whatsapp.sendTemplateMessage(phoneNumberId, token, contact.phone, templateName, languageCode, templateComponents);
+    }
 
-      if (result.success) {
-        await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.sent': 1 } });
+    if (result.success) {
+      await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.sent': 1 } });
 
-        // Resolve template text for visual chat bubbles
-        let templateText = '';
-        try {
-          const Template = require('../models/Template');
-          const tmpl = await Template.findOne({ userId: jobUserId, name: templateName });
-          if (tmpl) {
-            const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
-            if (bodyComp && bodyComp.text) {
-              templateText = bodyComp.text;
-              if (variables && variables.length > 0) {
-                templateText = templateText.replace(/\{\{([0-9]+)\}\}/g, (_, num) => {
-                  const idx = parseInt(num, 10) - 1;
-                  return variables[idx] !== undefined ? variables[idx] : `{{${num}}}`;
-                });
-              }
-            }
-          }
-        } catch (err) {
-          logger.error(`Error looking up template for log text: ${err.message}`);
-        }
-
-        // Save outbound message
-        let conversation = await Conversation.findOne({ userId: jobUserId, contactId: contact._id });
-        const isNewConversation = !conversation;
-        if (!conversation) {
-          conversation = await Conversation.create({ userId: jobUserId, contactId: contact._id, status: 'bot', source: 'campaign', campaignId });
-        }
-
-        const message = await Message.create({
-          userId: jobUserId,
-          conversationId: conversation._id,
-          contactId: contact._id,
-          direction: 'outbound',
-          type: 'template',
-          content: {
-            text: templateText || `[Template: ${templateName}]`,
-            template: { name: templateName, variables }
-          },
-          status: 'sent',
-          metaMessageId: result.data?.messages?.[0]?.id,
-          sentBy: 'system',
-          campaignId,
-        });
-
-        conversation.lastMessageAt = new Date();
-        await conversation.save();
-
-        // Emit new message socket event to frontend
-        if (ioInstance) {
-          const { getOekForUser, decryptMessage } = require('./oekService');
-          const rawOek = await getOekForUser(jobUserId);
-          const decryptedMsg = decryptMessage(message, rawOek);
-          ioInstance.to(`user_${jobUserId}`).emit('new_message', {
-            message: decryptedMsg,
-            contact: contact.toObject(),
-            conversationId: conversation._id,
-            isNewConversation,
-          });
-        }
-      } else {
-        await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.failed': 1 } });
-
-        const isRateLimit = result.status === 429 || result.code === 429 || result.code === 130429 || result.error_subcode === 130429;
-        if (isRateLimit) {
-          try {
-            const User = require('../models/User');
-            const user = await User.findById(jobUserId).lean();
-            if (user && user.organizationId) {
-              const { createNotification } = require('./notificationService');
-              await createNotification({
-                userId: jobUserId,
-                organizationId: user.organizationId,
-                type: 'campaign',
-                title: 'Rate Limit Reached ⚠️',
-                message: `Meta API rate limit reached during campaign. Error: ${result.error || 'Too Many Requests'}.`,
-                link: '/dashboard/campaigns',
-                metadata: { campaignId, errorCode: result.code }
+      // Resolve template text for visual chat bubbles
+      let templateText = '';
+      try {
+        const Template = require('../models/Template');
+        const tmpl = await Template.findOne({ userId: jobUserId, name: templateName });
+        if (tmpl) {
+          const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+          if (bodyComp && bodyComp.text) {
+            templateText = bodyComp.text;
+            if (variables && variables.length > 0) {
+              templateText = templateText.replace(/\{\{([0-9]+)\}\}/g, (_, num) => {
+                const idx = parseInt(num, 10) - 1;
+                return variables[idx] !== undefined ? variables[idx] : `{{${num}}}`;
               });
             }
-          } catch (err) {
-            logger.error('Failed to trigger rate limit notification:', err.message);
           }
         }
+      } catch (err) {
+        logger.error(`Error looking up template for log text: ${err.message}`);
       }
 
-      // Emit progress
+      // Save outbound message
+      let conversation = await Conversation.findOne({ userId: jobUserId, contactId: contact._id });
+      const isNewConversation = !conversation;
+      if (!conversation) {
+        conversation = await Conversation.create({ userId: jobUserId, contactId: contact._id, status: 'bot', source: 'campaign', campaignId });
+      }
+
+      const message = await Message.create({
+        userId: jobUserId,
+        conversationId: conversation._id,
+        contactId: contact._id,
+        direction: 'outbound',
+        type: 'template',
+        content: {
+          text: templateText || `[Template: ${templateName}]`,
+          template: { name: templateName, variables }
+        },
+        status: 'sent',
+        metaMessageId: result.data?.messages?.[0]?.id,
+        sentBy: 'system',
+        campaignId,
+      });
+
+      conversation.lastMessageAt = new Date();
+      await conversation.save();
+
+      // Emit new message socket event to frontend
       if (ioInstance) {
-        const campaign = await Campaign.findById(campaignId).lean();
-        if (campaign) {
-          ioInstance.to(`user_${jobUserId}`).emit('campaign_progress', {
-            campaignId,
-            stats: campaign.stats,
-            totalCount: campaign.audience?.totalCount || 0,
-          });
+        const { getOekForUser, decryptMessage } = require('./oekService');
+        const rawOek = await getOekForUser(jobUserId);
+        const decryptedMsg = decryptMessage(message, rawOek);
+        ioInstance.to(`user_${jobUserId}`).emit('new_message', {
+          message: decryptedMsg,
+          contact: contact.toObject(),
+          conversationId: conversation._id,
+          isNewConversation,
+        });
+      }
+    } else {
+      await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.failed': 1 } });
+
+      const isRateLimit = result.status === 429 || result.code === 429 || result.code === 130429 || result.error_subcode === 130429;
+      if (isRateLimit) {
+        try {
+          const User = require('../models/User');
+          const user = await User.findById(jobUserId).lean();
+          if (user && user.organizationId) {
+            const { createNotification } = require('./notificationService');
+            await createNotification({
+              userId: jobUserId,
+              organizationId: user.organizationId,
+              type: 'campaign',
+              title: 'Rate Limit Reached ⚠️',
+              message: `Meta API rate limit reached during campaign. Error: ${result.error || 'Too Many Requests'}.`,
+              link: '/dashboard/campaigns',
+              metadata: { campaignId, errorCode: result.code }
+            });
+          }
+        } catch (err) {
+          logger.error('Failed to trigger rate limit notification:', err.message);
         }
       }
-
-      return { success: result.success };
-    } catch (error) {
-      logger.error(`Campaign job error: ${error.message}`, { campaignId, contactId });
-      await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.failed': 1 } });
-      throw error;
     }
-  });
 
-  // On campaign queue completion
+    // Emit progress
+    if (ioInstance) {
+      const campaign = await Campaign.findById(campaignId).lean();
+      if (campaign) {
+        ioInstance.to(`user_${jobUserId}`).emit('campaign_progress', {
+          campaignId,
+          stats: campaign.stats,
+          totalCount: campaign.audience?.totalCount || 0,
+        });
+      }
+    }
+
+    return { success: result.success };
+  } catch (error) {
+    logger.error(`Campaign job error: ${error.message}`, { campaignId, contactId });
+    await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.failed': 1 } });
+    throw error;
+  }
+}
+
+function registerQueueListeners(queue) {
   queue.on('completed', async (job) => {
     try {
       const { campaignId } = job.data;
@@ -211,6 +218,7 @@ function getCampaignQueue(userId) {
           const user = await User.findById(campaignObj.userId).lean();
           if (user && user.organizationId) {
             const { createNotification } = require('./notificationService');
+            const targetLink = campaignObj.isUnofficial ? '/dashboard/unofficial-campaigns' : '/dashboard/campaigns';
             if (isFailedCampaign) {
               await createNotification({
                 userId: campaignObj.userId,
@@ -218,7 +226,7 @@ function getCampaignQueue(userId) {
                 type: 'campaign',
                 title: 'Campaign Failed ❌',
                 message: `Your campaign "${campaignObj.name}" failed completely. All messages failed to send.`,
-                link: '/dashboard/campaigns',
+                link: targetLink,
                 metadata: { campaignId }
               });
             } else {
@@ -228,7 +236,7 @@ function getCampaignQueue(userId) {
                 type: 'campaign',
                 title: 'Campaign Completed 🎉',
                 message: `Your campaign "${campaignObj.name}" has completed sending messages.`,
-                link: '/dashboard/campaigns',
+                link: targetLink,
                 metadata: { campaignId }
               });
             }
@@ -243,6 +251,55 @@ function getCampaignQueue(userId) {
   queue.on('failed', (job, err) => {
     logger.error(`Campaign job failed: ${err.message}`, { jobId: job.id });
   });
+}
+
+function getCampaignQueue(userId) {
+  const queueName = `campaign-messages-${userId}`;
+  if (campaignQueues.has(queueName)) {
+    return campaignQueues.get(queueName);
+  }
+
+  const queue = new Queue(queueName, env.REDIS_URL, {
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 },
+      removeOnComplete: 100,
+      removeOnFail: 50,
+    },
+    limiter: {
+      max: parseInt(process.env.TENANT_CAMPAIGN_LIMIT_MAX, 10) || 10,
+      duration: 1000,
+    },
+  });
+
+  queue.process((job) => processCampaignJob(job, false));
+  registerQueueListeners(queue);
+
+  campaignQueues.set(queueName, queue);
+  return queue;
+}
+
+function getUnofficialCampaignQueue(userId) {
+  const queueName = `unofficial-campaign-messages-${userId}`;
+  if (campaignQueues.has(queueName)) {
+    return campaignQueues.get(queueName);
+  }
+
+  const queue = new Queue(queueName, env.REDIS_URL, {
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 },
+      removeOnComplete: 100,
+      removeOnFail: 50,
+    },
+    limiter: {
+      max: 5, // Strict limit: 5 messages per second
+      duration: 1000,
+    },
+  });
+
+  queue.process((job) => processCampaignJob(job, true));
+  registerQueueListeners(queue);
 
   campaignQueues.set(queueName, queue);
   return queue;
@@ -258,13 +315,16 @@ async function initQueues(io) {
 
     // Startup check: Find and initialize queues for any currently running campaigns
     try {
-      const activeCampaigns = await Campaign.find({ status: 'running' }).select('userId').lean();
-      const activeUserIds = [...new Set(activeCampaigns.map(c => c.userId.toString()))];
-      for (const uId of activeUserIds) {
-        getCampaignQueue(uId);
+      const activeCampaigns = await Campaign.find({ status: 'running' }).select('userId isUnofficial').lean();
+      for (const camp of activeCampaigns) {
+        if (camp.isUnofficial) {
+          getUnofficialCampaignQueue(camp.userId.toString());
+        } else {
+          getCampaignQueue(camp.userId.toString());
+        }
       }
-      if (activeUserIds.length > 0) {
-        logger.info(`Initialized campaign queues for active user IDs on startup: ${activeUserIds.join(', ')}`);
+      if (activeCampaigns.length > 0) {
+        logger.info(`Initialized campaign queues for active campaigns on startup: ${activeCampaigns.length}`);
       }
     } catch (err) {
       logger.error('Error initializing active campaign queues on startup:', err.message);
@@ -344,7 +404,9 @@ async function startCampaign(campaignId, userId) {
   }));
 
   if (jobs.length > 0) {
-    const queue = getCampaignQueue(userId);
+    const queue = campaign.isUnofficial
+      ? getUnofficialCampaignQueue(userId)
+      : getCampaignQueue(userId);
     await queue.addBulk(jobs);
   }
 
@@ -362,7 +424,7 @@ async function startCampaign(campaignId, userId) {
         type: 'campaign',
         title: 'Campaign Started 🚀',
         message: `Your campaign "${campaign.name}" has started sending messages to ${contacts.length} contact(s).`,
-        link: '/dashboard/campaigns',
+        link: campaign.isUnofficial ? '/dashboard/unofficial-campaigns' : '/dashboard/campaigns',
         metadata: { campaignId: campaign._id }
       });
     }
@@ -374,18 +436,22 @@ async function startCampaign(campaignId, userId) {
 }
 
 async function pauseCampaign(campaignId) {
-  const campaign = await Campaign.findById(campaignId).select('userId').lean();
+  const campaign = await Campaign.findById(campaignId).select('userId isUnofficial').lean();
   if (campaign) {
-    const queue = getCampaignQueue(campaign.userId.toString());
+    const queue = campaign.isUnofficial
+      ? getUnofficialCampaignQueue(campaign.userId.toString())
+      : getCampaignQueue(campaign.userId.toString());
     await queue.pause();
   }
   await Campaign.updateOne({ _id: campaignId }, { status: 'paused' });
 }
 
 async function resumeCampaign(campaignId) {
-  const campaign = await Campaign.findById(campaignId).select('userId').lean();
+  const campaign = await Campaign.findById(campaignId).select('userId isUnofficial').lean();
   if (campaign) {
-    const queue = getCampaignQueue(campaign.userId.toString());
+    const queue = campaign.isUnofficial
+      ? getUnofficialCampaignQueue(campaign.userId.toString())
+      : getCampaignQueue(campaign.userId.toString());
     await queue.resume();
   }
   await Campaign.updateOne({ _id: campaignId }, { status: 'running' });

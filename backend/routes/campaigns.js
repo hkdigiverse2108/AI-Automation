@@ -13,9 +13,15 @@ router.use(verifyToken);
 // GET /campaigns
 router.get('/', async (req, res) => {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, page = 1, limit = 20, isUnofficial } = req.query;
     const query = { userId: req.userId };
     if (status) query.status = status;
+    if (isUnofficial !== undefined) {
+      query.isUnofficial = isUnofficial === 'true';
+    } else {
+      // Default to official campaigns if not specified
+      query.isUnofficial = { $ne: true };
+    }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const [campaigns, total] = await Promise.all([
@@ -32,7 +38,7 @@ router.get('/', async (req, res) => {
 // POST /campaigns — create
 router.post('/', campaignValidation, async (req, res) => {
   try {
-    const { name, templateName, templateId, audience, variables, scheduledAt, headerMediaId } = req.body;
+    const { name, templateName, templateId, audience, variables, scheduledAt, headerMediaId, isUnofficial } = req.body;
 
     const campaign = await Campaign.create({
       userId: req.userId,
@@ -42,6 +48,7 @@ router.post('/', campaignValidation, async (req, res) => {
       audience: audience || { type: 'all' },
       variables: variables || [],
       headerMediaId,
+      isUnofficial: !!isUnofficial,
       status: scheduledAt ? 'scheduled' : 'draft',
       scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
     });
