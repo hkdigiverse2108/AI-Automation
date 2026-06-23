@@ -92,6 +92,19 @@ async function metaApiCall(method, url, data, token, retries = 0) {
     return { success: true, data: { id: "mock_id_" + Math.floor(Math.random() * 100000) } };
   }
 
+  let userId = null;
+  try {
+    const urlParts = url.split('/');
+    const entityId = urlParts[4];
+    if (entityId) {
+      const WhatsAppAccount = require('../models/WhatsAppAccount');
+      const waAccount = await WhatsAppAccount.findOne({
+        $or: [{ phoneNumberId: entityId }, { wabaId: entityId }]
+      });
+      if (waAccount) userId = waAccount.userId;
+    }
+  } catch (_) {}
+
   try {
     const config = {
       method,
@@ -109,6 +122,21 @@ async function metaApiCall(method, url, data, token, retries = 0) {
     logger.info(`[META GRAPH API RESPONSE] ${method.toUpperCase()} ${url} — OK`, {
       response: JSON.stringify(response.data, null, 2)
     });
+
+    try {
+      const ApiLog = require('../models/ApiLog');
+      await ApiLog.create({
+        userId,
+        type: 'api_call',
+        method,
+        url,
+        requestBody: data || {},
+        responseBody: response.data,
+        statusCode: response.status || 200,
+      });
+    } catch (logErr) {
+      logger.error('Failed to save ApiLog for success:', logErr.message);
+    }
 
     return { success: true, data: response.data };
   } catch (error) {
@@ -140,6 +168,22 @@ async function metaApiCall(method, url, data, token, retries = 0) {
       error_data: errData.error_data,
       response: error.response?.data ? JSON.stringify(error.response.data, null, 2) : 'No response data'
     });
+
+    try {
+      const ApiLog = require('../models/ApiLog');
+      await ApiLog.create({
+        userId,
+        type: 'api_call',
+        method,
+        url,
+        requestBody: data || {},
+        responseBody: errData,
+        statusCode: status || 500,
+        details: errData.message || error.message,
+      });
+    } catch (logErr) {
+      logger.error('Failed to save ApiLog for failure:', logErr.message);
+    }
 
     return {
       success: false,

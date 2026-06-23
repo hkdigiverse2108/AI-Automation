@@ -15,12 +15,44 @@ const { createNotification } = require('./notificationService');
 const { decryptField } = require('./encryption');
 const WhatsAppAccount = require('../models/WhatsAppAccount');
 const winston = require('winston');
+const Message = require('../models/Message');
 
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
   transports: [new winston.transports.Console()],
 });
+
+async function saveAndEmitOutboundMessage(userId, conversation, contact, text, msgType, extra = {}, result = {}, io = null) {
+  try {
+    const msg = await Message.create({
+      userId,
+      conversationId: conversation._id,
+      contactId: contact._id,
+      direction: 'outbound',
+      type: msgType,
+      content: { text, ...extra },
+      status: result.success ? 'sent' : 'failed',
+      metaMessageId: result.data?.messages?.[0]?.id,
+      sentBy: 'bot',
+      errorDetails: result.error || undefined,
+    });
+
+    if (io) {
+      const { getOekForUser, decryptMessage } = require('./oekService');
+      const rawOek = await getOekForUser(userId);
+      const decryptedMsg = decryptMessage(msg, rawOek);
+      io.to(`user_${userId}`).emit('new_message', {
+        message: decryptedMsg,
+        contact: contact.toObject(),
+        conversationId: conversation._id,
+      });
+    }
+    return msg;
+  } catch (err) {
+    logger.error('Error saving outbound message in commerceEngine:', err);
+  }
+}
 
 /**
  * Main entry point: intercept message and run commerce state machine
@@ -52,21 +84,23 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
         conversation.flowVariables.set('commerce_state', null);
         conversation.flowVariables.set('in_commerce', 'false');
         await conversation.save();
-        await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "You have exited the shop catalog. Type *Catalog* anytime to browse products again! 👋");
+        const text = "You have exited the shop catalog. Type *Catalog* anytime to browse products again! 👋";
+        const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+        await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
         return true;
       }
       // Render Category List
-      await renderCategories(userId, conversation, contact, phoneNumberId, token);
+      await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
       return true;
     }
 
     if (textLower === 'cart' || textLower === 'view cart') {
-      await renderCart(userId, conversation, contact, phoneNumberId, token);
+      await renderCart(userId, conversation, contact, phoneNumberId, token, io);
       return true;
     }
 
     if (textLower === 'clear cart' || textLower === 'empty cart') {
-      await clearCartItems(userId, conversation, contact, phoneNumberId, token);
+      await clearCartItems(userId, conversation, contact, phoneNumberId, token, io);
       return true;
     }
 
@@ -77,35 +111,39 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
         itemsCount = await CartItem.countDocuments({ cartId: cart._id });
       }
       if (itemsCount === 0) {
-        await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Your shopping cart is empty! Please add products before checking out. 🛒");
+        const text = "Your shopping cart is empty! Please add products before checking out. 🛒";
+        const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+        await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
         return true;
       }
       conversation.flowVariables.set('commerce_state', 'checkout_waiting_name');
       await conversation.save();
-      await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Let's complete your order! Please enter your *Full Name* for delivery: 👤");
+      const text = "Let's complete your order! Please enter your *Full Name* for delivery: 👤";
+      const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+      await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
       return true;
     }
 
     // State machine branch processing
     if (commerceState === 'browsing_categories') {
-      await handleCategorySelection(userId, conversation, contact, textVal, phoneNumberId, token);
+      await handleCategorySelection(userId, conversation, contact, textVal, phoneNumberId, token, io);
     } else if (commerceState === 'browsing_products') {
-      await handleProductSelection(userId, conversation, contact, textVal, phoneNumberId, token);
+      await handleProductSelection(userId, conversation, contact, textVal, phoneNumberId, token, io);
     } else if (commerceState === 'product_details') {
-      await handleProductDetailsAction(userId, conversation, contact, textVal, phoneNumberId, token);
+      await handleProductDetailsAction(userId, conversation, contact, textVal, phoneNumberId, token, io);
     } else if (commerceState === 'checkout_waiting_name') {
-      await handleCheckoutName(userId, conversation, contact, textVal, phoneNumberId, token);
+      await handleCheckoutName(userId, conversation, contact, textVal, phoneNumberId, token, io);
     } else if (commerceState === 'checkout_waiting_address') {
-      await handleCheckoutAddress(userId, conversation, contact, textVal, phoneNumberId, token);
+      await handleCheckoutAddress(userId, conversation, contact, textVal, phoneNumberId, token, io);
     } else if (commerceState === 'checkout_waiting_notes') {
-      await handleCheckoutNotes(userId, conversation, contact, textVal, phoneNumberId, token);
+      await handleCheckoutNotes(userId, conversation, contact, textVal, phoneNumberId, token, io);
     } else if (commerceState === 'checkout_confirm') {
       await handleCheckoutConfirm(userId, conversation, contact, textVal, phoneNumberId, token, io);
     } else if (commerceState === 'awaiting_payment') {
       await handlePaymentEvidence(userId, conversation, contact, savedMsg, phoneNumberId, token, io);
     } else {
       // Fallback
-      await renderCategories(userId, conversation, contact, phoneNumberId, token);
+      await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
     }
 
     return true;
@@ -117,18 +155,32 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
       conversationId: conversation?._id,
       orgId: conversation?.organization_id
     });
+    try {
+      const ApiLog = require('../models/ApiLog');
+      await ApiLog.create({
+        userId,
+        type: 'webhook_incoming',
+        method: 'COMMERCE_ERROR',
+        url: '/commerce',
+        requestBody: { contactPhone: contact?.phone, conversationId: conversation?._id },
+        responseBody: { message: error.message, stack: error.stack },
+        statusCode: 500
+      });
+    } catch (_) {}
     return false;
   }
 }
 
 // 1. Render Product Categories List
-async function renderCategories(userId, conversation, contact, phoneNumberId, token) {
+async function renderCategories(userId, conversation, contact, phoneNumberId, token, io = null) {
   logger.info(`[COMMERCE DEBUG] renderCategories called. orgId=${conversation.organization_id}, phone=${contact.phone}, phoneNumberId=${phoneNumberId}`);
   const categories = await Category.find({ organizationId: conversation.organization_id }).lean();
   logger.info(`[COMMERCE DEBUG] Found ${categories?.length || 0} categories`);
   
   if (!categories || categories.length === 0) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Welcome to our shop! 🛍️\nNo product categories are configured currently. Please contact support.");
+    const text = "Welcome to our shop! 🛍️\nNo product categories are configured currently. Please contact support.";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
     return;
   }
 
@@ -149,6 +201,8 @@ async function renderCategories(userId, conversation, contact, phoneNumberId, to
   
   const result = await whatsapp.sendListMessage(phoneNumberId, token, contact.phone, bodyText, sections, "Browse Shop", "Product Categories");
   logger.info(`[COMMERCE DEBUG] sendListMessage result: ${JSON.stringify({ success: result.success, error: result.error, data: result.data?.messages })}`);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, bodyText, 'interactive', { interactive: { type: 'list', body: { text: bodyText }, action: { button: 'Choose', sections } } }, result, io);
+
   if (!result.success) {
     // Fallback text message if list fails
     logger.info(`[COMMERCE DEBUG] List message failed, sending fallback text message`);
@@ -157,12 +211,13 @@ async function renderCategories(userId, conversation, contact, phoneNumberId, to
       text += `*${index + 1}.* ${cat.name} ${cat.description ? `(${cat.description})` : ''}\n`;
     });
     text += "\nReply with the *category name* or *number* to browse products.";
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    const textMsgResult = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, textMsgResult, io);
   }
 }
 
 // 2. Handle category selection
-async function handleCategorySelection(userId, conversation, contact, textVal, phoneNumberId, token) {
+async function handleCategorySelection(userId, conversation, contact, textVal, phoneNumberId, token, io = null) {
   let selectedCategory = null;
   const categories = await Category.find({ organizationId: conversation.organization_id }).lean();
 
@@ -180,8 +235,10 @@ async function handleCategorySelection(userId, conversation, contact, textVal, p
   }
 
   if (!selectedCategory) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Invalid category selection. Please select one of the categories listed below: 👇");
-    await renderCategories(userId, conversation, contact, phoneNumberId, token);
+    const text = "Invalid category selection. Please select one of the categories listed below: 👇";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
+    await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
     return;
   }
 
@@ -193,8 +250,10 @@ async function handleCategorySelection(userId, conversation, contact, textVal, p
   }).lean();
 
   if (!products || products.length === 0) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, `No active products in category *${selectedCategory.name}*. Showing categories again...`);
-    await renderCategories(userId, conversation, contact, phoneNumberId, token);
+    const text = `No active products in category *${selectedCategory.name}*. Showing categories again...`;
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
+    await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
     return;
   }
 
@@ -213,18 +272,21 @@ async function handleCategorySelection(userId, conversation, contact, textVal, p
   const bodyText = `Browsing *${selectedCategory.name}*:\nSelect a product to view details:`;
 
   const result = await whatsapp.sendListMessage(phoneNumberId, token, contact.phone, bodyText, sections, "View Products", selectedCategory.name.slice(0, 20));
+  await saveAndEmitOutboundMessage(userId, conversation, contact, bodyText, 'interactive', { interactive: { type: 'list', body: { text: bodyText }, action: { button: 'Choose', sections } } }, result, io);
+
   if (!result.success) {
     let text = `${bodyText}\n\n`;
     products.forEach((prod, idx) => {
       text += `*${idx + 1}.* ${prod.name} (Price: ₹${prod.discountPrice !== null ? prod.discountPrice : prod.price})\n`;
     });
     text += "\nReply with the *product name* or *number* to see details.";
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    const textMsgResult = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, textMsgResult, io);
   }
 }
 
 // 3. Handle product selection
-async function handleProductSelection(userId, conversation, contact, textVal, phoneNumberId, token) {
+async function handleProductSelection(userId, conversation, contact, textVal, phoneNumberId, token, io = null) {
   const catId = conversation.flowVariables.get('selected_category_id');
   const products = await Product.find({
     categoryId: catId,
@@ -246,9 +308,11 @@ async function handleProductSelection(userId, conversation, contact, textVal, ph
   }
 
   if (!product) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Product not found. Please choose from the list:");
+    const text = "Product not found. Please choose from the list:";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
     conversation.flowVariables.set('commerce_state', 'browsing_categories');
-    await renderCategories(userId, conversation, contact, phoneNumberId, token);
+    await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
     return;
   }
 
@@ -273,9 +337,11 @@ Reply with:
 - *Back* to return to the catalog categories list.`;
 
   if (primaryImage && primaryImage.imageUrl) {
-    await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, primaryImage.imageUrl, caption);
+    const result = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, primaryImage.imageUrl, caption);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, caption, 'image', { mediaUrl: result.sentUrl || primaryImage.imageUrl }, result, io);
   } else {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, caption);
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, caption);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, caption, 'text', {}, result, io);
   }
 
   // Send buttons for interaction
@@ -284,17 +350,20 @@ Reply with:
     { id: "view_cart", title: "View Cart 🛍️" },
     { id: "back_catalog", title: "Back to Catalog 📁" }
   ];
-  await whatsapp.sendButtonMessage(phoneNumberId, token, contact.phone, "Quick Actions:", buttons);
+  const buttonMsgResult = await whatsapp.sendButtonMessage(phoneNumberId, token, contact.phone, "Quick Actions:", buttons);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, "Quick Actions:", 'interactive', { interactive: { type: 'button', body: { text: "Quick Actions:" }, action: { buttons } } }, buttonMsgResult, io);
 }
 
 // 4. Handle actions on details page
-async function handleProductDetailsAction(userId, conversation, contact, textVal, phoneNumberId, token) {
+async function handleProductDetailsAction(userId, conversation, contact, textVal, phoneNumberId, token, io = null) {
   const prodId = conversation.flowVariables.get('selected_product_id');
   const product = await Product.findOne({ _id: prodId, organizationId: conversation.organization_id });
 
   if (!product) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Product detail context expired. Back to categories.");
-    await renderCategories(userId, conversation, contact, phoneNumberId, token);
+    const text = "Product detail context expired. Back to categories.";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
+    await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
     return;
   }
 
@@ -305,7 +374,9 @@ async function handleProductDetailsAction(userId, conversation, contact, textVal
   if (isAddToCart) {
     // Add product to cart
     if (product.quantity <= 0) {
-      await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, `Sorry, *${product.name}* is currently out of stock and cannot be added. 😔`);
+      const text = `Sorry, *${product.name}* is currently out of stock and cannot be added. 😔`;
+      const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+      await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
       return;
     }
 
@@ -319,7 +390,9 @@ async function handleProductDetailsAction(userId, conversation, contact, textVal
 
     if (cartItem) {
       if (cartItem.quantity + 1 > product.quantity) {
-        await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, `Only ${product.quantity} units of *${product.name}* in stock. Cannot add more.`);
+        const text = `Only ${product.quantity} units of *${product.name}* in stock. Cannot add more.`;
+        const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+        await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
         return;
       }
       cartItem.quantity += 1;
@@ -335,14 +408,18 @@ async function handleProductDetailsAction(userId, conversation, contact, textVal
       });
     }
 
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, `🛒 Added *${product.name}* to cart!`);
-    await renderCart(userId, conversation, contact, phoneNumberId, token);
+    const addedText = `🛒 Added *${product.name}* to cart!`;
+    const addedResult = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, addedText);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, addedText, 'text', {}, addedResult, io);
+    await renderCart(userId, conversation, contact, phoneNumberId, token, io);
   } else if (isBack) {
-    await renderCategories(userId, conversation, contact, phoneNumberId, token);
+    await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
   } else if (isCart) {
-    await renderCart(userId, conversation, contact, phoneNumberId, token);
+    await renderCart(userId, conversation, contact, phoneNumberId, token, io);
   } else {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Please use the buttons provided or reply with *Add to Cart*, *Back*, or *Cart*.");
+    const text = "Please use the buttons provided or reply with *Add to Cart*, *Back*, or *Cart*.";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
   }
 }
 
@@ -387,12 +464,13 @@ async function getCartSummaryText(customerId, organizationId) {
 }
 
 // 5. Render Cart
-async function renderCart(userId, conversation, contact, phoneNumberId, token) {
+async function renderCart(userId, conversation, contact, phoneNumberId, token, io = null) {
   const { text, total, items } = await getCartSummaryText(contact._id, conversation.organization_id);
 
   if (items.length === 0) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
-    await renderCategories(userId, conversation, contact, phoneNumberId, token);
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
+    await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
     return;
   }
 
@@ -402,48 +480,60 @@ async function renderCart(userId, conversation, contact, phoneNumberId, token) {
     { id: "clear_cart", title: "Clear Cart 🧹" },
     { id: "back_catalog", title: "Add More 🛍️" }
   ];
-  await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
-  await whatsapp.sendButtonMessage(phoneNumberId, token, contact.phone, "Actions:", buttons);
+  const textResult = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, textResult, io);
+  const buttonResult = await whatsapp.sendButtonMessage(phoneNumberId, token, contact.phone, "Actions:", buttons);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, "Actions:", 'interactive', { interactive: { type: 'button', body: { text: "Actions:" }, action: { buttons } } }, buttonResult, io);
 }
 
 // 6. Clear Cart items
-async function clearCartItems(userId, conversation, contact, phoneNumberId, token) {
+async function clearCartItems(userId, conversation, contact, phoneNumberId, token, io = null) {
   const cart = await Cart.findOne({ customerId: contact._id, organizationId: conversation.organization_id, status: 'active' });
   if (cart) {
     await CartItem.deleteMany({ cartId: cart._id });
   }
-  await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Your shopping cart has been cleared. 🧹");
-  await renderCategories(userId, conversation, contact, phoneNumberId, token);
+  const text = "Your shopping cart has been cleared. 🧹";
+  const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
+  await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
 }
 
 // 7. Handle checkout trigger & collect name
-async function handleCheckoutName(userId, conversation, contact, textVal, phoneNumberId, token) {
+async function handleCheckoutName(userId, conversation, contact, textVal, phoneNumberId, token, io = null) {
   if (!textVal.trim()) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Please enter your name:");
+    const text = "Please enter your name:";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
     return;
   }
   conversation.flowVariables.set('checkout_name', textVal.trim());
   conversation.flowVariables.set('commerce_state', 'checkout_waiting_address');
   await conversation.save();
 
-  await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, `Perfect! Now please enter your *complete delivery address*: 🏡`);
+  const text = `Perfect! Now please enter your *complete delivery address*: 🏡`;
+  const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
 }
 
 // 8. Handle checkout address
-async function handleCheckoutAddress(userId, conversation, contact, textVal, phoneNumberId, token) {
+async function handleCheckoutAddress(userId, conversation, contact, textVal, phoneNumberId, token, io = null) {
   if (!textVal.trim()) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Please enter a valid shipping address:");
+    const text = "Please enter a valid shipping address:";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
     return;
   }
   conversation.flowVariables.set('checkout_address', textVal.trim());
   conversation.flowVariables.set('commerce_state', 'checkout_waiting_notes');
   await conversation.save();
 
-  await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, `Any special instructions/notes for this order? (Or type *none*): 📝`);
+  const text = `Any special instructions/notes for this order? (Or type *none*): 📝`;
+  const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
 }
 
 // 9. Handle checkout notes
-async function handleCheckoutNotes(userId, conversation, contact, textVal, phoneNumberId, token) {
+async function handleCheckoutNotes(userId, conversation, contact, textVal, phoneNumberId, token, io = null) {
   let notes = textVal.trim();
   if (notes.toLowerCase() === 'none') notes = '';
 
@@ -471,39 +561,49 @@ Do you want to confirm this order?`;
     { id: "cancel_checkout", title: "Cancel Checkout ❌" }
   ];
 
-  await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, confirmMsg);
-  await whatsapp.sendButtonMessage(phoneNumberId, token, contact.phone, "Choose:", buttons);
+  const textResult = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, confirmMsg);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, confirmMsg, 'text', {}, textResult, io);
+  const buttonResult = await whatsapp.sendButtonMessage(phoneNumberId, token, contact.phone, "Choose:", buttons);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, "Choose:", 'interactive', { interactive: { type: 'button', body: { text: "Choose:" }, action: { buttons } } }, buttonResult, io);
 }
 
 // 10. Process Order placement
-async function handleCheckoutConfirm(userId, conversation, contact, textVal, phoneNumberId, token, io) {
+async function handleCheckoutConfirm(userId, conversation, contact, textVal, phoneNumberId, token, io = null) {
   const textLower = textVal.toLowerCase();
 
   if (textLower === 'cancel_checkout' || textLower.includes('cancel')) {
     conversation.flowVariables.set('commerce_state', null);
     await conversation.save();
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Checkout cancelled. You can continue shopping!");
-    await renderCategories(userId, conversation, contact, phoneNumberId, token);
+    const text = "Checkout cancelled. You can continue shopping!";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
+    await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
     return;
   }
 
   if (textLower !== 'confirm_order' && !textLower.includes('confirm')) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Please confirm order or cancel:");
+    const text = "Please confirm order or cancel:";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
     return;
   }
 
   // 1. Get Cart
   const cart = await Cart.findOne({ customerId: contact._id, organizationId: conversation.organization_id, status: 'active' });
   if (!cart) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Cart expired. Start shopping again.");
-    await renderCategories(userId, conversation, contact, phoneNumberId, token);
+    const text = "Cart expired. Start shopping again.";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
+    await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
     return;
   }
 
   const items = await CartItem.find({ cartId: cart._id }).populate('productId').lean();
   if (!items || items.length === 0) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Your cart is empty. Start shopping again.");
-    await renderCategories(userId, conversation, contact, phoneNumberId, token);
+    const text = "Your cart is empty. Start shopping again.";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
+    await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
     return;
   }
 
@@ -511,11 +611,15 @@ async function handleCheckoutConfirm(userId, conversation, contact, textVal, pho
   for (const item of items) {
     const product = await Product.findOne({ _id: item.productId, organizationId: conversation.organization_id });
     if (!product || product.isArchived) {
-      await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, `Sorry, product *${item.productId?.name}* is no longer available.`);
+      const text = `Sorry, product *${item.productId?.name}* is no longer available.`;
+      const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+      await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
       return;
     }
     if (item.quantity > product.quantity) {
-      await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, `Sorry, stock mismatch for *${product.name}*. Only ${product.quantity} units available in stock. Please adjust cart quantity.`);
+      const text = `Sorry, stock mismatch for *${product.name}*. Only ${product.quantity} units available in stock. Please adjust cart quantity.`;
+      const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+      await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
       return;
     }
   }
@@ -611,11 +715,13 @@ Please complete the payment using the static UPI ID below:
 
 Scan the QR code below using GPay, PhonePe, Paytm, or BHIM:`;
 
-  await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, qrCodeUrl, confirmMsg);
+  const imgResult = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, qrCodeUrl, confirmMsg);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, confirmMsg, 'image', { mediaUrl: imgResult.sentUrl || qrCodeUrl }, imgResult, io);
   
   // Ask for payment verification attachment / UTR
   const instruction = `Once paid, please reply with your *12-digit UPI Transaction ID (UTR)* OR upload a *Screenshot* of the payment receipt.`;
-  await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, instruction);
+  const instResult = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, instruction);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, instruction, 'text', {}, instResult, io);
 
   // Notify Store Administrators in real-time
   await notifyStoreAdmins(conversation.organization_id, {
@@ -627,15 +733,17 @@ Scan the QR code below using GPay, PhonePe, Paytm, or BHIM:`;
 }
 
 // 11. Handle payment submission evidence
-async function handlePaymentEvidence(userId, conversation, contact, savedMsg, phoneNumberId, token, io) {
+async function handlePaymentEvidence(userId, conversation, contact, savedMsg, phoneNumberId, token, io = null) {
   const orderId = conversation.flowVariables.get('active_order_id');
   const order = await Order.findOne({ _id: orderId, organizationId: conversation.organization_id });
 
   if (!order) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Order context not found. Catalog restarted.");
+    const text = "Order context not found. Catalog restarted.";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
     conversation.flowVariables.set('commerce_state', null);
     await conversation.save();
-    await renderCategories(userId, conversation, contact, phoneNumberId, token);
+    await renderCategories(userId, conversation, contact, phoneNumberId, token, io);
     return;
   }
 
@@ -653,7 +761,9 @@ async function handlePaymentEvidence(userId, conversation, contact, savedMsg, ph
   }
 
   if (!utr && !screenshot) {
-    await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "Please submit a valid *12-digit numeric UPI Transaction ID (UTR)* or upload a *payment screenshot*.");
+    const text = "Please submit a valid *12-digit numeric UPI Transaction ID (UTR)* or upload a *payment screenshot*.";
+    const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+    await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
     return;
   }
 
@@ -683,7 +793,9 @@ async function handlePaymentEvidence(userId, conversation, contact, savedMsg, ph
   await conversation.save();
 
   // Confirm to customer
-  await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, "We have received your payment details. Our team is verifying the payment.");
+  const text = "We have received your payment details. Our team is verifying the payment.";
+  const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
+  await saveAndEmitOutboundMessage(userId, conversation, contact, text, 'text', {}, result, io);
 
   // Notify admins
   await notifyStoreAdmins(order.organizationId, {
