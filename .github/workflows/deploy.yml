@@ -23,7 +23,7 @@ jobs:
       - name: Deploy LIVE
         run: |
           ssh root@82.29.160.246 << 'EOF'
-            cd /root/AI-Automation
+            cd /root/AI-Automation/dev
 
             git fetch origin
             git checkout main
@@ -46,4 +46,4 @@ jobs:
             # Restart PM2 processes
             pm2 restart AI-Automation-Backend
             pm2 restart AI-Automation-FE
-          EOF
+          EOF
