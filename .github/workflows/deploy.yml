@@ -26,19 +26,73 @@ jobs:
             set -e
             cd /root/AI-Automation/dev
 
+            # Fetch latest remote changes
             git fetch origin
+
+            # Identify which directories have changes before pulling
+            PREV_COMMIT=$(git rev-parse HEAD || echo "")
+            
+            BACKEND_CHANGED=true
+            FRONTEND_CHANGED=true
+            ROOT_CHANGED=true
+
+            if [ -n "$PREV_COMMIT" ]; then
+              if git diff --name-only "$PREV_COMMIT" origin/main > /dev/null 2>&1; then
+                # Check if backend directory has changes
+                if git diff --name-only "$PREV_COMMIT" origin/main | grep -E '^backend/' > /dev/null; then
+                  BACKEND_CHANGED=true
+                else
+                  BACKEND_CHANGED=false
+                fi
+
+                # Check if frontend directory has changes
+                if git diff --name-only "$PREV_COMMIT" origin/main | grep -E '^frontend/' > /dev/null; then
+                  FRONTEND_CHANGED=true
+                else
+                  FRONTEND_CHANGED=false
+                fi
+
+                # Check if root directory files (outside backend/ and frontend/) have changes
+                if git diff --name-only "$PREV_COMMIT" origin/main | grep -v -E '^(backend/|frontend/)' > /dev/null; then
+                  ROOT_CHANGED=true
+                else
+                  ROOT_CHANGED=false
+                fi
+              fi
+            fi
+
+            echo "=== CHANGE ANALYSIS ==="
+            echo "Backend Changed:  $BACKEND_CHANGED"
+            echo "Frontend Changed: $FRONTEND_CHANGED"
+            echo "Root Changed:     $ROOT_CHANGED"
+            echo "======================="
+
+            # Checkout and pull the latest code
             git checkout main
             git pull origin main
 
-            # Install dependencies
-            npm install
-            npm install --prefix backend
-            npm install --prefix frontend
+            # 1. Handle Root Changes (If root files like package.json change)
+            if [ "$ROOT_CHANGED" = "true" ]; then
+              echo "Root files changed. Running npm install in root workspace..."
+              npm install
+            fi
 
-            # Build frontend
-            npm run build --prefix frontend
+            # 2. Handle Backend Changes
+            if [ "$BACKEND_CHANGED" = "true" ] || [ "$ROOT_CHANGED" = "true" ]; then
+              echo "Deploying Backend changes..."
+              npm install --prefix backend
+              pm2 restart AI-Automation-Backend
+            else
+              echo "No Backend changes detected. Skipping Backend deployment."
+            fi
 
-            # Restart PM2 processes
-            pm2 restart AI-Automation-Backend
-            pm2 restart AI-Automation-FE
+            # 3. Handle Frontend Changes
+            if [ "$FRONTEND_CHANGED" = "true" ] || [ "$ROOT_CHANGED" = "true" ]; then
+              echo "Deploying Frontend changes..."
+              npm install --prefix frontend
+              NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=1024" npm run build --prefix frontend
+              pm2 restart AI-Automation-FE
+            else
+              echo "No Frontend changes detected. Skipping Frontend deployment."
+            fi
           EOF
