@@ -23,25 +23,20 @@ jobs:
       - name: Deploy LIVE
         run: |
           ssh root@82.29.160.246 << 'EOF'
+            set -e
             cd /root/AI-Automation/dev
 
             git fetch origin
             git checkout main
             git pull origin main
 
-            # Install root dependencies
+            # Install dependencies
             npm install
+            npm install --prefix backend
+            npm install --prefix frontend
 
-            # Install backend dependencies
-            cd backend
-            npm install
-            cd ..
-
-            # Install frontend dependencies and build
-            cd frontend
-            npm install
-            npm run build
-            cd ..
+            # Build frontend
+            npm run build --prefix frontend
 
             # Restart PM2 processes
             pm2 restart AI-Automation-Backend
