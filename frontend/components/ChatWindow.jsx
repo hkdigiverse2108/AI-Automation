@@ -80,7 +80,7 @@ const resolveMediaUrl = (url) => {
 
 export default function ChatWindow({ conversation, messages, onBack }) {
   const confirm = useConfirmStore(state => state.confirm);
-  
+
   // Guard: If no conversation is loaded, show empty state
   if (!conversation?._id) {
     return (
@@ -151,7 +151,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
       if (data.success) {
         toast.loading('Sending message...', { id: toastId });
-        
+
         const sendRes = await api.post('/messages/send', {
           contactId: contact._id,
           mediaUrl: data.data.url,
@@ -401,37 +401,37 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     smileys: {
       label: '😊',
       title: 'Smileys',
-      emojis: ['😊','😀','😃','😄','😁','🙂','😉','😌','😍','🥰','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','🫥','😏','😒','🙄','😬','🤥','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🥴','😵','🤯','🥳','🥸','😎','🤓','🧐','😕','🫤','😟','🙁','😮','😯','😲','😳','🥺','🥹','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖']
+      emojis: ['😊', '😀', '😃', '😄', '😁', '🙂', '😉', '😌', '😍', '🥰', '😘', '😗', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🫡', '🤐', '🤨', '😐', '😑', '😶', '🫥', '😏', '😒', '🙄', '😬', '🤥', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🥴', '😵', '🤯', '🥳', '🥸', '😎', '🤓', '🧐', '😕', '🫤', '😟', '🙁', '😮', '😯', '😲', '😳', '🥺', '🥹', '😢', '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾', '🤖']
     },
     hands: {
       label: '👋',
       title: 'Hands',
-      emojis: ['👋','🤚','🖐️','✋','🖖','🫱','🫲','🫳','🫴','🫷','🫸','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿']
+      emojis: ['👋', '🤚', '🖐️', '✋', '🖖', '🫱', '🫲', '🫳', '🫴', '🫷', '🫸', '👌', '🤌', '🤏', '✌️', '🤞', '🫰', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '🫵', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '🫶', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿']
     },
     people: {
       label: '👤',
       title: 'People',
-      emojis: ['👤','👥','🫂','👶','👧','🧒','👦','👩','🧑','👨','👩‍🦱','🧑‍🦱','👨‍🦱','👩‍🦰','🧑‍🦰','👨‍🦰','👱‍♀️','👱','👱‍♂️','👩‍🦳','🧑‍🦳','👨‍🦳','👩‍🦲','🧑‍🦲','👨‍🦲','🧔‍♀️','🧔','🧔‍♂️','👵','🧓','👴','👲','👳‍♀️','👳','👳‍♂️','🧕','👮‍♀️','👮','👮‍♂️','👷‍♀️','👷','👷‍♂️','💂‍♀️','💂','💂‍♂️','🕵️‍♀️','🕵️','🕵️‍♂️','👩‍⚕️','🧑‍⚕️','👨‍⚕️','👩‍🌾','🧑‍🌾','👨‍🌾','👩‍🍳','🧑‍🍳','👨‍🍳','👩‍🎓','🧑‍🎓','👨‍🎓','👩‍💼','🧑‍💼','👨‍💼','👩‍💻','🧑‍💻','👨‍💻','👩‍🔧','🧑‍🔧','👨‍🔧','👩‍🔬','🧑‍🔬','👨‍🔬','👩‍🚀','🧑‍🚀','👨‍🚀']
+      emojis: ['👤', '👥', '🫂', '👶', '👧', '🧒', '👦', '👩', '🧑', '👨', '👩‍🦱', '🧑‍🦱', '👨‍🦱', '👩‍🦰', '🧑‍🦰', '👨‍🦰', '👱‍♀️', '👱', '👱‍♂️', '👩‍🦳', '🧑‍🦳', '👨‍🦳', '👩‍🦲', '🧑‍🦲', '👨‍🦲', '🧔‍♀️', '🧔', '🧔‍♂️', '👵', '🧓', '👴', '👲', '👳‍♀️', '👳', '👳‍♂️', '🧕', '👮‍♀️', '👮', '👮‍♂️', '👷‍♀️', '👷', '👷‍♂️', '💂‍♀️', '💂', '💂‍♂️', '🕵️‍♀️', '🕵️', '🕵️‍♂️', '👩‍⚕️', '🧑‍⚕️', '👨‍⚕️', '👩‍🌾', '🧑‍🌾', '👨‍🌾', '👩‍🍳', '🧑‍🍳', '👨‍🍳', '👩‍🎓', '🧑‍🎓', '👨‍🎓', '👩‍💼', '🧑‍💼', '👨‍💼', '👩‍💻', '🧑‍💻', '👨‍💻', '👩‍🔧', '🧑‍🔧', '👨‍🔧', '👩‍🔬', '🧑‍🔬', '👨‍🔬', '👩‍🚀', '🧑‍🚀', '👨‍🚀']
     },
     business: {
       label: '💼',
       title: 'Business',
-      emojis: ['💼','📊','📈','📉','💰','💵','💴','💶','💷','💸','💳','🧾','💹','🏦','🏢','🏬','🏗️','🏭','🏛️','🏠','🏡','📱','💻','🖥️','⌨️','🖨️','📞','☎️','📠','🔋','🔌','💡','🔦','🕯️','📡','🛜','🗂️','📁','📂','🗃️','📋','📌','📍','📎','🖇️','📏','📐','✂️','🗑️','🔒','🔓','🔑','🗝️','🔐']
+      emojis: ['💼', '📊', '📈', '📉', '💰', '💵', '💴', '💶', '💷', '💸', '💳', '🧾', '💹', '🏦', '🏢', '🏬', '🏗️', '🏭', '🏛️', '🏠', '🏡', '📱', '💻', '🖥️', '⌨️', '🖨️', '📞', '☎️', '📠', '🔋', '🔌', '💡', '🔦', '🕯️', '📡', '🛜', '🗂️', '📁', '📂', '🗃️', '📋', '📌', '📍', '📎', '🖇️', '📏', '📐', '✂️', '🗑️', '🔒', '🔓', '🔑', '🗝️', '🔐']
     },
     objects: {
       label: '📦',
       title: 'Objects',
-      emojis: ['📦','📫','📪','📬','📭','📮','🗳️','✏️','✒️','🖊️','🖋️','📝','📄','📃','📑','🗒️','📒','📓','📔','📕','📗','📘','📙','📚','📖','🔗','🗓️','📅','📆','📇','🗄️','🗞️','📰','📑','🏷️','🔖','🧮','⏰','⏱️','⏲️','🕰️','⌛','⏳','🔔','🔕','📢','📣','🎯','🏆','🎖️','🏅','🥇','🥈','🥉','⚽','🏀','🏈','⚾','🎾','🎮']
+      emojis: ['📦', '📫', '📪', '📬', '📭', '📮', '🗳️', '✏️', '✒️', '🖊️', '🖋️', '📝', '📄', '📃', '📑', '🗒️', '📒', '📓', '📔', '📕', '📗', '📘', '📙', '📚', '📖', '🔗', '🗓️', '📅', '📆', '📇', '🗄️', '🗞️', '📰', '📑', '🏷️', '🔖', '🧮', '⏰', '⏱️', '⏲️', '🕰️', '⌛', '⏳', '🔔', '🔕', '📢', '📣', '🎯', '🏆', '🎖️', '🏅', '🥇', '🥈', '🥉', '⚽', '🏀', '🏈', '⚾', '🎾', '🎮']
     },
     symbols: {
       label: '💚',
       title: 'Symbols',
-      emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️','☦️','🛐','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚛️','🉑','☢️','☣️','📴','📳','🈶','🈚','🈸','🈺','🈷️','✴️','🆚','💮','🉐','㊙️','㊗️','🈴','🈵','🈹','🈲','🅰️','🅱️','🆎','🆑','🅾️','🆘','❌','⭕','🛑','⛔','📛','🚫','💯','💢','♨️','🚷','🚯','🚳','🚱','🔞','📵','🚭','❗','❕','❓','❔','‼️','⁉️','🔅','🔆','〽️','⚠️','🚸','🔱','⚜️','🔰','♻️','✅','🈯','💹','❇️','✳️','❎','🌐','💠','Ⓜ️','🌀','💤','🏧','🚾','♿','🅿️','🛗','🈳','🈂️','🛂','🛃','🛄','🛅','🚹','🚺','🚼','⚧️','🚻','🚮','🎦','📶','🈁','🔣','ℹ️','🔤','🔡','🔠','🆖','🆗','🆙','🆒','🆕','🆓','0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','🔢','#️⃣','*️⃣','⏏️','▶️','⏸️','⏯️','⏹️','⏺️','⏭️','⏮️','⏩','⏪','⏫','⏬','◀️','🔼','🔽','➡️','⬅️','⬆️','⬇️','↗️','↘️','↙️','↖️','↕️','↔️','↪️','↩️','⤴️','⤵️','🔀','🔁','🔂','🔄','🔃','🎵','🎶','➕','➖','➗','✖️','🟰','♾️','💲','💱','™️','©️','®️','〰️','➰','➿','🔚','🔙','🔛','🔝','🔜','✔️','☑️','🔘','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','🟤','🔺','🔻','🔸','🔹','🔶','🔷','🔳','🔲','▪️','▫️','◾','◽','◼️','◻️','🟥','🟧','🟨','🟩','🟦','🟪','⬛','⬜','🟫','🔈','🔇','🔉','🔊','🔔','🔕','📣','📢','💬','💭','🗯️','♠️','♣️','♥️','♦️','🃏','🎴','🀄','🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚','🕛','🕜','🕝','🕞','🕟','🕠','🕡','🕢','🕣','🕤','🕥','🕦','🕧']
+      emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❕', '❓', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿', '🅿️', '🛗', '🈳', '🈂️', '🛂', '🛃', '🛄', '🛅', '🚹', '🚺', '🚼', '⚧️', '🚻', '🚮', '🎦', '📶', '🈁', '🔣', 'ℹ️', '🔤', '🔡', '🔠', '🆖', '🆗', '🆙', '🆒', '🆕', '🆓', '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔢', '#️⃣', '*️⃣', '⏏️', '▶️', '⏸️', '⏯️', '⏹️', '⏺️', '⏭️', '⏮️', '⏩', '⏪', '⏫', '⏬', '◀️', '🔼', '🔽', '➡️', '⬅️', '⬆️', '⬇️', '↗️', '↘️', '↙️', '↖️', '↕️', '↔️', '↪️', '↩️', '⤴️', '⤵️', '🔀', '🔁', '🔂', '🔄', '🔃', '🎵', '🎶', '➕', '➖', '➗', '✖️', '🟰', '♾️', '💲', '💱', '™️', '©️', '®️', '〰️', '➰', '➿', '🔚', '🔙', '🔛', '🔝', '🔜', '✔️', '☑️', '🔘', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔺', '🔻', '🔸', '🔹', '🔶', '🔷', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫', '🔈', '🔇', '🔉', '🔊', '🔔', '🔕', '📣', '📢', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴', '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢', '🕣', '🕤', '🕥', '🕦', '🕧']
     },
     flags: {
       label: '🏁',
       title: 'Flags',
-      emojis: ['🏁','🚩','🎌','🏴','🏳️','🏳️‍🌈','🏳️‍⚧️','🏴‍☠️','🇮🇳','🇺🇸','🇬🇧','🇨🇦','🇦🇺','🇩🇪','🇫🇷','🇯🇵','🇨🇳','🇧🇷','🇮🇹','🇪🇸','🇲🇽','🇷🇺','🇰🇷','🇸🇦','🇦🇪','🇸🇬','🇿🇦','🇳🇬','🇪🇬','🇹🇷','🇮🇩','🇵🇰','🇧🇩','🇵🇭','🇻🇳','🇹🇭','🇲🇾','🇳🇿','🇦🇷','🇨🇱','🇨🇴','🇵🇪','🇳🇱','🇧🇪','🇨🇭','🇦🇹','🇸🇪','🇳🇴','🇩🇰','🇫🇮','🇵🇱','🇺🇦','🇮🇪','🇵🇹','🇬🇷','🇭🇺','🇨🇿','🇷🇴','🇮🇱','🇶🇦','🇰🇼','🇧🇭','🇴🇲','🇯🇴','🇱🇧','🇮🇶','🇰🇪','🇬🇭','🇪🇹','🇹🇿','🇺🇬','🇲🇦','🇹🇳','🇱🇾','🇩🇿','🇭🇰','🇹🇼','🇲🇴','🇰🇭','🇲🇲','🇱🇰','🇳🇵','🇲🇻']
+      emojis: ['🏁', '🚩', '🎌', '🏴', '🏳️', '🏳️‍🌈', '🏳️‍⚧️', '🏴‍☠️', '🇮🇳', '🇺🇸', '🇬🇧', '🇨🇦', '🇦🇺', '🇩🇪', '🇫🇷', '🇯🇵', '🇨🇳', '🇧🇷', '🇮🇹', '🇪🇸', '🇲🇽', '🇷🇺', '🇰🇷', '🇸🇦', '🇦🇪', '🇸🇬', '🇿🇦', '🇳🇬', '🇪🇬', '🇹🇷', '🇮🇩', '🇵🇰', '🇧🇩', '🇵🇭', '🇻🇳', '🇹🇭', '🇲🇾', '🇳🇿', '🇦🇷', '🇨🇱', '🇨🇴', '🇵🇪', '🇳🇱', '🇧🇪', '🇨🇭', '🇦🇹', '🇸🇪', '🇳🇴', '🇩🇰', '🇫🇮', '🇵🇱', '🇺🇦', '🇮🇪', '🇵🇹', '🇬🇷', '🇭🇺', '🇨🇿', '🇷🇴', '🇮🇱', '🇶🇦', '🇰🇼', '🇧🇭', '🇴🇲', '🇯🇴', '🇱🇧', '🇮🇶', '🇰🇪', '🇬🇭', '🇪🇹', '🇹🇿', '🇺🇬', '🇲🇦', '🇹🇳', '🇱🇾', '🇩🇿', '🇭🇰', '🇹🇼', '🇲🇴', '🇰🇭', '🇲🇲', '🇱🇰', '🇳🇵', '🇲🇻']
     }
   };
 
@@ -588,7 +588,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
         // 1. Fetch tags to find if it exists in library
         const tagsRes = await api.get('/tags');
         let targetTag = tagsRes.data?.data?.tags?.find(t => t.name.toLowerCase() === tagName.toLowerCase());
-        
+
         if (!targetTag) {
           // Create tag in library first
           const createRes = await api.post('/tags', { name: tagName });
@@ -740,7 +740,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     setShowQuickReplies(false);
   };
 
-  const filteredTemplates = templates.filter(t => 
+  const filteredTemplates = templates.filter(t =>
     t.name.toLowerCase().includes(templateSearch.toLowerCase()) ||
     getTemplateBodyText(t).toLowerCase().includes(templateSearch.toLowerCase())
   );
@@ -751,16 +751,16 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
   return (
     <div className="flex h-full w-full overflow-hidden">
-      
+
       {/* LEFT COLUMN: CHAT WINDOW */}
       <div className="flex-1 flex flex-col h-full min-w-0 bg-wa-bg/15 dark:bg-wa-dark-bg/10 relative">
-        
+
         {/* HEADER */}
         <div className="wa-header h-[52px] flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0 relative z-20">
           <div className="flex items-center gap-2 md:gap-3 cursor-pointer min-w-0 flex-1">
             {onBack && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onBack(); }} 
+              <button
+                onClick={(e) => { e.stopPropagation(); onBack(); }}
                 className="lg:hidden p-1.5 rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-wa-text-secondary dark:text-wa-dark-text-secondary transition-colors"
                 title="Back to chats"
               >
@@ -795,16 +795,14 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                         </span>
                       )
                     ) : (
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${
-                        conversation.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
-                        conversation.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
-                        'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
-                      }`}>
-                        <span className={`w-1 h-1 rounded-full shrink-0 ${
-                          conversation.status === 'bot' ? 'bg-purple-500' :
-                          conversation.status === 'ai' ? 'bg-emerald-500' :
-                          'bg-slate-400'
-                        }`} />
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conversation.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
+                          conversation.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
+                            'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
+                        }`}>
+                        <span className={`w-1 h-1 rounded-full shrink-0 ${conversation.status === 'bot' ? 'bg-purple-500' :
+                            conversation.status === 'ai' ? 'bg-emerald-500' :
+                              'bg-slate-400'
+                          }`} />
                         <span>{conversation.status}</span>
                       </span>
                     )
@@ -877,7 +875,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
               </button>
             )}
 
-            <button 
+            <button
               onClick={() => setShowSidebar(!showSidebar)}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${showSidebar ? 'text-wa-green bg-wa-green/10' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'}`}
               title="Toggle CRM Sidebar"
@@ -920,7 +918,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
         {/* MESSAGES CONTAINER */}
         <div className="flex-1 overflow-y-auto px-[5%] py-4 relative wa-chat-pattern bg-[#efeae2]/15 dark:bg-slate-900/10" ref={chatRef}>
           <div className="absolute inset-0 wa-chat-bg opacity-[0.06] dark:opacity-[0.02] pointer-events-none z-0" />
-          
+
           <div className="relative z-10 space-y-2">
             {loadingOlder && (
               <div className="flex items-center justify-center py-2 text-wa-green">
@@ -949,12 +947,12 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                   <div className={`flex ${isOut ? 'justify-end' : 'justify-start'} mb-1 msg-wrapper animate-message-pop`}>
                     <div className={`${isOut ? 'chat-bubble-out' : 'chat-bubble-in'} relative group`}>
                       {!isOut && msg.sentBy && <SentByLabel sentBy={msg.sentBy} />}
-                      
+
                       {msg.type === 'image' && msg.content?.mediaUrl && (
                         <div className="mb-1.5 max-w-sm rounded-lg overflow-hidden border border-wa-border dark:border-wa-dark-border shadow-sm">
-                          <img 
-                            src={resolveMediaUrl(msg.content.mediaUrl)} 
-                            alt={msg.content.caption || "Image"} 
+                          <img
+                            src={resolveMediaUrl(msg.content.mediaUrl)}
+                            alt={msg.content.caption || "Image"}
                             className="max-h-60 w-full object-cover hover:scale-[1.01] transition-transform duration-200 cursor-pointer"
                             onClick={() => window.open(resolveMediaUrl(msg.content.mediaUrl), '_blank')}
                           />
@@ -963,9 +961,9 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
                       {msg.type === 'video' && msg.content?.mediaUrl && (
                         <div className="mb-1.5 max-w-sm rounded-lg overflow-hidden border border-wa-border dark:border-wa-dark-border shadow-sm bg-black">
-                          <video 
-                            src={resolveMediaUrl(msg.content.mediaUrl)} 
-                            controls 
+                          <video
+                            src={resolveMediaUrl(msg.content.mediaUrl)}
+                            controls
                             className="max-h-60 w-full object-contain"
                           />
                         </div>
@@ -973,9 +971,9 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
                       {msg.type === 'audio' && msg.content?.mediaUrl && (
                         <div className="mb-1.5 p-2 rounded-xl bg-wa-panel-header dark:bg-wa-dark-panel-header border border-wa-border dark:border-wa-dark-border flex items-center gap-2 min-w-[260px] max-w-sm shadow-sm">
-                          <audio 
-                            src={resolveMediaUrl(msg.content.mediaUrl)} 
-                            controls 
+                          <audio
+                            src={resolveMediaUrl(msg.content.mediaUrl)}
+                            controls
                             className="w-full h-8"
                           />
                         </div>
@@ -983,9 +981,9 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
                       {msg.type === 'sticker' && msg.content?.mediaUrl && (
                         <div className="mb-1.5 max-w-[120px] overflow-hidden rounded-lg">
-                          <img 
-                            src={resolveMediaUrl(msg.content.mediaUrl)} 
-                            alt="Sticker" 
+                          <img
+                            src={resolveMediaUrl(msg.content.mediaUrl)}
+                            alt="Sticker"
                             className="w-full h-auto object-contain"
                           />
                         </div>
@@ -999,7 +997,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                               {msg.content.filename || msg.content.caption || msg.content.text || "Document File"}
                             </span>
                           </div>
-                          <button 
+                          <button
                             onClick={() => {
                               const url = resolveMediaUrl(msg.content.mediaUrl);
                               const name = msg.content.filename || msg.content.caption || msg.content.text || "Document File";
@@ -1033,9 +1031,9 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
                       {/* Display text or caption if exists, or if type is text */}
                       {(msg.type === 'text' || (!msg.content?.mediaUrl && (msg.content?.text || msg.content?.caption))) && (
-                          <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap text-wa-text-primary dark:text-wa-dark-text-primary">
-                            {msg.content?.text || msg.content?.caption}
-                          </p>
+                        <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap text-wa-text-primary dark:text-wa-dark-text-primary">
+                          {msg.content?.text || msg.content?.caption}
+                        </p>
                       )}
 
                       <div className="flex items-center gap-1 mt-1 justify-end">
@@ -1064,7 +1062,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
         {/* INPUT AND QUICK REPLY AREA */}
         <div className="bg-wa-panel-header dark:bg-wa-dark-panel-header px-4 py-2.5 border-t border-wa-border dark:border-wa-dark-border relative shrink-0">
-          
+
           {/* Quick replies dropdown overlay */}
           {showQuickReplies && (
             <div ref={quickRepliesRef} className="absolute bottom-16 left-4 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-2xl p-4 w-[360px] max-h-[300px] flex flex-col z-30 animate-slide-up">
@@ -1117,7 +1115,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
           )}
 
           <div className="flex items-end gap-2">
-            <button 
+            <button
               onClick={toggleQuickReplies}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${showQuickReplies ? 'text-wa-green bg-wa-green/10' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'}`}
               title="Access Template Shortcuts"
@@ -1159,11 +1157,10 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                           key={key}
                           onClick={() => setEmojiCategory(key)}
                           title={cat.title}
-                          className={`flex-1 py-1.5 rounded-lg text-center text-sm transition-all duration-150 ${
-                            emojiCategory === key
+                          className={`flex-1 py-1.5 rounded-lg text-center text-sm transition-all duration-150 ${emojiCategory === key
                               ? 'bg-wa-green/15 shadow-sm scale-105'
                               : 'hover:bg-wa-hover dark:hover:bg-wa-dark-hover opacity-60 hover:opacity-100'
-                          }`}
+                            }`}
                         >
                           {cat.label}
                         </button>
@@ -1209,18 +1206,18 @@ export default function ChatWindow({ conversation, messages, onBack }) {
               >
                 <Paperclip className="w-6 h-6" />
               </button>
-              
+
               {/* Hidden file input elements */}
-              <input 
-                type="file" 
-                ref={docInputRef} 
+              <input
+                type="file"
+                ref={docInputRef}
                 onChange={(e) => handleFileUpload(e, 'document')}
                 className="hidden"
                 accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
               />
-              <input 
-                type="file" 
-                ref={imageInputRef} 
+              <input
+                type="file"
+                ref={imageInputRef}
                 onChange={(e) => handleFileUpload(e, 'image')}
                 className="hidden"
                 accept="image/*"
@@ -1228,7 +1225,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
               {showAttach && (
                 <div className="absolute bottom-14 left-0 bg-white dark:bg-wa-dark-panel rounded-xl shadow-wa-lg border border-wa-border dark:border-wa-dark-border py-2 animate-slide-up z-20 min-w-[180px]">
-                  <button 
+                  <button
                     onClick={() => imageInputRef.current?.click()}
                     disabled={uploadingFile}
                     className="wa-dropdown-item w-full disabled:opacity-50"
@@ -1306,18 +1303,18 @@ export default function ChatWindow({ conversation, messages, onBack }) {
       {showSidebar && (
         <>
           {/* Backdrop */}
-          <div 
+          <div
             className="fixed inset-0 bg-black/40 dark:bg-black/60 z-30 md:hidden"
             onClick={() => setShowSidebar(false)}
           />
           {/* Sidebar */}
           <div className="fixed md:static right-0 top-0 bottom-0 w-[330px] md:w-[330px] border-l border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel flex flex-col h-full animate-slide-in-right shrink-0 z-40 md:z-20 md:relative">
-            
+
             {/* Header */}
             <div className="h-[60px] border-b border-wa-border dark:border-wa-dark-border px-5 flex items-center justify-between bg-wa-bg/30 dark:bg-wa-dark-header/40 shrink-0">
               <span className="font-bold text-sm text-wa-text-primary dark:text-white uppercase tracking-wider">Contact Info</span>
-              <button 
-                onClick={() => setShowSidebar(false)} 
+              <button
+                onClick={() => setShowSidebar(false)}
                 className="p-1.5 rounded-xl text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-bg dark:hover:bg-wa-dark-header transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -1326,379 +1323,375 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
             {/* Scrollable details area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-5 scrollbar-thin">
-            
-            {/* Avatar & Profile */}
-            <div className="flex flex-col items-center text-center space-y-3 pb-5 border-b border-wa-border dark:border-wa-dark-border">
-              <div className={`w-20 h-20 rounded-full ${avatarClass} flex items-center justify-center font-bold text-2xl shadow-inner relative border-2 border-white dark:border-wa-dark-panel`}>
-                {initials}
-              </div>
-              <div className="w-full space-y-2">
-                {editName ? (
-                  <div className="flex items-center gap-1.5 max-w-[260px] mx-auto bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl p-1">
-                    <input
-                      type="text"
-                      value={nameInput}
-                      onChange={(e) => setNameInput(e.target.value)}
-                      className="flex-1 px-2.5 py-1 text-center font-bold text-sm bg-transparent border-none focus:outline-none dark:text-white"
-                      disabled={updatingCrm}
-                    />
-                    <button 
-                      onClick={handleSaveName} 
-                      className="p-1.5 bg-wa-green/10 text-wa-green hover:bg-wa-green/20 rounded-lg transition-colors"
-                      title="Save Name"
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => { setEditName(false); setNameInput(contact.name || ''); }} 
-                      className="p-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
-                      title="Cancel"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <h4 className="font-bold text-base text-wa-text-primary dark:text-white flex items-center justify-center gap-1.5 group">
-                    <span>{contact.name || 'Unknown Contact'}</span>
-                    <button 
-                      onClick={() => setEditName(true)} 
-                      className="text-wa-text-secondary hover:text-wa-green p-1 rounded-md hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
-                      title="Edit Name"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                  </h4>
-                )}
-                
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 rounded-full text-xs font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono">
-                  <Phone className="w-3 h-3 text-wa-text-light" />
-                  <span>{contact.phone}</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Profile fields card */}
-            <div className="space-y-3">
-              <span className="block text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-widest px-1">Metadata Profile</span>
-              
-              <div className="bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 space-y-4 shadow-sm">
-                
-                {/* Email profile field */}
-                <div className="space-y-1.5">
-                  <span className="flex items-center gap-1.5 text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider">
-                    <Mail className="w-3.5 h-3.5" />
-                    Email Address
-                  </span>
-                  {editEmail ? (
-                    <div className="flex items-center gap-1.5 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl p-1">
+              {/* Avatar & Profile */}
+              <div className="flex flex-col items-center text-center space-y-3 pb-5 border-b border-wa-border dark:border-wa-dark-border">
+                <div className={`w-20 h-20 rounded-full ${avatarClass} flex items-center justify-center font-bold text-2xl shadow-inner relative border-2 border-white dark:border-wa-dark-panel`}>
+                  {initials}
+                </div>
+                <div className="w-full space-y-2">
+                  {editName ? (
+                    <div className="flex items-center gap-1.5 max-w-[260px] mx-auto bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl p-1">
                       <input
-                        type="email"
-                        value={emailInput}
-                        onChange={(e) => setEmailInput(e.target.value)}
-                        className="flex-1 px-2 py-1 text-xs bg-transparent border-none focus:outline-none dark:text-white"
+                        type="text"
+                        value={nameInput}
+                        onChange={(e) => setNameInput(e.target.value)}
+                        className="flex-1 px-2.5 py-1 text-center font-bold text-sm bg-transparent border-none focus:outline-none dark:text-white"
                         disabled={updatingCrm}
-                        placeholder="Enter email..."
                       />
-                      <button 
-                        onClick={handleSaveEmail} 
+                      <button
+                        onClick={handleSaveName}
                         className="p-1.5 bg-wa-green/10 text-wa-green hover:bg-wa-green/20 rounded-lg transition-colors"
-                        title="Save Email"
+                        title="Save Name"
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="w-4 h-4" />
                       </button>
-                      <button 
-                        onClick={() => { setEditEmail(false); setEmailInput(contact.email || ''); }} 
+                      <button
+                        onClick={() => { setEditName(false); setNameInput(contact.name || ''); }}
                         className="p-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
                         title="Cancel"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between gap-2 group min-h-[28px]">
-                      <span className="text-xs text-wa-text-primary dark:text-white font-medium select-all truncate">
-                        {contact.email || <span className="italic text-slate-400 dark:text-slate-500">No email linked</span>}
-                      </span>
-                      <button 
-                        onClick={() => setEditEmail(true)} 
-                        className="text-wa-text-secondary hover:text-wa-green p-1 rounded-md hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors shrink-0"
-                        title="Edit Email"
+                    <h4 className="font-bold text-base text-wa-text-primary dark:text-white flex items-center justify-center gap-1.5 group">
+                      <span>{contact.name || 'Unknown Contact'}</span>
+                      <button
+                        onClick={() => setEditName(true)}
+                        className="text-wa-text-secondary hover:text-wa-green p-1 rounded-md hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                        title="Edit Name"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
-                    </div>
+                    </h4>
                   )}
-                </div>
 
-                {/* Database Source field */}
-                <div className="space-y-1.5 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-                  <span className="flex items-center gap-1.5 text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider">
-                    <User className="w-3.5 h-3.5" />
-                    Signup Source
-                  </span>
-                  <span className="inline-block text-xs font-semibold text-wa-text-primary dark:text-white capitalize px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-slate-650 dark:text-slate-355">
-                    {contact.source || 'manual'}
-                  </span>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 rounded-full text-xs font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono">
+                    <Phone className="w-3 h-3 text-wa-text-light" />
+                    <span>{contact.phone}</span>
+                  </div>
                 </div>
+              </div>
 
-                {/* Marketing Campaign Opt-out field */}
-                <div className="space-y-1.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                  <div className="flex flex-col gap-0.5">
+              {/* Profile fields card */}
+              <div className="space-y-3">
+                <span className="block text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-widest px-1">Metadata Profile</span>
+
+                <div className="bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 space-y-4 shadow-sm">
+
+                  {/* Email profile field */}
+                  <div className="space-y-1.5">
                     <span className="flex items-center gap-1.5 text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider">
-                      <Shield className="w-3.5 h-3.5" />
-                      Campaign Subscription
+                      <Mail className="w-3.5 h-3.5" />
+                      Email Address
                     </span>
-                    <span className={`text-[10px] font-medium ${contact.optedOut ? 'text-red-550' : 'text-emerald-500'}`}>
-                      {contact.optedOut ? 'Opted-Out (Stopped)' : 'Subscribed (Receiving)'}
+                    {editEmail ? (
+                      <div className="flex items-center gap-1.5 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl p-1">
+                        <input
+                          type="email"
+                          value={emailInput}
+                          onChange={(e) => setEmailInput(e.target.value)}
+                          className="flex-1 px-2 py-1 text-xs bg-transparent border-none focus:outline-none dark:text-white"
+                          disabled={updatingCrm}
+                          placeholder="Enter email..."
+                        />
+                        <button
+                          onClick={handleSaveEmail}
+                          className="p-1.5 bg-wa-green/10 text-wa-green hover:bg-wa-green/20 rounded-lg transition-colors"
+                          title="Save Email"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => { setEditEmail(false); setEmailInput(contact.email || ''); }}
+                          className="p-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
+                          title="Cancel"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2 group min-h-[28px]">
+                        <span className="text-xs text-wa-text-primary dark:text-white font-medium select-all truncate">
+                          {contact.email || <span className="italic text-slate-400 dark:text-slate-500">No email linked</span>}
+                        </span>
+                        <button
+                          onClick={() => setEditEmail(true)}
+                          className="text-wa-text-secondary hover:text-wa-green p-1 rounded-md hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors shrink-0"
+                          title="Edit Email"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Database Source field */}
+                  <div className="space-y-1.5 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider">
+                      <User className="w-3.5 h-3.5" />
+                      Signup Source
+                    </span>
+                    <span className="inline-block text-xs font-semibold text-wa-text-primary dark:text-white capitalize px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-slate-650 dark:text-slate-355">
+                      {contact.source || 'manual'}
                     </span>
                   </div>
-                  <button
-                    onClick={handleToggleOptOut}
-                    disabled={updatingCrm}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      contact.optedOut ? 'bg-red-500' : 'bg-wa-green'
-                    }`}
-                    title={contact.optedOut ? 'Opt In' : 'Opt Out'}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        contact.optedOut ? 'translate-x-4' : 'translate-x-0'
-                      }`}
+
+                  {/* Marketing Campaign Opt-out field */}
+                  <div className="space-y-1.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="flex items-center gap-1.5 text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider">
+                        <Shield className="w-3.5 h-3.5" />
+                        Campaign Subscription
+                      </span>
+                      <span className={`text-[10px] font-medium ${contact.optedOut ? 'text-red-550' : 'text-emerald-500'}`}>
+                        {contact.optedOut ? 'Opted-Out (Stopped)' : 'Subscribed (Receiving)'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleToggleOptOut}
+                      disabled={updatingCrm}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${contact.optedOut ? 'bg-red-500' : 'bg-wa-green'
+                        }`}
+                      title={contact.optedOut ? 'Opt In' : 'Opt Out'}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${contact.optedOut ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tags section card */}
+              <div className="space-y-3 pt-1">
+                <span className="block text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-widest px-1">Audience Tags</span>
+
+                <div className="bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 space-y-3.5 shadow-sm">
+                  <div className="flex flex-wrap gap-1.5">
+                    {contact.tags && contact.tags.length > 0 ? (
+                      contact.tags.map(t => {
+                        const tagStyles = getTagColorClass(t);
+                        return (
+                          <span
+                            key={t}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${tagStyles.badge}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${tagStyles.dot}`} />
+                            <span>{t}</span>
+                            <button
+                              onClick={() => handleRemoveTag(t)}
+                              className="hover:text-red-500 font-bold shrink-0 ml-1 transition-colors hover:scale-110"
+                              title="Remove Tag"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })
+                    ) : (
+                      <span className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary italic">No tags associated.</span>
+                    )}
+                  </div>
+
+                  <div className="relative mt-1">
+                    <Tag className="absolute left-3 top-2.5 w-3.5 h-3.5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
+                    <input
+                      type="text"
+                      placeholder="Type tag & press Enter..."
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyDown={handleAddTag}
+                      disabled={updatingCrm}
+                      className="w-full pl-9 pr-3 py-2 text-xs bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all"
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes Section card */}
+              <div className="space-y-3 pt-1">
+                <span className="block text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-widest px-1">Internal Notes & Timeline</span>
+
+                <div className="bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 space-y-3 shadow-sm">
+
+                  {/* Note Entry Area */}
+                  <form onSubmit={handleCreateNote} className="space-y-2">
+                    <textarea
+                      rows={2}
+                      placeholder="Add internal note..."
+                      value={newNoteText}
+                      onChange={(e) => setNewNoteText(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green resize-none transition-all"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={updatingCrm || !newNoteText.trim()}
+                        className="px-3 py-1 bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 text-white font-semibold text-[11px] rounded-lg flex items-center gap-1 shadow-sm transition-all"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Add Note</span>
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Notes History list */}
+                  <div className="space-y-3 pt-2 max-h-[300px] overflow-y-auto scrollbar-thin divide-y divide-slate-100 dark:divide-slate-800">
+                    {notesLoading ? (
+                      <div className="py-4 text-center text-wa-text-secondary flex items-center justify-center gap-2 text-xs">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-wa-green" /> Loading notes...
+                      </div>
+                    ) : notes.length === 0 ? (
+                      <div className="py-4 text-center text-wa-text-secondary italic text-xs">
+                        No internal notes logged yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-3 pt-2">
+                        {notes.map((note) => {
+                          const author = note.createdBy || {};
+                          const authorInitials = author.name ? author.name.substring(0, 2).toUpperCase() : 'US';
+                          const isEditing = editingNoteId === note._id;
+
+                          return (
+                            <div
+                              key={note._id}
+                              className={`group border relative transition-all duration-200 rounded-xl p-3 shadow-xs bg-white dark:bg-wa-dark-panel ${note.isPinned
+                                  ? 'border-wa-green/35 dark:border-wa-green/30 bg-wa-green/[0.01]'
+                                  : 'border-wa-border dark:border-wa-dark-border/60 hover:border-wa-border-hover'
+                                }`}
+                            >
+                              {/* Note Header */}
+                              <div className="flex justify-between items-start mb-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-5 h-5 rounded-full bg-wa-bg dark:bg-wa-dark-header flex items-center justify-center font-bold text-[9px] text-wa-text-secondary border border-wa-border shrink-0">
+                                    {authorInitials}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-wa-text-primary dark:text-white text-[11px] block leading-none truncate">
+                                      {author.name || 'User'}
+                                    </span>
+                                    <span className="text-[8px] text-wa-text-secondary font-mono">
+                                      {new Date(note.createdAt).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePinNote(note._id, note.isPinned)}
+                                    className={`p-1 rounded hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors ${note.isPinned ? 'text-wa-green' : 'text-wa-text-light'
+                                      }`}
+                                    title={note.isPinned ? 'Unpin' : 'Pin'}
+                                  >
+                                    <Pin className={`w-3 h-3 ${note.isPinned ? '' : 'rotate-45'}`} />
+                                  </button>
+                                  {!isEditing && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingNoteId(note._id); setEditingNoteText(note.note); }}
+                                      className="p-1 rounded hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-blue-500 transition-colors"
+                                      title="Edit"
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteNote(note._id)}
+                                    className="p-1 rounded hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-red-500 transition-colors"
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Note Body */}
+                              <div className="text-[11px] text-wa-text-primary dark:text-wa-dark-text-primary leading-relaxed font-medium pl-6">
+                                {isEditing ? (
+                                  <div className="space-y-1.5 mt-1">
+                                    <textarea
+                                      rows={2}
+                                      value={editingNoteText}
+                                      onChange={(e) => setEditingNoteText(e.target.value)}
+                                      className="w-full px-2 py-1 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-lg text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green resize-none"
+                                    />
+                                    <div className="flex justify-end gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingNoteId(null)}
+                                        className="px-2 py-1 bg-wa-bg dark:bg-wa-dark-panel hover:bg-wa-hover border border-wa-border dark:border-wa-dark-border text-[9px] font-bold text-wa-text-secondary rounded transition-colors"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveEditNote(note._id)}
+                                        className="px-2 py-1 bg-wa-green hover:bg-wa-green-hover text-white text-[9px] font-bold rounded transition-colors flex items-center gap-0.5"
+                                      >
+                                        <Save className="w-2.5 h-2.5" /> Save
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="whitespace-pre-wrap">{note.note}</p>
+                                )}
+                              </div>
+
+                              {/* Pin label */}
+                              {note.isPinned && (
+                                <span className="absolute top-0 right-14 text-[8px] bg-wa-green/10 text-wa-green px-1 py-0.2 rounded-b border-b border-x border-wa-green/20 font-bold uppercase tracking-wider scale-90 origin-top">
+                                  Pinned
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Delete Chat Action card */}
+              <div className="space-y-3 pt-1">
+                <span className="block text-[10px] font-bold text-red-500 uppercase tracking-widest px-1">Danger Zone</span>
+
+                <div className="bg-red-50/30 dark:bg-red-950/5 border border-red-100 dark:border-red-900/20 rounded-2xl p-4 space-y-3 shadow-sm">
+                  <div className="flex gap-2 text-xs text-red-700 dark:text-red-450">
+                    <Trash2 className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+                    <span>Deleting this chat will permanently remove all messages and history with this customer.</span>
+                  </div>
+                  <button
+                    onClick={handleDeleteChat}
+                    disabled={updatingCrm}
+                    className="w-full py-2 bg-transparent hover:bg-red-500 text-red-500 hover:text-white border border-red-500/30 hover:border-red-500 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Chat History
                   </button>
                 </div>
               </div>
+
             </div>
 
-            {/* Tags section card */}
-            <div className="space-y-3 pt-1">
-              <span className="block text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-widest px-1">Audience Tags</span>
-              
-              <div className="bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 space-y-3.5 shadow-sm">
-                <div className="flex flex-wrap gap-1.5">
-                  {contact.tags && contact.tags.length > 0 ? (
-                    contact.tags.map(t => {
-                      const tagStyles = getTagColorClass(t);
-                      return (
-                        <span 
-                          key={t} 
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${tagStyles.badge}`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${tagStyles.dot}`} />
-                          <span>{t}</span>
-                          <button 
-                            onClick={() => handleRemoveTag(t)}
-                            className="hover:text-red-500 font-bold shrink-0 ml-1 transition-colors hover:scale-110"
-                            title="Remove Tag"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      );
-                    })
-                  ) : (
-                    <span className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary italic">No tags associated.</span>
-                  )}
-                </div>
-
-                <div className="relative mt-1">
-                  <Tag className="absolute left-3 top-2.5 w-3.5 h-3.5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
-                  <input
-                    type="text"
-                    placeholder="Type tag & press Enter..."
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyDown={handleAddTag}
-                    disabled={updatingCrm}
-                    className="w-full pl-9 pr-3 py-2 text-xs bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all"
-                  />
-                </div>
+            {/* Footer loader indicator */}
+            {updatingCrm && (
+              <div className="p-3 bg-wa-bg dark:bg-wa-dark-header border-t border-wa-border dark:border-wa-dark-border flex items-center justify-center gap-1.5 text-xs text-wa-text-secondary shrink-0">
+                <Loader2 className="w-4.5 h-4.5 animate-spin text-wa-green" />
+                <span>Saving changes...</span>
               </div>
-            </div>
-
-            {/* Notes Section card */}
-            <div className="space-y-3 pt-1">
-              <span className="block text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-widest px-1">Internal Notes & Timeline</span>
-              
-              <div className="bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 space-y-3 shadow-sm">
-                
-                {/* Note Entry Area */}
-                <form onSubmit={handleCreateNote} className="space-y-2">
-                  <textarea
-                    rows={2}
-                    placeholder="Add internal note..."
-                    value={newNoteText}
-                    onChange={(e) => setNewNoteText(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green resize-none transition-all"
-                  />
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={updatingCrm || !newNoteText.trim()}
-                      className="px-3 py-1 bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 text-white font-semibold text-[11px] rounded-lg flex items-center gap-1 shadow-sm transition-all"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Note</span>
-                    </button>
-                  </div>
-                </form>
-
-                {/* Notes History list */}
-                <div className="space-y-3 pt-2 max-h-[300px] overflow-y-auto scrollbar-thin divide-y divide-slate-100 dark:divide-slate-800">
-                  {notesLoading ? (
-                    <div className="py-4 text-center text-wa-text-secondary flex items-center justify-center gap-2 text-xs">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-wa-green" /> Loading notes...
-                    </div>
-                  ) : notes.length === 0 ? (
-                    <div className="py-4 text-center text-wa-text-secondary italic text-xs">
-                      No internal notes logged yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-3 pt-2">
-                      {notes.map((note) => {
-                        const author = note.createdBy || {};
-                        const authorInitials = author.name ? author.name.substring(0, 2).toUpperCase() : 'US';
-                        const isEditing = editingNoteId === note._id;
-                        
-                        return (
-                          <div 
-                            key={note._id} 
-                            className={`group border relative transition-all duration-200 rounded-xl p-3 shadow-xs bg-white dark:bg-wa-dark-panel ${
-                              note.isPinned 
-                                ? 'border-wa-green/35 dark:border-wa-green/30 bg-wa-green/[0.01]' 
-                                : 'border-wa-border dark:border-wa-dark-border/60 hover:border-wa-border-hover'
-                            }`}
-                          >
-                            {/* Note Header */}
-                            <div className="flex justify-between items-start mb-1.5">
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-5 h-5 rounded-full bg-wa-bg dark:bg-wa-dark-header flex items-center justify-center font-bold text-[9px] text-wa-text-secondary border border-wa-border shrink-0">
-                                  {authorInitials}
-                                </div>
-                                <div className="min-w-0">
-                                  <span className="font-bold text-wa-text-primary dark:text-white text-[11px] block leading-none truncate">
-                                    {author.name || 'User'}
-                                  </span>
-                                  <span className="text-[8px] text-wa-text-secondary font-mono">
-                                    {new Date(note.createdAt).toLocaleDateString()}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Actions */}
-                              <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => handlePinNote(note._id, note.isPinned)}
-                                  className={`p-1 rounded hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors ${
-                                    note.isPinned ? 'text-wa-green' : 'text-wa-text-light'
-                                  }`}
-                                  title={note.isPinned ? 'Unpin' : 'Pin'}
-                                >
-                                  <Pin className={`w-3 h-3 ${note.isPinned ? '' : 'rotate-45'}`} />
-                                </button>
-                                {!isEditing && (
-                                  <button
-                                    type="button"
-                                    onClick={() => { setEditingNoteId(note._id); setEditingNoteText(note.note); }}
-                                    className="p-1 rounded hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-blue-500 transition-colors"
-                                    title="Edit"
-                                  >
-                                    <Edit2 className="w-3 h-3" />
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteNote(note._id)}
-                                  className="p-1 rounded hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-red-500 transition-colors"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Note Body */}
-                            <div className="text-[11px] text-wa-text-primary dark:text-wa-dark-text-primary leading-relaxed font-medium pl-6">
-                              {isEditing ? (
-                                <div className="space-y-1.5 mt-1">
-                                  <textarea
-                                    rows={2}
-                                    value={editingNoteText}
-                                    onChange={(e) => setEditingNoteText(e.target.value)}
-                                    className="w-full px-2 py-1 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-lg text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green resize-none"
-                                  />
-                                  <div className="flex justify-end gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingNoteId(null)}
-                                      className="px-2 py-1 bg-wa-bg dark:bg-wa-dark-panel hover:bg-wa-hover border border-wa-border dark:border-wa-dark-border text-[9px] font-bold text-wa-text-secondary rounded transition-colors"
-                                    >
-                                      Cancel
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSaveEditNote(note._id)}
-                                      className="px-2 py-1 bg-wa-green hover:bg-wa-green-hover text-white text-[9px] font-bold rounded transition-colors flex items-center gap-0.5"
-                                    >
-                                      <Save className="w-2.5 h-2.5" /> Save
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="whitespace-pre-wrap">{note.note}</p>
-                              )}
-                            </div>
-
-                            {/* Pin label */}
-                            {note.isPinned && (
-                              <span className="absolute top-0 right-14 text-[8px] bg-wa-green/10 text-wa-green px-1 py-0.2 rounded-b border-b border-x border-wa-green/20 font-bold uppercase tracking-wider scale-90 origin-top">
-                                Pinned
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-              </div>
-            </div>
-
-            {/* Delete Chat Action card */}
-            <div className="space-y-3 pt-1">
-              <span className="block text-[10px] font-bold text-red-500 uppercase tracking-widest px-1">Danger Zone</span>
-              
-              <div className="bg-red-50/30 dark:bg-red-950/5 border border-red-100 dark:border-red-900/20 rounded-2xl p-4 space-y-3 shadow-sm">
-                <div className="flex gap-2 text-xs text-red-700 dark:text-red-450">
-                  <Trash2 className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
-                  <span>Deleting this chat will permanently remove all messages and history with this customer.</span>
-                </div>
-                <button
-                  onClick={handleDeleteChat}
-                  disabled={updatingCrm}
-                  className="w-full py-2 bg-transparent hover:bg-red-500 text-red-500 hover:text-white border border-red-500/30 hover:border-red-500 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete Chat History
-                </button>
-              </div>
-            </div>
+            )}
 
           </div>
-
-          {/* Footer loader indicator */}
-          {updatingCrm && (
-            <div className="p-3 bg-wa-bg dark:bg-wa-dark-header border-t border-wa-border dark:border-wa-dark-border flex items-center justify-center gap-1.5 text-xs text-wa-text-secondary shrink-0">
-              <Loader2 className="w-4.5 h-4.5 animate-spin text-wa-green" />
-              <span>Saving changes...</span>
-            </div>
-          )}
-
-        </div>
-      </>
-    )}
+        </>
+      )}
 
 
       {/* MODAL: SEND CONTACT CARD */}
@@ -1711,7 +1704,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                 <X className="w-5 h-5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
               </button>
             </div>
-            
+
             <form onSubmit={handleSendContactCard} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Contact Name *</label>
@@ -1744,15 +1737,15 @@ export default function ChatWindow({ conversation, messages, onBack }) {
               </div>
 
               <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsContactModalOpen(false)}
                   className="px-4 py-2 text-sm font-semibold border border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel hover:bg-wa-bg rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary transition-all duration-200"
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="px-5 py-2 text-sm font-semibold text-white bg-wa-green hover:bg-wa-green-hover rounded-xl shadow-md transition-all duration-200"
                 >
                   Send Card
@@ -1795,7 +1788,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                 </button>
               </div>
             </div>
-            
+
             <div className="flex-1 bg-wa-bg/15 dark:bg-wa-dark-bg/10 relative p-4 flex justify-center items-center">
               <iframe
                 src={previewPdfUrl}

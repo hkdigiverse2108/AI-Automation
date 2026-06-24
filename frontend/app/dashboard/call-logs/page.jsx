@@ -390,11 +390,10 @@ export default function TelephonyCRMPage() {
                 setSearch('');
                 setStatusFilter('');
               }}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                isActive
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${isActive
                   ? 'bg-[#10b981]/15 text-[#10b981] border-[#10b981]/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
                   : 'bg-gray-900/60 hover:bg-gray-800/80 text-gray-400 border-gray-800'
-              }`}
+                }`}
             >
               <Icon className="w-4 h-4" />
               {tab.label}
@@ -740,13 +739,12 @@ export default function TelephonyCRMPage() {
                             value={c.status}
                             disabled={updatingTicketId === c._id}
                             onChange={e => updateTicketStatus('complaints', c._id, e.target.value)}
-                            className={`px-3 py-1.5 rounded-lg border font-bold uppercase text-[9px] focus:outline-none ${
-                              c.status === 'resolved'
+                            className={`px-3 py-1.5 rounded-lg border font-bold uppercase text-[9px] focus:outline-none ${c.status === 'resolved'
                                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
                                 : c.status === 'investigating'
-                                ? 'bg-blue-500/10 border-blue-500/30 text-blue-500'
-                                : 'bg-amber-500/10 border-amber-500/30 text-amber-500'
-                            }`}
+                                  ? 'bg-blue-500/10 border-blue-500/30 text-blue-500'
+                                  : 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+                              }`}
                           >
                             <option value="pending" className="bg-gray-950 text-white">Pending</option>
                             <option value="investigating" className="bg-gray-950 text-white">Investigating</option>
@@ -887,11 +885,10 @@ export default function TelephonyCRMPage() {
                             value={item.status}
                             disabled={updatingTicketId === item._id}
                             onChange={e => updateTicketStatus('lost-items', item._id, e.target.value)}
-                            className={`px-3 py-1.5 rounded-lg border font-bold uppercase text-[9px] focus:outline-none ${
-                              item.status === 'found'
+                            className={`px-3 py-1.5 rounded-lg border font-bold uppercase text-[9px] focus:outline-none ${item.status === 'found'
                                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
                                 : 'bg-rose-500/10 border-rose-500/30 text-rose-500'
-                            }`}
+                              }`}
                           >
                             <option value="reported" className="bg-gray-950 text-white">Reported</option>
                             <option value="found" className="bg-gray-950 text-white">Found</option>
@@ -1024,11 +1021,10 @@ export default function TelephonyCRMPage() {
                             value={c.status}
                             disabled={updatingTicketId === c._id}
                             onChange={e => updateTicketStatus('callbacks', c._id, e.target.value)}
-                            className={`px-3 py-1.5 rounded-lg border font-bold uppercase text-[9px] focus:outline-none ${
-                              c.status === 'completed'
+                            className={`px-3 py-1.5 rounded-lg border font-bold uppercase text-[9px] focus:outline-none ${c.status === 'completed'
                                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
                                 : 'bg-amber-500/10 border-amber-500/30 text-amber-500'
-                            }`}
+                              }`}
                           >
                             <option value="pending" className="bg-gray-950 text-white">Pending</option>
                             <option value="completed" className="bg-gray-950 text-white">Completed</option>
@@ -1153,11 +1149,10 @@ export default function TelephonyCRMPage() {
                       <button
                         type="button"
                         onClick={() => togglePlayAudio(script.lang, parkConfig.audio_urls[script.lang])}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
-                          playingAudio === script.lang
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${playingAudio === script.lang
                             ? 'bg-rose-500/10 border-rose-500/30 text-rose-500'
                             : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
-                        }`}
+                          }`}
                       >
                         {playingAudio === script.lang ? (
                           <>
@@ -1302,20 +1297,18 @@ export default function TelephonyCRMPage() {
                         <td className="px-4 py-3 font-bold text-gray-200">{member.name}</td>
                         <td className="px-4 py-3 font-mono text-[11px] text-gray-400">{member.email}</td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded font-bold uppercase text-[9px] ${
-                            member.role === 'admin' || member.role === 'owner'
+                          <span className={`px-2 py-0.5 rounded font-bold uppercase text-[9px] ${member.role === 'admin' || member.role === 'owner'
                               ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400'
                               : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
-                          }`}>
+                            }`}>
                             {member.role}
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded font-bold uppercase text-[9px] ${
-                            member.isSuspended
+                          <span className={`px-2 py-0.5 rounded font-bold uppercase text-[9px] ${member.isSuspended
                               ? 'bg-rose-500/10 text-rose-500'
                               : 'bg-emerald-500/10 text-emerald-500'
-                          }`}>
+                            }`}>
                             {member.isSuspended ? 'Suspended' : 'Active'}
                           </span>
                         </td>
