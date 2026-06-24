@@ -21,6 +21,9 @@ jobs:
           cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Build Frontend in Runner
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_SOCKET_URL: ${{ secrets.NEXT_PUBLIC_SOCKET_URL }}
         run: |
           cd frontend
           npm ci
