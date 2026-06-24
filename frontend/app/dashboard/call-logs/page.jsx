@@ -316,7 +316,9 @@ export default function TelephonyCRMPage() {
       return;
     }
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || window.location.origin;
+    const apiBase = (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && (process.env.NEXT_PUBLIC_API_URL || '').includes('localhost'))
+      ? window.location.origin
+      : (process.env.NEXT_PUBLIC_API_URL || window.location.origin);
     const fullAudioUrl = `${apiBase.replace(/\/$/, '')}${relativeUrl}`;
 
     if (playingAudio === lang) {

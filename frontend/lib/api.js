@@ -1,9 +1,25 @@
 import axios from 'axios';
 
 const getBaseURL = () => {
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-    return 'http://localhost:5005/api';
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const rawUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+
+    // If browser is NOT on localhost, but rawUrl points to localhost,
+    // it means it fell back to localhost during build time. Use relative path.
+    if (hostname !== 'localhost' && (rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1'))) {
+      return '/api';
+    }
+
+    // If browser IS on localhost, determine local backend URL
+    if (hostname === 'localhost') {
+      if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+        return `${rawUrl.replace(/\/$/, '')}/api`;
+      }
+      return 'http://localhost:5005/api';
+    }
   }
+
   const rawUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
   if (rawUrl.endsWith('/api') || rawUrl.endsWith('/api/')) {
     return rawUrl;
