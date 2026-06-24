@@ -73,6 +73,30 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
 
     // Check if message is commerce related
     const isCommerce = isTriggerKeyword || isCartKeyword || inCommerce || commerceState;
+
+    try {
+      const ApiLog = require('../models/ApiLog');
+      await ApiLog.create({
+        userId,
+        type: 'webhook_incoming',
+        method: 'COMMERCE_DEBUG',
+        url: '/commerce/debug',
+        requestBody: {
+          textVal,
+          textLower,
+          msgType,
+          commerceState,
+          inCommerce,
+          isTriggerKeyword,
+          isCommerce,
+          phoneNumberId,
+          hasToken: !!token
+        },
+        responseBody: { status: 'logged' },
+        statusCode: 200
+      });
+    } catch (_) {}
+
     if (!isCommerce) return false; // Hand over to normal bot flow
 
     logger.info(`[COMMERCE ENGINE] Processing message for ${contact.phone}. Current State: ${commerceState}`);
