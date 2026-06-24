@@ -1,0 +1,49 @@
+name: Deploy AI Automation
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H 82.29.160.246 >> ~/.ssh/known_hosts
+
+      - name: Deploy LIVE
+        run: |
+          ssh root@82.29.160.246 << 'EOF'
+            cd /root/AI-Automation
+
+            git fetch origin
+            git checkout main
+            git pull origin main
+
+            # Install root dependencies
+            npm install
+
+            # Install backend dependencies
+            cd backend
+            npm install
+            cd ..
+
+            # Install frontend dependencies and build
+            cd frontend
+            npm install
+            npm run build
+            cd ..
+
+            # Restart PM2 processes
+            pm2 restart AI-Automation-Backend
+            pm2 restart AI-Automation-FE
+          EOF

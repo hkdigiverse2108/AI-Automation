@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'hk-automation-api',
+      name: 'AI-Automation-Backend',
       script: './backend/server.js',
       instances: 'max', // run in cluster mode matching CPU cores
       exec_mode: 'cluster',
@@ -18,7 +18,7 @@ module.exports = {
       time: true
     },
     {
-      name: 'hk-automation-worker',
+      name: 'AI-Automation-Worker',
       script: './backend/server.js',
       instances: 1, // run single background queue processor instance
       exec_mode: 'fork',
@@ -35,7 +35,7 @@ module.exports = {
       time: true
     },
     {
-      name: 'hk-automation-frontend',
+      name: 'AI-Automation-FE',
       script: 'node_modules/next/dist/bin/next',
       args: 'start -p 3000',
       cwd: './frontend',
