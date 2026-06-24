@@ -67,12 +67,20 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
     let commerceState = conversation.flowVariables.get('commerce_state') || null;
     let inCommerce = conversation.flowVariables.get('in_commerce') === 'true';
 
-    // Keywords to trigger catalog entry
-    const isTriggerKeyword = ['catalog', 'menu', 'shop', 'buy', 'products', 'categories'].includes(textLower);
+    // Keywords to trigger catalog entry (including show products and substring checks)
+    const triggerKeywords = ['catalog', 'menu', 'shop', 'buy', 'products', 'categories', 'show products', 'show product'];
+    const isTriggerKeyword = triggerKeywords.includes(textLower) || triggerKeywords.some(kw => textLower.includes(kw));
     const isCartKeyword = ['cart', 'view cart', 'checkout'].includes(textLower);
 
+    // Check for interactive callback prefixes to recover from session timeouts
+    const isInteractiveId = textVal.startsWith('cat_') || 
+                            textVal.startsWith('prod_') || 
+                            textVal.startsWith('add_to_cart_') || 
+                            textVal.startsWith('confirm_order') ||
+                            ['view_cart', 'back_catalog', 'clear_cart', 'cancel_checkout'].includes(textVal);
+
     // Check if message is commerce related
-    const isCommerce = isTriggerKeyword || isCartKeyword || inCommerce || commerceState;
+    const isCommerce = isTriggerKeyword || isCartKeyword || inCommerce || commerceState || isInteractiveId;
 
     try {
       const ApiLog = require('../models/ApiLog');
@@ -82,13 +90,18 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
         method: 'COMMERCE_DEBUG',
         url: '/commerce/debug',
         requestBody: {
-          textVal,
-          textLower,
-          msgType,
-          commerceState,
-          inCommerce,
-          isTriggerKeyword,
-          isCommerce,
+          incomingPayload: savedMsg,
+          detectedMessageText: textVal,
+          triggerMatchingResult: {
+            textVal,
+            textLower,
+            isTriggerKeyword,
+            isCartKeyword,
+            isInteractiveId,
+            isCommerce,
+            commerceState,
+            inCommerce
+          },
           phoneNumberId,
           hasToken: !!token
         },
@@ -149,11 +162,11 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
     }
 
     // State machine branch processing
-    if (commerceState === 'browsing_categories') {
+    if (commerceState === 'browsing_categories' || (isInteractiveId && textVal.startsWith('cat_'))) {
       await handleCategorySelection(userId, conversation, contact, textVal, phoneNumberId, token, io);
-    } else if (commerceState === 'browsing_products') {
+    } else if (commerceState === 'browsing_products' || (isInteractiveId && textVal.startsWith('prod_'))) {
       await handleProductSelection(userId, conversation, contact, textVal, phoneNumberId, token, io);
-    } else if (commerceState === 'product_details') {
+    } else if (commerceState === 'product_details' || (isInteractiveId && textVal.startsWith('add_to_cart_'))) {
       await handleProductDetailsAction(userId, conversation, contact, textVal, phoneNumberId, token, io);
     } else if (commerceState === 'checkout_waiting_name') {
       await handleCheckoutName(userId, conversation, contact, textVal, phoneNumberId, token, io);
@@ -161,7 +174,7 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
       await handleCheckoutAddress(userId, conversation, contact, textVal, phoneNumberId, token, io);
     } else if (commerceState === 'checkout_waiting_notes') {
       await handleCheckoutNotes(userId, conversation, contact, textVal, phoneNumberId, token, io);
-    } else if (commerceState === 'checkout_confirm') {
+    } else if (commerceState === 'checkout_confirm' || (isInteractiveId && textVal.startsWith('confirm_order'))) {
       await handleCheckoutConfirm(userId, conversation, contact, textVal, phoneNumberId, token, io);
     } else if (commerceState === 'awaiting_payment') {
       await handlePaymentEvidence(userId, conversation, contact, savedMsg, phoneNumberId, token, io);
@@ -201,6 +214,22 @@ async function renderCategories(userId, conversation, contact, phoneNumberId, to
   const categories = await Category.find({ organizationId: conversation.organization_id }).lean();
   logger.info(`[COMMERCE DEBUG] Found ${categories?.length || 0} categories`);
 
+  try {
+    const ApiLog = require('../models/ApiLog');
+    await ApiLog.create({
+      userId,
+      type: 'webhook_incoming',
+      method: 'COMMERCE_CATALOG_RESPONSE',
+      url: '/commerce/catalog',
+      requestBody: { organizationId: conversation.organization_id },
+      responseBody: {
+        categoryCount: categories?.length || 0,
+        categories: categories.map(c => ({ id: c._id, name: c.name }))
+      },
+      statusCode: 200
+    });
+  } catch (_) {}
+
   if (!categories || categories.length === 0) {
     const text = "Welcome to our shop! 🛍️\nNo product categories are configured currently. Please contact support.";
     const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
@@ -230,6 +259,25 @@ async function renderCategories(userId, conversation, contact, phoneNumberId, to
 
   const result = await whatsapp.sendListMessage(phoneNumberId, token, contact.phone, bodyText, sections, "Browse Shop", "Product Categories");
   logger.info(`[COMMERCE DEBUG] sendListMessage result: ${JSON.stringify({ success: result.success, error: result.error, data: result.data?.messages })}`);
+
+  try {
+    const ApiLog = require('../models/ApiLog');
+    await ApiLog.create({
+      userId,
+      type: 'webhook_incoming',
+      method: 'COMMERCE_SEND_API_RESULT',
+      url: '/commerce/send-list',
+      requestBody: {
+        phoneNumberId,
+        recipient: contact.phone,
+        bodyText,
+        sections
+      },
+      responseBody: result,
+      statusCode: result.success ? 200 : 400
+    });
+  } catch (_) {}
+
   await saveAndEmitOutboundMessage(userId, conversation, contact, bodyText, 'interactive', { interactive: { type: 'list', body: { text: bodyText }, action: { button: 'Choose', sections } } }, result, io);
 
   if (!result.success) {
@@ -278,6 +326,22 @@ async function handleCategorySelection(userId, conversation, contact, textVal, p
     isArchived: false
   }).lean();
 
+  try {
+    const ApiLog = require('../models/ApiLog');
+    await ApiLog.create({
+      userId,
+      type: 'webhook_incoming',
+      method: 'COMMERCE_PRODUCTS_RESPONSE',
+      url: '/commerce/products',
+      requestBody: { categoryId: selectedCategory._id, categoryName: selectedCategory.name },
+      responseBody: {
+        productCount: products?.length || 0,
+        products: products.map(p => ({ id: p._id, name: p.name, price: p.price }))
+      },
+      statusCode: 200
+    });
+  } catch (_) {}
+
   if (!products || products.length === 0) {
     const text = `No active products in category *${selectedCategory.name}*. Showing categories again...`;
     const result = await whatsapp.sendTextMessage(phoneNumberId, token, contact.phone, text);
@@ -301,6 +365,25 @@ async function handleCategorySelection(userId, conversation, contact, textVal, p
   const bodyText = `Browsing *${selectedCategory.name}*:\nSelect a product to view details:`;
 
   const result = await whatsapp.sendListMessage(phoneNumberId, token, contact.phone, bodyText, sections, "View Products", selectedCategory.name.slice(0, 20));
+
+  try {
+    const ApiLog = require('../models/ApiLog');
+    await ApiLog.create({
+      userId,
+      type: 'webhook_incoming',
+      method: 'COMMERCE_SEND_API_RESULT',
+      url: '/commerce/send-list-products',
+      requestBody: {
+        phoneNumberId,
+        recipient: contact.phone,
+        bodyText,
+        sections
+      },
+      responseBody: result,
+      statusCode: result.success ? 200 : 400
+    });
+  } catch (_) {}
+
   await saveAndEmitOutboundMessage(userId, conversation, contact, bodyText, 'interactive', { interactive: { type: 'list', body: { text: bodyText }, action: { button: 'Choose', sections } } }, result, io);
 
   if (!result.success) {
