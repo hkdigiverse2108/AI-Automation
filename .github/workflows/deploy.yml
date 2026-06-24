@@ -13,25 +13,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
-
-      - name: Build Frontend in Runner
-        run: |
-          cd frontend
-          npm ci
-          NEXT_TELEMETRY_DISABLED=1 npm run build
-          cd ..
-          if [ -d "frontend/public" ]; then
-            tar -czf frontend-build.tar.gz -C frontend .next public package.json package-lock.json
-          else
-            tar -czf frontend-build.tar.gz -C frontend .next package.json package-lock.json
-          fi
-
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -39,13 +20,9 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H 82.29.160.246 >> ~/.ssh/known_hosts
 
-      - name: Upload Frontend Build to Server
+      - name: Deploy LIVE
         run: |
-          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=10 frontend-build.tar.gz root@82.29.160.246:/root/AI-Automation/dev/
-
-      - name: Deploy LIVE on Server
-        run: |
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=10 root@82.29.160.246 << 'EOF'
+          ssh root@82.29.160.246 << 'EOF'
             set -e
             cd /root/AI-Automation/dev
 
@@ -94,10 +71,6 @@ jobs:
             git checkout main
             git pull origin main
 
-            # Extract the pre-built frontend files (overwriting .next, public, package.json)
-            echo "Extracting frontend build..."
-            tar -xzf frontend-build.tar.gz -C frontend && rm -f frontend-build.tar.gz || { rm -f frontend-build.tar.gz; exit 1; }
-
             # 1. Handle Root Changes (If root files like package.json change)
             if [ "$ROOT_CHANGED" = "true" ]; then
               echo "Root files changed. Running npm install in root workspace..."
@@ -113,17 +86,13 @@ jobs:
               echo "No Backend changes detected. Skipping Backend deployment."
             fi
 
-            # 3. Handle Frontend Changes (Pre-built on runner, only install runtime production deps and restart)
+            # 3. Handle Frontend Changes
             if [ "$FRONTEND_CHANGED" = "true" ] || [ "$ROOT_CHANGED" = "true" ]; then
               echo "Deploying Frontend changes..."
-              npm install --prefix frontend --omit=dev
+              npm install --prefix frontend
+              npm run build --prefix frontend
               pm2 restart AI-Automation-FE
             else
               echo "No Frontend changes detected. Skipping Frontend deployment."
             fi
           EOF
-
-      - name: Clean up failed upload on Server
-        if: failure()
-        run: |
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=10 root@82.29.160.246 "rm -f /root/AI-Automation/dev/frontend-build.tar.gz"
