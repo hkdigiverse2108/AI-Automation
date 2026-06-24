@@ -586,7 +586,7 @@ export default function AdminPanel() {
                               <div className="flex items-center gap-3">
                                 {org.logo ? (
                                   <img 
-                                    src={org.logo?.startsWith('/uploads') ? `/api${org.logo}` : org.logo} 
+                                    src={org.logo?.startsWith('/uploads') ? (typeof window !== 'undefined' ? `/api${org.logo}` : `${(process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/api\/?$/, '')}${org.logo}`) : org.logo} 
                                     alt="logo" 
                                     className="w-9 h-9 rounded-xl object-cover border border-dark-200" 
                                   />
@@ -1145,7 +1145,7 @@ export default function AdminPanel() {
                     {logoPreview || orgForm.logo ? (
                       <div className="relative group w-full h-[100px] rounded-xl border-2 border-dashed border-brand-300 dark:border-brand-700 overflow-hidden bg-gray-50 dark:bg-dark-800 flex items-center justify-center">
                         <img
-                          src={logoPreview || (orgForm.logo?.startsWith('/uploads') ? `/api${orgForm.logo}` : orgForm.logo)}
+                          src={logoPreview || (orgForm.logo?.startsWith('/uploads') ? (typeof window !== 'undefined' ? `/api${orgForm.logo}` : `${(process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/api\/?$/, '')}${orgForm.logo}`) : orgForm.logo)}
                           alt="Logo preview"
                           className="max-h-[90px] max-w-full object-contain"
                         />
