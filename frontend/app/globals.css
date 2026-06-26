@@ -43,6 +43,7 @@
     --table-row: #ffffff;
     --table-row-alt: #FAFAFA;
     --table-row-hover: #F9FAFB;
+    --muted: #6B7280;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
   }
   .dark {
@@ -84,6 +85,7 @@
     --table-row: transparent;
     --table-row-alt: rgba(17, 27, 33, 0.2);
     --table-row-hover: rgba(32, 44, 51, 0.2);
+    --muted: #8696a0;
     --shadow: none;
   }
   body {

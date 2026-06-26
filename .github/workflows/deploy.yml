@@ -81,7 +81,11 @@ jobs:
             if [ "$BACKEND_CHANGED" = "true" ] || [ "$ROOT_CHANGED" = "true" ]; then
               echo "Deploying Backend changes..."
               npm install --prefix backend
-              pm2 restart AI-Automation-Backend
+              pm2 delete AI-Automation-Backend || true
+              pm2 delete AI-Automation-Worker || true
+              fuser -k 5000/tcp || true
+              fuser -k 5001/tcp || true
+              pm2 start ecosystem.config.js --only AI-Automation-Backend,AI-Automation-Worker
             else
               echo "No Backend changes detected. Skipping Backend deployment."
             fi
@@ -91,7 +95,9 @@ jobs:
               echo "Deploying Frontend changes..."
               npm install --prefix frontend
               npm run build --prefix frontend
-              pm2 restart AI-Automation-FE
+              pm2 delete AI-Automation-FE || true
+              fuser -k 3000/tcp || true
+              pm2 start ecosystem.config.js --only AI-Automation-FE
             else
               echo "No Frontend changes detected. Skipping Frontend deployment."
             fi
