@@ -26,6 +26,22 @@ jobs:
             set -e
             cd /root/AI-Automation/dev
 
+            # Enable Swap if not already configured to prevent OOM / Broken pipe during Next.js build
+            if [ "$(free | awk '/Swap:/ {print $2}')" -eq 0 ] 2>/dev/null; then
+              echo "No swap space detected. Attempting to create a 2GB swap file..."
+              (
+                fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+                chmod 600 /swapfile
+                mkswap /swapfile
+                swapon /swapfile
+                echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
+                echo "Swap file created and activated successfully."
+              ) || echo "WARNING: Could not create swap file (this is normal if running inside a container like OpenVZ/LXC)."
+            else
+              echo "Swap space is already configured:"
+              free -h
+            fi
+
             # Safe function to kill processes on a port without killing PM2 daemon
             safe_kill_port() {
               local port=$1
@@ -129,7 +145,7 @@ jobs:
               npm install --prefix frontend
               # Clean Next.js cache and previous build to prevent stale cache reuse
               rm -rf frontend/.next
-              npm run build --prefix frontend
+              NODE_OPTIONS="--max-old-space-size=1024" NEXT_TELEMETRY_DISABLED=1 npm run build --prefix frontend
               pm2 delete AI-Automation-FE || true
               safe_kill_port 3000
               pm2 start ecosystem.config.js --only AI-Automation-FE
