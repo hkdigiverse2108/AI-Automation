@@ -156,18 +156,25 @@ jobs:
               systemctl reload nginx || service nginx reload || true
 
               # Diagnostic outputs
-              echo "=== DIAGNOSTICS ==="
-              echo "PM2 Status:"
-              pm2 status
-              echo "Next.js process port status:"
-              ss -lptn || netstat -lptn || true
-              echo "Nginx proxy cache settings:"
-              grep -R "proxy_cache" /etc/nginx/ || true
-              echo "Checking Nginx configurations for directories:"
-              grep -R "alias" /etc/nginx/sites-enabled/ || true
-              echo "Showing Nginx server block configs:"
-              cat /etc/nginx/sites-enabled/* || true
-              echo "==================="
+              echo "=== DIAGNOSTICS ===" > nginx_config_debug.txt
+              echo "PM2 Status:" >> nginx_config_debug.txt
+              pm2 status >> nginx_config_debug.txt
+              echo "Next.js process port status:" >> nginx_config_debug.txt
+              (ss -lptn || netstat -lptn) >> nginx_config_debug.txt 2>&1 || true
+              echo "Nginx proxy cache settings:" >> nginx_config_debug.txt
+              grep -R "proxy_cache" /etc/nginx/ >> nginx_config_debug.txt 2>&1 || true
+              echo "Checking Nginx configurations for directories:" >> nginx_config_debug.txt
+              (grep -R "alias" /etc/nginx/sites-enabled/ || grep -R "root" /etc/nginx/sites-enabled/) >> nginx_config_debug.txt 2>&1 || true
+              echo "Showing Nginx server block configs:" >> nginx_config_debug.txt
+              cat /etc/nginx/sites-enabled/* >> nginx_config_debug.txt 2>&1 || true
+              echo "===================" >> nginx_config_debug.txt
+              
+              # Push diagnostics file back to repository to let us pull and read it locally
+              git config --global user.email "bot@antigravity.ai"
+              git config --global user.name "Antigravity Bot"
+              git add nginx_config_debug.txt
+              git commit -m "debug: save server diagnostics [skip ci]" || true
+              git push origin main || true
             else
               echo "No Frontend changes detected. Skipping Frontend deployment."
             fi
