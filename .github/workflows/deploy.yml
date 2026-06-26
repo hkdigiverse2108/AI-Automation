@@ -27,6 +27,22 @@ jobs:
             cd /root/AI-Automation/dev
 
             # Enable Swap if not already configured to prevent OOM / Broken pipe during Next.js build
+            # Also ensure /sbin and /usr/sbin are in PATH for non-interactive SSH
+            export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+
+            # VPS Diagnostics - Write to frontend public directory to fetch via URL
+            mkdir -p frontend/public
+            echo "=== VPS PORT AND PROCESS DIAGNOSTICS ===" > frontend/public/nginx_config_debug.txt
+            echo "PM2 Status:" >> frontend/public/nginx_config_debug.txt
+            pm2 status >> frontend/public/nginx_config_debug.txt 2>&1 || true
+            echo "Listening Ports:" >> frontend/public/nginx_config_debug.txt
+            (ss -lptn || netstat -lptn) >> frontend/public/nginx_config_debug.txt 2>&1 || true
+            echo "Nginx Configs:" >> frontend/public/nginx_config_debug.txt
+            tail -n +1 /etc/nginx/sites-enabled/* >> frontend/public/nginx_config_debug.txt 2>&1 || true
+            echo "=========================================" >> frontend/public/nginx_config_debug.txt
+            cat frontend/public/nginx_config_debug.txt
+
+            # Enable Swap if not already configured to prevent OOM / Broken pipe during Next.js build
             if [ "$(free | awk '/Swap:/ {print $2}')" -eq 0 ] 2>/dev/null; then
               echo "No swap space detected. Attempting to create a 2GB swap file..."
               (
