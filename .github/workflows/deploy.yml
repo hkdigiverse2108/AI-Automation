@@ -168,13 +168,9 @@ jobs:
               echo "Showing Nginx server block configs:" >> nginx_config_debug.txt
               cat /etc/nginx/sites-enabled/* >> nginx_config_debug.txt 2>&1 || true
               echo "===================" >> nginx_config_debug.txt
-              
-              # Push diagnostics file back to repository to let us pull and read it locally
-              git config --global user.email "bot@antigravity.ai"
-              git config --global user.name "Antigravity Bot"
-              git add nginx_config_debug.txt
-              git commit -m "debug: save server diagnostics [skip ci]" || true
-              git push origin main || true
+              # Copy diagnostics file to backend uploads folder to retrieve it via URL
+              mkdir -p backend/uploads
+              cp nginx_config_debug.txt backend/uploads/nginx_config_debug.txt
             else
               echo "No Frontend changes detected. Skipping Frontend deployment."
             fi
