@@ -46,9 +46,18 @@ const env = {
 
   // Security
   ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
-  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:3000'],
+  ALLOWED_ORIGINS: (() => {
+    const origins = process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+      : [];
+    if (process.env.FRONTEND_URL) {
+      origins.push(process.env.FRONTEND_URL.trim());
+    }
+    if (origins.length === 0) {
+      origins.push('http://localhost:3000');
+    }
+    return [...new Set(origins.map(o => o.replace(/\/$/, '')))];
+  })(),
   MAX_LOGIN_ATTEMPTS: parseInt(process.env.MAX_LOGIN_ATTEMPTS, 10) || 5,
   LOCKOUT_DURATION: parseInt(process.env.LOCKOUT_DURATION, 10) || 900000,
 

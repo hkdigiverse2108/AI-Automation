@@ -36,10 +36,14 @@ const io = new Server(server, {
       }
       const normalizedOrigin = origin.replace(/\/$/, '');
       const allowed = env.ALLOWED_ORIGINS.map(url => url.replace(/\/$/, ''));
+      
+      const isHkDigiverse = normalizedOrigin.endsWith('.hkdigiverse.com') || normalizedOrigin === 'https://hkdigiverse.com';
+      
       if (
         allowed.includes(normalizedOrigin) ||
         normalizedOrigin.includes('ngrok-free.app') ||
-        normalizedOrigin.includes('ngrok.io')
+        normalizedOrigin.includes('ngrok.io') ||
+        isHkDigiverse
       ) {
         callback(null, true);
       } else {
