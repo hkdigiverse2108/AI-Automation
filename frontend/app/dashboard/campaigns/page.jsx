@@ -188,9 +188,16 @@ export default function CampaignsPage() {
                 </tr>
               ) : (
                 campaigns.map((campaign) => {
-                  const target = campaign.audience?.type === 'all'
-                    ? 'All Contacts'
-                    : `Tags: ${campaign.audience?.tags?.join(', ')}`;
+                  let target = 'All Contacts';
+                  if (campaign.audience?.type === 'tag') {
+                    target = `Tags: ${campaign.audience?.tags?.join(', ') || ''}`;
+                  } else if (campaign.audience?.type === 'group') {
+                    const groupNames = campaign.audience?.groupIds
+                      ?.map(g => typeof g === 'object' ? g.name : g)
+                      .filter(Boolean)
+                      .join(', ');
+                    target = `Group: ${groupNames || 'Selected Group'}`;
+                  }
                   const sent = campaign.stats?.sent || 0;
                   const delivered = campaign.stats?.delivered || 0;
                   const read = campaign.stats?.read || 0;

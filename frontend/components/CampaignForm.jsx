@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { X, Play, Calendar, Users, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Play, Calendar, Users, FileText, AlertCircle, Loader2, FolderOpen } from 'lucide-react';
 import api from '../lib/api';
 
 export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficial }) {
@@ -9,11 +9,20 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Groups State
+  const [groups, setGroups] = useState([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+
   // Form State
   const [name, setName] = useState(campaign ? campaign.name : '');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [audienceType, setAudienceType] = useState(campaign?.audience?.type || 'all');
   const [audienceTags, setAudienceTags] = useState(campaign?.audience?.tags?.join(', ') || '');
+  const [selectedGroupId, setSelectedGroupId] = useState(
+    campaign?.audience?.type === 'group'
+      ? (campaign.audience.groupIds?.[0]?._id || campaign.audience.groupIds?.[0] || '')
+      : ''
+  );
   const [variables, setVariables] = useState(campaign?.variables || []);
   const [isScheduled, setIsScheduled] = useState(campaign ? !!campaign.scheduledAt : false);
   const [scheduledAt, setScheduledAt] = useState(
@@ -46,6 +55,23 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
     }
     loadTemplates();
   }, [campaign]);
+
+  useEffect(() => {
+    async function loadGroups() {
+      setLoadingGroups(true);
+      try {
+        const { data } = await api.get('/groups', { params: { limit: 1000 } });
+        if (data.success) {
+          setGroups(data.data.groups || []);
+        }
+      } catch (err) {
+        console.error('Failed to load groups for campaign form:', err);
+      } finally {
+        setLoadingGroups(false);
+      }
+    }
+    loadGroups();
+  }, []);
 
   const handleTemplateChange = (templateId) => {
     const t = templates.find(temp => temp._id === templateId);
@@ -130,8 +156,9 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
         templateId: selectedTemplate._id,
         templateName: selectedTemplate.name,
         audience: {
-          type: audienceType,
-          tags: audienceType === 'tag' ? audienceTags.split(',').map(t => t.trim()).filter(Boolean) : []
+          type: audienceType === 'group' && !selectedGroupId ? 'all' : audienceType,
+          tags: audienceType === 'tag' ? audienceTags.split(',').map(t => t.trim()).filter(Boolean) : [],
+          groupIds: audienceType === 'group' && selectedGroupId ? [selectedGroupId] : []
         },
         variables,
         headerMediaId,
@@ -193,19 +220,19 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
           <div className="space-y-4">
             <h4 className="text-xs font-bold uppercase text-dark-400 tracking-wider">2. Target Audience</h4>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <label className={`border p-4 rounded-xl flex items-start gap-3 cursor-pointer transition-all ${audienceType === 'all' ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-900/10' : 'border-dark-200 dark:border-dark-700'}`}>
                 <input 
                   type="radio" 
                   name="audienceType" 
                   value="all"
                   checked={audienceType === 'all'} 
-                  onChange={() => setAudienceType('all')} 
+                  onChange={() => { setAudienceType('all'); setSelectedGroupId(''); }} 
                   className="mt-1 accent-brand-500"
                 />
                 <div>
                   <span className="block font-semibold text-sm dark:text-white">All Active Contacts</span>
-                  <span className="block text-xs text-dark-400">Send to all opted-in subscribers in the database</span>
+                  <span className="block text-xs text-dark-400">Send to all opted-in subscribers</span>
                 </div>
               </label>
 
@@ -215,12 +242,27 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
                   name="audienceType" 
                   value="tag"
                   checked={audienceType === 'tag'} 
-                  onChange={() => setAudienceType('tag')} 
+                  onChange={() => { setAudienceType('tag'); setSelectedGroupId(''); }} 
                   className="mt-1 accent-brand-500"
                 />
                 <div>
                   <span className="block font-semibold text-sm dark:text-white">Filter by Tags</span>
                   <span className="block text-xs text-dark-400">Target contacts matching specific tags</span>
+                </div>
+              </label>
+
+              <label className={`border p-4 rounded-xl flex items-start gap-3 cursor-pointer transition-all ${audienceType === 'group' ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-900/10' : 'border-dark-200 dark:border-dark-700'}`}>
+                <input 
+                  type="radio" 
+                  name="audienceType" 
+                  value="group"
+                  checked={audienceType === 'group'} 
+                  onChange={() => setAudienceType('group')} 
+                  className="mt-1 accent-brand-500"
+                />
+                <div>
+                  <span className="block font-semibold text-sm dark:text-white">Target Group</span>
+                  <span className="block text-xs text-dark-400">Target contacts from a specific group</span>
                 </div>
               </label>
             </div>
@@ -240,6 +282,41 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
                   />
                 </div>
                 <p className="text-[10px] text-dark-400 mt-1">Comma-separated list. Campaign will target contacts matching ANY of these tags.</p>
+              </div>
+            )}
+
+            {audienceType === 'group' && (
+              <div className="animate-fade-in space-y-2">
+                <label className="block text-xs font-semibold text-dark-600 dark:text-dark-300 mb-1.5">Select Target Group (Optional)</label>
+                {loadingGroups ? (
+                  <div className="flex items-center gap-2 text-xs text-dark-500 py-1">
+                    <Loader2 className="w-4 h-4 animate-spin text-brand-500" />
+                    <span>Loading groups...</span>
+                  </div>
+                ) : groups.length === 0 ? (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-xl text-amber-600 text-xs">
+                    No groups found. Please create a group in Contacts &gt; Groups first!
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <FolderOpen className="absolute left-3 top-3 w-4.5 h-4.5 text-dark-400" />
+                    <select
+                      value={selectedGroupId}
+                      onChange={(e) => setSelectedGroupId(e.target.value)}
+                      className="input-field pl-10 py-2.5 text-sm appearance-none"
+                    >
+                      <option value="">-- Select Group (Optional / Leave blank for All Contacts) --</option>
+                      {groups.map(g => (
+                        <option key={g._id} value={g._id}>
+                          {g.name} ({g.contactCount || 0} contacts)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <p className="text-[10px] text-dark-400 mt-1">
+                  If selected, messages go only to contacts in this group. If blank, it goes to all contacts.
+                </p>
               </div>
             )}
           </div>

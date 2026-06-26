@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const [campaigns, total] = await Promise.all([
-      Campaign.find(query).sort('-createdAt').skip(skip).limit(parseInt(limit)).lean(),
+      Campaign.find(query).populate('audience.groupIds', 'name').sort('-createdAt').skip(skip).limit(parseInt(limit)).lean(),
       Campaign.countDocuments(query),
     ]);
 
@@ -54,6 +54,10 @@ router.post('/', campaignValidation, async (req, res) => {
       status: scheduledAt ? 'scheduled' : 'draft',
       scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
     });
+    
+    if (campaign.audience?.groupIds?.length) {
+      await campaign.populate('audience.groupIds', 'name');
+    }
 
     res.status(201).json({ success: true, data: { campaign }, message: 'Campaign created' });
   } catch (error) {
@@ -184,6 +188,10 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
     }
 
     await campaign.save();
+
+    if (campaign.audience?.groupIds?.length) {
+      await campaign.populate('audience.groupIds', 'name');
+    }
 
     await AuditLog.log({ userId: req.userId, action: 'EDIT_CAMPAIGN', resource: 'Campaign', resourceId: req.params.id, ip: req.ip, userAgent: req.headers['user-agent'] });
 
