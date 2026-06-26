@@ -738,6 +738,9 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   const handleSelectQuickReply = (tmplText) => {
     setText(tmplText);
     setShowQuickReplies(false);
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 50);
   };
 
   const filteredTemplates = templates.filter(t =>
@@ -1065,7 +1068,11 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
           {/* Quick replies dropdown overlay */}
           {showQuickReplies && (
-            <div ref={quickRepliesRef} className="absolute bottom-16 left-4 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-2xl p-4 w-[360px] max-h-[300px] flex flex-col z-30 animate-slide-up">
+            <div
+              ref={quickRepliesRef}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="absolute bottom-16 left-4 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-2xl p-4 w-[360px] max-h-[300px] flex flex-col z-30 animate-slide-up"
+            >
               <div className="flex items-center justify-between border-b dark:border-wa-dark-border pb-2 mb-2 shrink-0">
                 <span className="text-xs font-bold text-wa-green uppercase tracking-wider flex items-center gap-1">
                   <Zap className="w-3.5 h-3.5 fill-wa-green/25" /> Quick replies templates
@@ -1116,6 +1123,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
           <div className="flex items-end gap-2">
             <button
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={toggleQuickReplies}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${showQuickReplies ? 'text-wa-green bg-wa-green/10' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'}`}
               title="Access Template Shortcuts"
@@ -1125,6 +1133,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
             <div className="relative" ref={emojiRef}>
               <button
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => { setShowEmojiPicker(!showEmojiPicker); setEmojiSearch(''); }}
                 className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${showEmojiPicker ? 'text-wa-green bg-wa-green/10' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'}`}
                 title="Emoji Picker"

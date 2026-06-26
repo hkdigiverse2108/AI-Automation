@@ -9,7 +9,7 @@ import {
   Volume2, ShieldAlert, BarChart3, Settings, Users, Play, Pause
 } from 'lucide-react';
 import api from '../../../lib/api';
-import { useAuthStore } from '../../../lib/store';
+import { useAuthStore, useThemeStore } from '../../../lib/store';
 import { formatDate } from '../../../lib/utils';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -18,6 +18,7 @@ import {
 
 export default function TelephonyCRMPage() {
   const { user } = useAuthStore();
+  const { dark } = useThemeStore();
   const isAdmin = ['superadmin', 'owner', 'admin'].includes(user?.role);
 
   // Tabs: 'overview', 'calls', 'complaints', 'lost-found', 'callbacks', 'voice-config', 'staff'
@@ -348,21 +349,21 @@ export default function TelephonyCRMPage() {
   const COLORS = ['#f59e0b', '#3b82f6', '#10b981'];
 
   return (
-    <div className="space-y-6 text-white min-h-screen pb-12">
+    <div className="space-y-6 text-themeTextPrimary min-h-screen pb-12">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-themeBorder pb-5">
         <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2 tracking-tight">
+          <h2 className="text-2xl font-bold text-themeTextPrimary flex items-center gap-2 tracking-tight">
             <Phone className="w-7 h-7 text-[#10b981] animate-pulse" />
             IVR Telephony & CRM Dashboard
           </h2>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-themeTextSecondary mt-1">
             Centrally manage MyOperator webhooks, ElevenLabs multilingual TTS config, ticketing workflows, and outbound calls.
           </p>
         </div>
         <button
           onClick={fetchTabData}
-          className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-sm font-semibold py-2 px-4 rounded-xl border border-gray-700 transition-all self-start md:self-auto"
+          className="flex items-center gap-2 bg-themeCard hover:bg-themeCardHover text-sm font-semibold py-2 px-4 rounded-xl border border-themeBorder transition-all self-start md:self-auto text-themeTextPrimary"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
@@ -370,7 +371,7 @@ export default function TelephonyCRMPage() {
       </div>
 
       {/* Tabs Layout */}
-      <div className="flex flex-wrap gap-2 border-b border-gray-800 pb-3">
+      <div className="flex flex-wrap gap-2 border-b border-themeBorder pb-3">
         {[
           { id: 'overview', label: 'Overview', icon: BarChart3 },
           { id: 'calls', label: 'Call Log history', icon: Clock },
@@ -392,7 +393,7 @@ export default function TelephonyCRMPage() {
               }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${isActive
                   ? 'bg-[#10b981]/15 text-[#10b981] border-[#10b981]/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
-                  : 'bg-gray-900/60 hover:bg-gray-800/80 text-gray-400 border-gray-800'
+                  : 'bg-themeCard hover:bg-themeCardHover text-themeTextSecondary border-themeBorder'
                 }`}
             >
               <Icon className="w-4 h-4" />
@@ -415,11 +416,11 @@ export default function TelephonyCRMPage() {
               { label: 'Active Complaints', val: analytics.complaintBreakdown.pending + analytics.complaintBreakdown.investigating, desc: 'In investigating / pending state' },
               { label: 'Callback queue size', val: analytics.callbackQueue, desc: 'Pending agent callout' }
             ].map((metric, i) => (
-              <div key={i} className="glass-card bg-gray-900/40 p-5 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-xl relative overflow-hidden group hover:border-[#10b981]/30 transition-all">
+              <div key={i} className="glass-card bg-themeCard p-5 rounded-2xl border border-themeBorder shadow-sm relative overflow-hidden group hover:border-[#10b981]/30 transition-all">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#10b981]/5 to-transparent rounded-bl-full pointer-events-none" />
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{metric.label}</p>
-                <p className="text-3xl font-extrabold text-white mt-2 tracking-tight group-hover:scale-105 transition-transform origin-left">{metric.val}</p>
-                <p className="text-[11px] text-gray-400 mt-1">{metric.desc}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-themeMuted">{metric.label}</p>
+                <p className="text-3xl font-extrabold text-themeTextPrimary mt-2 tracking-tight group-hover:scale-105 transition-transform origin-left">{metric.val}</p>
+                <p className="text-[11px] text-themeTextSecondary mt-1">{metric.desc}</p>
               </div>
             ))}
           </div>
@@ -427,17 +428,17 @@ export default function TelephonyCRMPage() {
           {/* Charts Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Daily Calls Line Chart */}
-            <div className="lg:col-span-2 glass-card bg-gray-900/40 p-5 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-xl">
-              <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <div className="lg:col-span-2 glass-card bg-themeCard p-5 rounded-2xl border border-themeBorder shadow-sm">
+              <h3 className="text-sm font-bold text-themeTextPrimary uppercase tracking-wider mb-4 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[#10b981]" /> Daily Call Volume (7 Days)
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={analytics.dailyCalls} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                    <XAxis dataKey="date" stroke="#9ca3af" fontSize={11} />
-                    <YAxis stroke="#9ca3af" fontSize={11} />
-                    <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#1f2937', color: '#fff' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={dark ? '#1f2937' : '#E5E7EB'} />
+                    <XAxis dataKey="date" stroke={dark ? '#9ca3af' : '#6B7280'} fontSize={11} />
+                    <YAxis stroke={dark ? '#9ca3af' : '#6B7280'} fontSize={11} />
+                    <Tooltip contentStyle={{ backgroundColor: dark ? '#111827' : '#ffffff', borderColor: dark ? '#1f2937' : '#E5E7EB', color: dark ? '#fff' : '#111827' }} />
                     <Line type="monotone" dataKey="count" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 4 }} activeDot={{ r: 6 }} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -445,8 +446,8 @@ export default function TelephonyCRMPage() {
             </div>
 
             {/* Complaint Breakdown Doughnut */}
-            <div className="glass-card bg-gray-900/40 p-5 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-xl flex flex-col justify-between">
-              <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <div className="glass-card bg-themeCard p-5 rounded-2xl border border-themeBorder shadow-sm flex flex-col justify-between">
+              <h3 className="text-sm font-bold text-themeTextPrimary uppercase tracking-wider mb-4 flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4 text-[#10b981]" /> Complaints ticket status
               </h3>
               <div className="h-44 relative flex items-center justify-center">
@@ -473,7 +474,7 @@ export default function TelephonyCRMPage() {
                         <Cell key={`cell-${idx}`} fill={cell.color} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#1f2937', color: '#fff' }} />
+                    <Tooltip contentStyle={{ backgroundColor: dark ? '#111827' : '#ffffff', borderColor: dark ? '#1f2937' : '#E5E7EB', color: dark ? '#fff' : '#111827' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -483,7 +484,7 @@ export default function TelephonyCRMPage() {
                   { name: 'Investigating', color: 'bg-blue-500', count: analytics.complaintBreakdown.investigating },
                   { name: 'Resolved', color: 'bg-emerald-500', count: analytics.complaintBreakdown.resolved }
                 ].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs text-gray-300">
+                  <div key={i} className="flex items-center justify-between text-xs text-themeTextSecondary">
                     <span className="flex items-center gap-2">
                       <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
                       {item.name}
@@ -503,27 +504,27 @@ export default function TelephonyCRMPage() {
       {activeTab === 'calls' && (
         <div className="space-y-4">
           {/* Filters Bar */}
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-gray-900/30 p-4 rounded-2xl border border-gray-800">
+          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-themeCardHover p-4 rounded-2xl border border-themeBorder">
             <div className="flex flex-1 gap-3 w-full sm:w-auto">
               <div className="relative flex-1 max-w-sm">
-                <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-themeMuted absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Search caller phone..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="w-full bg-gray-900/60 border border-gray-800 rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-[#10b981]/50 text-white placeholder-gray-500"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-[#10b981]/50 text-themeInputText placeholder-themePlaceholder"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
-                className="bg-gray-900/60 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-400 focus:outline-none"
+                className="bg-themeInputBg border border-themeInputBorder rounded-xl px-3 py-2 text-xs text-themeTextSecondary focus:outline-none"
               >
-                <option value="">All Call Types</option>
-                <option value="incoming">Incoming</option>
-                <option value="outgoing">Outgoing</option>
-                <option value="missed">Missed</option>
+                <option value="" className="bg-themeCard text-themeTextPrimary">All Call Types</option>
+                <option value="incoming" className="bg-themeCard text-themeTextPrimary">Incoming</option>
+                <option value="outgoing" className="bg-themeCard text-themeTextPrimary">Outgoing</option>
+                <option value="missed" className="bg-themeCard text-themeTextPrimary">Missed</option>
               </select>
             </div>
             <button
@@ -535,11 +536,11 @@ export default function TelephonyCRMPage() {
           </div>
 
           {/* Call Logs Table */}
-          <div className="glass-card bg-gray-900/40 rounded-2xl border border-gray-800 shadow-xl overflow-hidden">
+          <div className="glass-card bg-themeCard rounded-2xl border border-themeBorder shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-gray-900/60 text-gray-400 font-bold border-b border-gray-800 uppercase tracking-wider text-[10px]">
+                  <tr className="bg-themeTableHeader text-themeTextSecondary font-bold border-b border-themeBorder uppercase tracking-wider text-[10px]">
                     <th className="px-5 py-3">Timestamp</th>
                     <th className="px-5 py-3">Session ID</th>
                     <th className="px-5 py-3">Caller details</th>
@@ -549,10 +550,10 @@ export default function TelephonyCRMPage() {
                     <th className="px-5 py-3">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800/60">
+                <tbody className="divide-y divide-themeBorder/60">
                   {loading && callLogs.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="px-5 py-12 text-center text-gray-500">
+                      <td colSpan="7" className="px-5 py-12 text-center text-themeMuted">
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="w-5 h-5 animate-spin text-[#10b981]" />
                           <span>Loading call logs...</span>
@@ -561,7 +562,7 @@ export default function TelephonyCRMPage() {
                     </tr>
                   ) : callLogs.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="px-5 py-12 text-center text-gray-500 italic">No calls found in the database.</td>
+                      <td colSpan="7" className="px-5 py-12 text-center text-themeMuted italic">No calls found in the database.</td>
                     </tr>
                   ) : (
                     callLogs.map(log => {
@@ -575,13 +576,13 @@ export default function TelephonyCRMPage() {
                         typeColor = 'text-rose-500 bg-rose-500/10 border border-rose-500/20';
                       }
                       return (
-                        <tr key={log._id} className="hover:bg-gray-800/20 transition-all">
-                          <td className="px-5 py-3 text-gray-400 font-medium whitespace-nowrap">{formatDate(log.timestamp || log.createdAt)}</td>
-                          <td className="px-5 py-3 font-mono text-[10px] text-gray-500">{log.session_id ? log.session_id.substring(0, 16) + '...' : 'N/A'}</td>
-                          <td className="px-5 py-3 font-bold">
+                        <tr key={log._id} className="hover:bg-themeTableRowHover odd:bg-themeTableRowAlt/30 transition-all">
+                          <td className="px-5 py-3 text-themeTextSecondary font-medium whitespace-nowrap">{formatDate(log.timestamp || log.createdAt)}</td>
+                          <td className="px-5 py-3 font-mono text-[10px] text-themeMuted">{log.session_id ? log.session_id.substring(0, 16) + '...' : 'N/A'}</td>
+                          <td className="px-5 py-3 font-bold text-themeTextPrimary">
                             <div className="flex flex-col">
-                              <span>{log.name || 'IVR Caller'}</span>
-                              <span className="text-[10px] font-mono text-gray-400">+{log.from_number || log.phone}</span>
+                               <span>{log.name || 'IVR Caller'}</span>
+                               <span className="text-[10px] font-mono text-themeTextSecondary">+{log.from_number || log.phone}</span>
                             </div>
                           </td>
                           <td className="px-5 py-3">
@@ -590,11 +591,11 @@ export default function TelephonyCRMPage() {
                               {log.callType}
                             </span>
                           </td>
-                          <td className="px-5 py-3 font-semibold text-gray-400">{log.duration ? formatDuration(log.duration) : '—'}</td>
+                          <td className="px-5 py-3 font-semibold text-themeTextSecondary">{log.duration ? formatDuration(log.duration) : '—'}</td>
                           <td className="px-5 py-3">
                             <div className="flex flex-col max-w-[150px] truncate">
-                              <span className="font-semibold text-gray-300 capitalize">{log.status || 'initiated'}</span>
-                              <span className="text-[10px] text-gray-500 italic mt-0.5">{log.last_intent || 'No intent parsed'}</span>
+                              <span className="font-semibold text-themeTextPrimary capitalize">{log.status || 'initiated'}</span>
+                              <span className="text-[10px] text-themeMuted italic mt-0.5">{log.last_intent || 'No intent parsed'}</span>
                             </div>
                           </td>
                           <td className="px-5 py-3 whitespace-nowrap">
@@ -603,7 +604,7 @@ export default function TelephonyCRMPage() {
                               <button
                                 onClick={() => triggerClickToCall(log.from_number || log.phone)}
                                 disabled={dialingPhone === (log.from_number || log.phone)}
-                                className="bg-gray-800 hover:bg-gray-700 text-[#10b981] p-1.5 rounded-lg border border-gray-700 transition-all flex items-center justify-center"
+                                className="bg-themeCard hover:bg-themeCardHover text-[#10b981] p-1.5 rounded-lg border border-themeBorder transition-all flex items-center justify-center"
                                 title="Click to dial outbound callback"
                               >
                                 {dialingPhone === (log.from_number || log.phone) ? (
@@ -636,20 +637,20 @@ export default function TelephonyCRMPage() {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-5 py-4 border-t border-gray-800 bg-gray-900/20 text-xs">
-                <span className="text-gray-400">Page {page} of {totalPages} ({totalCount} total)</span>
+              <div className="flex items-center justify-between px-5 py-4 border-t border-themeBorder bg-themeCardHover text-xs">
+                <span className="text-themeTextSecondary">Page {page} of {totalPages} ({totalCount} total)</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="p-1 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40"
+                    className="p-1 bg-themeCard border border-themeBorder rounded-lg hover:bg-themeCardHover disabled:opacity-40 text-themeTextPrimary"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
-                    className="p-1 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40"
+                    className="p-1 bg-themeCard border border-themeBorder rounded-lg hover:bg-themeCardHover disabled:opacity-40 text-themeTextPrimary"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -665,27 +666,27 @@ export default function TelephonyCRMPage() {
       {/* ============================================================================== */}
       {activeTab === 'complaints' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-gray-900/30 p-4 rounded-2xl border border-gray-800">
+          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-themeCardHover p-4 rounded-2xl border border-themeBorder">
             <div className="flex flex-1 gap-3 w-full sm:w-auto">
               <div className="relative flex-1 max-w-sm">
-                <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-themeMuted absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Search complaints name or details..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="w-full bg-gray-900/60 border border-gray-800 rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-[#10b981]/50 text-white placeholder-gray-500"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-[#10b981]/50 text-themeInputText placeholder-themePlaceholder"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
-                className="bg-gray-900/60 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-400 focus:outline-none"
+                className="bg-themeInputBg border border-themeInputBorder rounded-xl px-3 py-2 text-xs text-themeTextSecondary focus:outline-none"
               >
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="investigating">Investigating</option>
-                <option value="resolved">Resolved</option>
+                <option value="" className="bg-themeCard text-themeTextPrimary">All Statuses</option>
+                <option value="pending" className="bg-themeCard text-themeTextPrimary">Pending</option>
+                <option value="investigating" className="bg-themeCard text-themeTextPrimary">Investigating</option>
+                <option value="resolved" className="bg-themeCard text-themeTextPrimary">Resolved</option>
               </select>
             </div>
             <button
@@ -696,11 +697,11 @@ export default function TelephonyCRMPage() {
             </button>
           </div>
 
-          <div className="glass-card bg-gray-900/40 rounded-2xl border border-gray-800 shadow-xl overflow-hidden">
+          <div className="glass-card bg-themeCard rounded-2xl border border-themeBorder shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-gray-900/60 text-gray-400 font-bold border-b border-gray-800 uppercase tracking-wider text-[10px]">
+                  <tr className="bg-themeTableHeader text-themeTextSecondary font-bold border-b border-themeBorder uppercase tracking-wider text-[10px]">
                     <th className="px-5 py-3">Date</th>
                     <th className="px-5 py-3">Customer</th>
                     <th className="px-5 py-3">Visit Date</th>
@@ -709,30 +710,30 @@ export default function TelephonyCRMPage() {
                     <th className="px-5 py-3">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800/60">
+                <tbody className="divide-y divide-themeBorder/60">
                   {loading && complaints.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="px-5 py-12 text-center text-gray-500">
+                      <td colSpan="6" className="px-5 py-12 text-center text-themeMuted">
                         <Loader2 className="w-5 h-5 animate-spin text-[#10b981] mx-auto mb-2" /> Loading complaints...
                       </td>
                     </tr>
                   ) : complaints.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="px-5 py-12 text-center text-gray-500 italic">No complaint tickets logged.</td>
+                      <td colSpan="6" className="px-5 py-12 text-center text-themeMuted italic">No complaint tickets logged.</td>
                     </tr>
                   ) : (
                     complaints.map(c => (
-                      <tr key={c._id} className="hover:bg-gray-800/20 transition-all">
-                        <td className="px-5 py-3.5 text-gray-400 whitespace-nowrap">{formatDate(c.createdAt)}</td>
-                        <td className="px-5 py-3.5 font-bold">
+                      <tr key={c._id} className="hover:bg-themeTableRowHover odd:bg-themeTableRowAlt/30 transition-all">
+                        <td className="px-5 py-3.5 text-themeTextSecondary whitespace-nowrap">{formatDate(c.createdAt)}</td>
+                        <td className="px-5 py-3.5 font-bold text-themeTextPrimary">
                           <div className="flex flex-col">
                             <span>{c.name}</span>
-                            <span className="text-[10px] font-mono text-gray-400">+{c.phone_number}</span>
+                            <span className="text-[10px] font-mono text-themeTextSecondary">+{c.phone_number}</span>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-gray-400">{formatDate(c.visit_date)}</td>
+                        <td className="px-5 py-3.5 text-themeTextSecondary">{formatDate(c.visit_date)}</td>
                         <td className="px-5 py-3.5 max-w-[280px]">
-                          <p className="text-gray-300 font-medium break-words leading-relaxed">{c.complaint}</p>
+                          <p className="text-themeTextSecondary font-medium break-words leading-relaxed">{c.complaint}</p>
                         </td>
                         <td className="px-5 py-3.5">
                           <select
@@ -746,9 +747,9 @@ export default function TelephonyCRMPage() {
                                   : 'bg-amber-500/10 border-amber-500/30 text-amber-500'
                               }`}
                           >
-                            <option value="pending" className="bg-gray-950 text-white">Pending</option>
-                            <option value="investigating" className="bg-gray-950 text-white">Investigating</option>
-                            <option value="resolved" className="bg-gray-950 text-white">Resolved</option>
+                            <option value="pending" className="bg-themeCard text-themeTextPrimary">Pending</option>
+                            <option value="investigating" className="bg-themeCard text-themeTextPrimary">Investigating</option>
+                            <option value="resolved" className="bg-themeCard text-themeTextPrimary">Resolved</option>
                           </select>
                         </td>
                         <td className="px-5 py-3.5">
@@ -756,7 +757,7 @@ export default function TelephonyCRMPage() {
                             <button
                               onClick={() => triggerClickToCall(c.phone_number)}
                               disabled={dialingPhone === c.phone_number}
-                              className="bg-gray-800 hover:bg-gray-700 text-[#10b981] p-1.5 rounded-lg border border-gray-700 transition-all flex items-center justify-center"
+                              className="bg-themeCard hover:bg-themeCardHover text-[#10b981] p-1.5 rounded-lg border border-themeBorder transition-all flex items-center justify-center"
                               title="Click to dial outbound callback"
                             >
                               {dialingPhone === c.phone_number ? (
@@ -770,7 +771,7 @@ export default function TelephonyCRMPage() {
                                 href={c.recording_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="bg-gray-800 hover:bg-gray-700 text-blue-400 border border-gray-700 font-bold px-2 py-1 rounded-lg text-[10px]"
+                                className="bg-themeCard hover:bg-themeCardHover text-blue-400 border border-themeBorder font-bold px-2 py-1 rounded-lg text-[10px]"
                               >
                                 Play Audio
                               </a>
@@ -785,20 +786,20 @@ export default function TelephonyCRMPage() {
             </div>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-5 py-4 border-t border-gray-800 bg-gray-900/20 text-xs">
-                <span className="text-gray-400">Page {page} of {totalPages} ({totalCount} total)</span>
+              <div className="flex items-center justify-between px-5 py-4 border-t border-themeBorder bg-themeCardHover text-xs">
+                <span className="text-themeTextSecondary">Page {page} of {totalPages} ({totalCount} total)</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="p-1 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40"
+                    className="p-1 bg-themeCard border border-themeBorder rounded-lg hover:bg-themeCardHover disabled:opacity-40 text-themeTextPrimary"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
-                    className="p-1 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40"
+                    className="p-1 bg-themeCard border border-themeBorder rounded-lg hover:bg-themeCardHover disabled:opacity-40 text-themeTextPrimary"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -814,26 +815,26 @@ export default function TelephonyCRMPage() {
       {/* ============================================================================== */}
       {activeTab === 'lost-found' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-gray-900/30 p-4 rounded-2xl border border-gray-800">
+          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-themeCardHover p-4 rounded-2xl border border-themeBorder">
             <div className="flex flex-1 gap-3 w-full sm:w-auto">
               <div className="relative flex-1 max-w-sm">
-                <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-themeMuted absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Search lost items..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="w-full bg-gray-900/60 border border-gray-800 rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-[#10b981]/50 text-white placeholder-gray-500"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-[#10b981]/50 text-themeInputText placeholder-themePlaceholder"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
-                className="bg-gray-900/60 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-400 focus:outline-none"
+                className="bg-themeInputBg border border-themeInputBorder rounded-xl px-3 py-2 text-xs text-themeTextSecondary focus:outline-none"
               >
-                <option value="">All Statuses</option>
-                <option value="reported">Reported</option>
-                <option value="found">Found</option>
+                <option value="" className="bg-themeCard text-themeTextPrimary">All Statuses</option>
+                <option value="reported" className="bg-themeCard text-themeTextPrimary">Reported</option>
+                <option value="found" className="bg-themeCard text-themeTextPrimary">Found</option>
               </select>
             </div>
             <button
@@ -844,11 +845,11 @@ export default function TelephonyCRMPage() {
             </button>
           </div>
 
-          <div className="glass-card bg-gray-900/40 rounded-2xl border border-gray-800 shadow-xl overflow-hidden">
+          <div className="glass-card bg-themeCard rounded-2xl border border-themeBorder shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-gray-900/60 text-gray-400 font-bold border-b border-gray-800 uppercase tracking-wider text-[10px]">
+                  <tr className="bg-themeTableHeader text-themeTextSecondary font-bold border-b border-themeBorder uppercase tracking-wider text-[10px]">
                     <th className="px-5 py-3">Report Date</th>
                     <th className="px-5 py-3">Reporter</th>
                     <th className="px-5 py-3">Lost Item</th>
@@ -857,29 +858,29 @@ export default function TelephonyCRMPage() {
                     <th className="px-5 py-3">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800/60">
+                <tbody className="divide-y divide-themeBorder/60">
                   {loading && lostItems.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="px-5 py-12 text-center text-gray-500">
+                      <td colSpan="6" className="px-5 py-12 text-center text-themeMuted">
                         <Loader2 className="w-5 h-5 animate-spin text-[#10b981] mx-auto mb-2" /> Loading reports...
                       </td>
                     </tr>
                   ) : lostItems.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="px-5 py-12 text-center text-gray-500 italic">No lost item reports found.</td>
+                      <td colSpan="6" className="px-5 py-12 text-center text-themeMuted italic">No lost item reports found.</td>
                     </tr>
                   ) : (
                     lostItems.map(item => (
-                      <tr key={item._id} className="hover:bg-gray-800/20 transition-all">
-                        <td className="px-5 py-3.5 text-gray-400 whitespace-nowrap">{formatDate(item.createdAt)}</td>
-                        <td className="px-5 py-3.5 font-bold">
+                      <tr key={item._id} className="hover:bg-themeTableRowHover odd:bg-themeTableRowAlt/30 transition-all">
+                        <td className="px-5 py-3.5 text-themeTextSecondary whitespace-nowrap">{formatDate(item.createdAt)}</td>
+                        <td className="px-5 py-3.5 font-bold text-themeTextPrimary">
                           <div className="flex flex-col">
                             <span>{item.name}</span>
-                            <span className="text-[10px] font-mono text-gray-400">+{item.phone_number}</span>
+                            <span className="text-[10px] font-mono text-themeTextSecondary">+{item.phone_number}</span>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-gray-300 font-medium">{item.lost_item}</td>
-                        <td className="px-5 py-3.5 text-gray-400">{formatDate(item.date_lost)}</td>
+                        <td className="px-5 py-3.5 text-themeTextSecondary font-medium">{item.lost_item}</td>
+                        <td className="px-5 py-3.5 text-themeTextSecondary">{formatDate(item.date_lost)}</td>
                         <td className="px-5 py-3.5">
                           <select
                             value={item.status}
@@ -890,8 +891,8 @@ export default function TelephonyCRMPage() {
                                 : 'bg-rose-500/10 border-rose-500/30 text-rose-500'
                               }`}
                           >
-                            <option value="reported" className="bg-gray-950 text-white">Reported</option>
-                            <option value="found" className="bg-gray-950 text-white">Found</option>
+                            <option value="reported" className="bg-themeCard text-themeTextPrimary">Reported</option>
+                            <option value="found" className="bg-themeCard text-themeTextPrimary">Found</option>
                           </select>
                         </td>
                         <td className="px-5 py-3.5">
@@ -899,7 +900,7 @@ export default function TelephonyCRMPage() {
                             <button
                               onClick={() => triggerClickToCall(item.phone_number)}
                               disabled={dialingPhone === item.phone_number}
-                              className="bg-gray-800 hover:bg-gray-700 text-[#10b981] p-1.5 rounded-lg border border-gray-700 transition-all flex items-center justify-center"
+                              className="bg-themeCard hover:bg-themeCardHover text-[#10b981] p-1.5 rounded-lg border border-themeBorder transition-all flex items-center justify-center"
                               title="Click to dial outbound callback"
                             >
                               {dialingPhone === item.phone_number ? (
@@ -913,7 +914,7 @@ export default function TelephonyCRMPage() {
                                 href={item.recording_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="bg-gray-800 hover:bg-gray-700 text-blue-400 border border-gray-700 font-bold px-2 py-1 rounded-lg text-[10px]"
+                                className="bg-themeCard hover:bg-themeCardHover text-blue-400 border border-themeBorder font-bold px-2 py-1 rounded-lg text-[10px]"
                               >
                                 Play Audio
                               </a>
@@ -928,20 +929,20 @@ export default function TelephonyCRMPage() {
             </div>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-5 py-4 border-t border-gray-800 bg-gray-900/20 text-xs">
-                <span className="text-gray-400">Page {page} of {totalPages} ({totalCount} total)</span>
+              <div className="flex items-center justify-between px-5 py-4 border-t border-themeBorder bg-themeCardHover text-xs">
+                <span className="text-themeTextSecondary">Page {page} of {totalPages} ({totalCount} total)</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="p-1 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40"
+                    className="p-1 bg-themeCard border border-themeBorder rounded-lg hover:bg-themeCardHover disabled:opacity-40 text-themeTextPrimary"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
-                    className="p-1 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40"
+                    className="p-1 bg-themeCard border border-themeBorder rounded-lg hover:bg-themeCardHover disabled:opacity-40 text-themeTextPrimary"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -957,26 +958,26 @@ export default function TelephonyCRMPage() {
       {/* ============================================================================== */}
       {activeTab === 'callbacks' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-gray-900/30 p-4 rounded-2xl border border-gray-800">
+          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-themeCardHover p-4 rounded-2xl border border-themeBorder">
             <div className="flex flex-1 gap-3 w-full sm:w-auto">
               <div className="relative flex-1 max-w-sm">
-                <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-themeMuted absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Search callback phone..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="w-full bg-gray-900/60 border border-gray-800 rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-[#10b981]/50 text-white placeholder-gray-500"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-[#10b981]/50 text-themeInputText placeholder-themePlaceholder"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
-                className="bg-gray-900/60 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-400 focus:outline-none"
+                className="bg-themeInputBg border border-themeInputBorder rounded-xl px-3 py-2 text-xs text-themeTextSecondary focus:outline-none"
               >
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="completed">Completed</option>
+                <option value="" className="bg-themeCard text-themeTextPrimary">All Statuses</option>
+                <option value="pending" className="bg-themeCard text-themeTextPrimary">Pending</option>
+                <option value="completed" className="bg-themeCard text-themeTextPrimary">Completed</option>
               </select>
             </div>
             <button
@@ -987,11 +988,11 @@ export default function TelephonyCRMPage() {
             </button>
           </div>
 
-          <div className="glass-card bg-gray-900/40 rounded-2xl border border-gray-800 shadow-xl overflow-hidden">
+          <div className="glass-card bg-themeCard rounded-2xl border border-themeBorder shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-gray-900/60 text-gray-400 font-bold border-b border-gray-800 uppercase tracking-wider text-[10px]">
+                  <tr className="bg-themeTableHeader text-themeTextSecondary font-bold border-b border-themeBorder uppercase tracking-wider text-[10px]">
                     <th className="px-5 py-3">Date Requested</th>
                     <th className="px-5 py-3">Name</th>
                     <th className="px-5 py-3">Phone number</th>
@@ -999,23 +1000,23 @@ export default function TelephonyCRMPage() {
                     <th className="px-5 py-3">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800/60">
+                <tbody className="divide-y divide-themeBorder/60">
                   {loading && callbacks.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="px-5 py-12 text-center text-gray-500">
+                      <td colSpan="5" className="px-5 py-12 text-center text-themeMuted">
                         <Loader2 className="w-5 h-5 animate-spin text-[#10b981] mx-auto mb-2" /> Loading queue...
                       </td>
                     </tr>
                   ) : callbacks.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="px-5 py-12 text-center text-gray-500 italic">No callback requests pending.</td>
+                      <td colSpan="5" className="px-5 py-12 text-center text-themeMuted italic">No callback requests pending.</td>
                     </tr>
                   ) : (
                     callbacks.map(c => (
-                      <tr key={c._id} className="hover:bg-gray-800/20 transition-all">
-                        <td className="px-5 py-3.5 text-gray-400 whitespace-nowrap">{formatDate(c.createdAt)}</td>
-                        <td className="px-5 py-3.5 font-bold text-gray-200">{c.name || 'IVR Caller'}</td>
-                        <td className="px-5 py-3.5 font-mono text-gray-300">+{c.phone_number}</td>
+                      <tr key={c._id} className="hover:bg-themeTableRowHover odd:bg-themeTableRowAlt/30 transition-all">
+                        <td className="px-5 py-3.5 text-themeTextSecondary whitespace-nowrap">{formatDate(c.createdAt)}</td>
+                        <td className="px-5 py-3.5 font-bold text-themeTextPrimary">{c.name || 'IVR Caller'}</td>
+                        <td className="px-5 py-3.5 font-mono text-themeTextSecondary">+{c.phone_number}</td>
                         <td className="px-5 py-3.5">
                           <select
                             value={c.status}
@@ -1026,8 +1027,8 @@ export default function TelephonyCRMPage() {
                                 : 'bg-amber-500/10 border-amber-500/30 text-amber-500'
                               }`}
                           >
-                            <option value="pending" className="bg-gray-950 text-white">Pending</option>
-                            <option value="completed" className="bg-gray-950 text-white">Completed</option>
+                            <option value="pending" className="bg-themeCard text-themeTextPrimary">Pending</option>
+                            <option value="completed" className="bg-themeCard text-themeTextPrimary">Completed</option>
                           </select>
                         </td>
                         <td className="px-5 py-3.5">
@@ -1052,20 +1053,20 @@ export default function TelephonyCRMPage() {
             </div>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-5 py-4 border-t border-gray-800 bg-gray-900/20 text-xs">
-                <span className="text-gray-400">Page {page} of {totalPages} ({totalCount} total)</span>
+              <div className="flex items-center justify-between px-5 py-4 border-t border-themeBorder bg-themeCardHover text-xs">
+                <span className="text-themeTextSecondary">Page {page} of {totalPages} ({totalCount} total)</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="p-1 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40"
+                    className="p-1 bg-themeCard border border-themeBorder rounded-lg hover:bg-themeCardHover disabled:opacity-40 text-themeTextPrimary"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
-                    className="p-1 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40"
+                    className="p-1 bg-themeCard border border-themeBorder rounded-lg hover:bg-themeCardHover disabled:opacity-40 text-themeTextPrimary"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -1081,59 +1082,59 @@ export default function TelephonyCRMPage() {
       {/* ============================================================================== */}
       {activeTab === 'voice-config' && (
         <form onSubmit={handleSaveConfig} className="max-w-4xl space-y-6">
-          <div className="glass-card bg-gray-900/40 p-6 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-xl space-y-6">
-            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+          <div className="glass-card bg-themeCard p-6 rounded-2xl border border-themeBorder shadow-sm space-y-6">
+            <h3 className="text-sm font-bold text-themeTextPrimary uppercase tracking-wider flex items-center gap-2">
               <Volume2 className="w-5 h-5 text-[#10b981]" /> IVR TTS Configuration settings
             </h3>
 
             {/* Config Fields Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1.5">Amusement/Park Name</label>
+                <label className="block text-xs font-bold text-themeTextSecondary mb-1.5">Amusement/Park Name</label>
                 <input
                   type="text"
                   required
                   value={parkConfig.park_name}
                   onChange={e => setParkConfig({ ...parkConfig, park_name: e.target.value })}
-                  className="w-full bg-gray-950/80 border border-gray-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#10b981]/50"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl px-4 py-2.5 text-xs text-themeInputText focus:outline-none focus:border-[#10b981]/50"
                   placeholder="Amusement Park Name"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1.5">ElevenLabs Voice ID</label>
+                <label className="block text-xs font-bold text-themeTextSecondary mb-1.5">ElevenLabs Voice ID</label>
                 <input
                   type="text"
                   required
                   value={parkConfig.voice_id}
                   onChange={e => setParkConfig({ ...parkConfig, voice_id: e.target.value })}
-                  className="w-full bg-gray-950/80 border border-gray-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#10b981]/50 font-mono"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl px-4 py-2.5 text-xs text-themeInputText focus:outline-none focus:border-[#10b981]/50 font-mono"
                   placeholder="Voice ID"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1.5">Timings Information</label>
+                <label className="block text-xs font-bold text-themeTextSecondary mb-1.5">Timings Information</label>
                 <input
                   type="text"
                   value={parkConfig.timings}
                   onChange={e => setParkConfig({ ...parkConfig, timings: e.target.value })}
-                  className="w-full bg-gray-950/80 border border-gray-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#10b981]/50"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl px-4 py-2.5 text-xs text-themeInputText focus:outline-none focus:border-[#10b981]/50"
                   placeholder="e.g. 09:00 AM - 06:00 PM"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1.5">Park Address</label>
+                <label className="block text-xs font-bold text-themeTextSecondary mb-1.5">Park Address</label>
                 <input
                   type="text"
                   value={parkConfig.address}
                   onChange={e => setParkConfig({ ...parkConfig, address: e.target.value })}
-                  className="w-full bg-gray-950/80 border border-gray-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#10b981]/50"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl px-4 py-2.5 text-xs text-themeInputText focus:outline-none focus:border-[#10b981]/50"
                   placeholder="Amusement Park Address"
                 />
               </div>
             </div>
 
-            <div className="border-t border-gray-800 pt-6 space-y-6">
-              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Multilingual Speech Scripts & Preview</h4>
+            <div className="border-t border-themeBorder pt-6 space-y-6">
+              <h4 className="text-xs font-bold text-themeTextSecondary uppercase tracking-wider">Multilingual Speech Scripts & Preview</h4>
 
               {/* Languages Script Editors */}
               {[
@@ -1141,9 +1142,9 @@ export default function TelephonyCRMPage() {
                 { lang: 'hi', label: 'Hindi script (hi)', color: 'border-orange-800/30' },
                 { lang: 'gu', label: 'Gujarati script (gu)', color: 'border-yellow-800/30' }
               ].map(script => (
-                <div key={script.lang} className={`bg-gray-950/50 p-4 rounded-2xl border ${script.color} space-y-3`}>
+                <div key={script.lang} className={`bg-themeCardHover p-4 rounded-2xl border border-themeBorder dark:${script.color} space-y-3`}>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-gray-300">{script.label}</span>
+                    <span className="text-xs font-bold text-themeTextPrimary">{script.label}</span>
                     {/* Audio Preview controls */}
                     {parkConfig.audio_urls?.[script.lang] && (
                       <button
@@ -1176,7 +1177,7 @@ export default function TelephonyCRMPage() {
                         multilingual: { ...parkConfig.multilingual, custom_texts: updatedTexts }
                       });
                     }}
-                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#10b981]/50"
+                    className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl px-4 py-2.5 text-xs text-themeInputText focus:outline-none focus:border-[#10b981]/50"
                     placeholder={`Enter script to read out in ${script.label.split(' ')[0]}...`}
                   />
                 </div>
@@ -1209,53 +1210,53 @@ export default function TelephonyCRMPage() {
       {activeTab === 'staff' && isAdmin && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Create Staff Form */}
-          <div className="glass-card bg-gray-900/40 p-5 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-xl h-fit">
-            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-5 flex items-center gap-2">
+          <div className="glass-card bg-themeCard p-5 rounded-2xl border border-themeBorder shadow-sm h-fit">
+            <h3 className="text-sm font-bold text-themeTextPrimary uppercase tracking-wider mb-5 flex items-center gap-2">
               <Plus className="w-5 h-5 text-[#10b981]" /> Add New Staff account
             </h3>
             <form onSubmit={handleCreateStaff} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1">Full Name</label>
+                <label className="block text-xs font-bold text-themeTextSecondary mb-1">Full Name</label>
                 <input
                   type="text"
                   required
                   value={staffForm.name}
                   onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#10b981]/50"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl px-3 py-2 text-xs text-themeInputText focus:outline-none focus:border-[#10b981]/50"
                   placeholder="John Doe"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1">Email address</label>
+                <label className="block text-xs font-bold text-themeTextSecondary mb-1">Email address</label>
                 <input
                   type="email"
                   required
                   value={staffForm.email}
                   onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#10b981]/50"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl px-3 py-2 text-xs text-themeInputText focus:outline-none focus:border-[#10b981]/50"
                   placeholder="johndoe@email.com"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1">Temporary Password</label>
+                <label className="block text-xs font-bold text-themeTextSecondary mb-1">Temporary Password</label>
                 <input
                   type="password"
                   required
                   value={staffForm.password}
                   onChange={e => setStaffForm({ ...staffForm, password: e.target.value })}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#10b981]/50"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl px-3 py-2 text-xs text-themeInputText focus:outline-none focus:border-[#10b981]/50"
                   placeholder="Min. 8 characters"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1">Designated Role</label>
+                <label className="block text-xs font-bold text-themeTextSecondary mb-1">Designated Role</label>
                 <select
                   value={staffForm.role}
                   onChange={e => setStaffForm({ ...staffForm, role: e.target.value })}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-400 focus:outline-none"
+                  className="w-full bg-themeInputBg border border-themeInputBorder rounded-xl px-3 py-2 text-xs text-themeTextSecondary focus:outline-none"
                 >
-                  <option value="agent">Agent / Telecaller</option>
-                  <option value="admin">Administrator</option>
+                  <option value="agent" className="bg-themeCard text-themeTextPrimary">Agent / Telecaller</option>
+                  <option value="admin" className="bg-themeCard text-themeTextPrimary">Administrator</option>
                 </select>
               </div>
               <button
@@ -1269,14 +1270,14 @@ export default function TelephonyCRMPage() {
           </div>
 
           {/* Staff Accounts List */}
-          <div className="lg:col-span-2 glass-card bg-gray-900/40 p-5 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-xl">
-            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-5 flex items-center gap-2">
+          <div className="lg:col-span-2 glass-card bg-themeCard p-5 rounded-2xl border border-themeBorder shadow-sm">
+            <h3 className="text-sm font-bold text-themeTextPrimary uppercase tracking-wider mb-5 flex items-center gap-2">
               <Users className="w-5 h-5 text-[#10b981]" /> Registered Staff List
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-gray-900/60 text-gray-400 font-bold border-b border-gray-800 uppercase tracking-wider text-[10px]">
+                  <tr className="bg-themeTableHeader text-themeTextSecondary font-bold border-b border-themeBorder uppercase tracking-wider text-[10px]">
                     <th className="px-4 py-2.5">Name</th>
                     <th className="px-4 py-2.5">Email</th>
                     <th className="px-4 py-2.5">Role</th>
@@ -1284,18 +1285,18 @@ export default function TelephonyCRMPage() {
                     <th className="px-4 py-2.5">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800/60">
+                <tbody className="divide-y divide-themeBorder/60">
                   {loading && staffList.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan="5" className="px-4 py-8 text-center text-themeMuted">
                         <Loader2 className="w-5 h-5 animate-spin text-[#10b981] mx-auto" />
                       </td>
                     </tr>
                   ) : (
                     staffList.map(member => (
-                      <tr key={member._id} className="hover:bg-gray-800/20 transition-all">
-                        <td className="px-4 py-3 font-bold text-gray-200">{member.name}</td>
-                        <td className="px-4 py-3 font-mono text-[11px] text-gray-400">{member.email}</td>
+                      <tr key={member._id} className="hover:bg-themeTableRowHover odd:bg-themeTableRowAlt/30 transition-all">
+                        <td className="px-4 py-3 font-bold text-themeTextPrimary">{member.name}</td>
+                        <td className="px-4 py-3 font-mono text-[11px] text-themeTextSecondary">{member.email}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-0.5 rounded font-bold uppercase text-[9px] ${member.role === 'admin' || member.role === 'owner'
                               ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400'

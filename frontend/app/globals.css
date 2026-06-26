@@ -5,27 +5,45 @@
 
 @layer base {
   :root {
-    --bg-primary: #f5faff;
+    --bg-primary: #F8FAFC;
     --bg-secondary: #f0f2f5;
     --bg-card: #ffffff;
-    --text-primary: #131d23;
-    --text-secondary: #546068;
-    --border-color: #e9edef;
+    --text-primary: #111827;
+    --text-secondary: #6B7280;
+    --border-color: #E5E7EB;
     --accent: #00a884;
     --accent-hover: #006b53;
     --wa-green: #00a884;
     --wa-green-dark: #006b53;
     --wa-panel: #ffffff;
-    --wa-panel-header: #e5eff8;
+    --wa-panel-header: #F3F4F6;
     --wa-chat-bg: #efeae2;
     --wa-bubble-out: #d9fdd3;
     --wa-bubble-in: #ffffff;
-    --wa-input: #f0f2f5;
-    --wa-hover: #eaf5fe;
-    --wa-border: #e9edef;
-    --wa-search: #f0f2f5;
+    --wa-input: #ffffff;
+    --wa-hover: #F9FAFB;
+    --wa-border: #E5E7EB;
+    --wa-search: #ffffff;
     --wa-sidebar: #ffffff;
     --wa-unread: #00a884;
+
+    /* User specific tokens */
+    --background: #F8FAFC;
+    --surface: #ffffff;
+    --card: #ffffff;
+    --card-hover: #F9FAFB;
+    --sidebar: #ffffff;
+    --navbar: #ffffff;
+    --border: #E5E7EB;
+    --input-bg: #ffffff;
+    --input-border: #D1D5DB;
+    --input-text: #111827;
+    --placeholder: #9CA3AF;
+    --table-header: #F3F4F6;
+    --table-row: #ffffff;
+    --table-row-alt: #FAFAFA;
+    --table-row-hover: #F9FAFB;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
   }
   .dark {
     --bg-primary: #0b141a;
@@ -49,6 +67,24 @@
     --wa-search: #202c33;
     --wa-sidebar: #111b21;
     --wa-unread: #00a884;
+
+    /* User specific tokens mapped to existing dark values to KEEP existing dark mode colors */
+    --background: #0b141a;
+    --surface: #111b21;
+    --card: rgba(17, 27, 33, 0.4);
+    --card-hover: rgba(32, 44, 51, 0.8);
+    --sidebar: #111b21;
+    --navbar: #111b21;
+    --border: rgba(49, 61, 69, 0.5);
+    --input-bg: rgba(32, 44, 51, 0.5);
+    --input-border: #313d45;
+    --input-text: #e9edef;
+    --placeholder: #8696a0;
+    --table-header: rgba(17, 27, 33, 0.6);
+    --table-row: transparent;
+    --table-row-alt: rgba(17, 27, 33, 0.2);
+    --table-row-hover: rgba(32, 44, 51, 0.2);
+    --shadow: none;
   }
   body {
     @apply bg-[var(--bg-primary)] text-[var(--text-primary)] font-sans antialiased;
