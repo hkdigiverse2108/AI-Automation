@@ -42,7 +42,7 @@ const nextConfig = {
       if (apiUrl && (apiUrl.startsWith('http://') || apiUrl.startsWith('https://'))) {
         backendUrl = apiUrl.replace(/\/api\/?$/, '');
       } else {
-        backendUrl = `http://localhost:${process.env.PORT || rootEnv.PORT || '5000'}`;
+        backendUrl = `http://localhost:${rootEnv.PORT || '5005'}`;
       }
     }
     return [

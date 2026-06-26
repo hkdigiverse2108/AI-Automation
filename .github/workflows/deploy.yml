@@ -148,8 +148,8 @@ jobs:
               npm install --prefix backend
               pm2 delete AI-Automation-Backend || true
               pm2 delete AI-Automation-Worker || true
-              safe_kill_port 5000
-              safe_kill_port 5001
+              safe_kill_port 5005
+              safe_kill_port 5006
               pm2 start ecosystem.config.js --only AI-Automation-Backend,AI-Automation-Worker
             else
               echo "No Backend changes detected. Skipping Backend deployment."

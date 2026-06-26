@@ -7,7 +7,7 @@ module.exports = {
       exec_mode: 'cluster',
       env: {
         NODE_ENV: 'production',
-        PORT: 5000,
+        PORT: 5005,
         RUN_QUEUE_PROCESSORS: 'false' // disable processors on HTTP instances for scalability
       },
       watch: false,
@@ -24,7 +24,7 @@ module.exports = {
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        PORT: 5001, // run worker on a separate port
+        PORT: 5006, // run worker on a separate port
         RUN_QUEUE_PROCESSORS: 'true' // enable processors on the background node
       },
       watch: false,
