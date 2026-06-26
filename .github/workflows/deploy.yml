@@ -245,6 +245,13 @@ jobs:
           name: vps-diagnostics
           path: debug_vps_status.txt
 
+      - name: Print VPS Diagnostics
+        if: always()
+        run: |
+          echo "=== VPS DIAGNOSTICS LOG START ==="
+          cat debug_vps_status.txt || true
+          echo "=== VPS DIAGNOSTICS LOG END ==="
+
       - name: Clean up failed upload on Server
         if: failure()
         run: |
