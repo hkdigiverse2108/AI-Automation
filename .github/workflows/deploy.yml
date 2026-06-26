@@ -219,7 +219,33 @@ jobs:
             fi
           EOF
 
+      - name: Fetch VPS Diagnostics
+        if: always()
+        run: |
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=10 root@82.29.160.246 << 'EOF'
+            export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+            cd /root/AI-Automation/dev
+            echo "=== PM2 STATUS ===" > debug_vps_status.txt
+            pm2 status >> debug_vps_status.txt 2>&1 || true
+            echo "=== PM2 FE LOGS ===" >> debug_vps_status.txt
+            pm2 logs AI-Automation-FE --lines 100 --nostream >> debug_vps_status.txt 2>&1 || true
+            echo "=== PM2 BACKEND LOGS ===" >> debug_vps_status.txt
+            pm2 logs AI-Automation-Backend --lines 100 --nostream >> debug_vps_status.txt 2>&1 || true
+            echo "=== LISTENING PORTS ===" >> debug_vps_status.txt
+            (ss -lptn || netstat -lptn) >> debug_vps_status.txt 2>&1 || true
+            echo "=== NGINX CONFIGS ===" >> debug_vps_status.txt
+            tail -n +1 /etc/nginx/sites-enabled/* >> debug_vps_status.txt 2>&1 || true
+          EOF
+          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@82.29.160.246:/root/AI-Automation/dev/debug_vps_status.txt . || true
+
+      - name: Upload Diagnostics Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vps-diagnostics
+          path: debug_vps_status.txt
+
       - name: Clean up failed upload on Server
         if: failure()
         run: |
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=10 root@82.29.160.246 "rm -f /root/AI-Automation/dev/frontend-build.tar.gz"
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=10 root@82.29.160.246 "rm -f /root/AI-Automation/dev/frontend-build.tar.gz; rm -f /root/AI-Automation/dev/debug_vps_status.txt"
