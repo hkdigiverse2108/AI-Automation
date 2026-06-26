@@ -31,9 +31,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  experimental: {
-    webpackBuildWorker: false,
-  },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || rootEnv.NEXT_PUBLIC_API_URL || '',
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL || rootEnv.NEXT_PUBLIC_SOCKET_URL || '',
