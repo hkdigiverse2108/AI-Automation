@@ -9,7 +9,7 @@ import {
   Volume2, ShieldAlert, BarChart3, Settings, Users, Play, Pause
 } from 'lucide-react';
 import api from '../../../lib/api';
-import { useAuthStore, useThemeStore } from '../../../lib/store';
+import { useAuthStore } from '../../../lib/store';
 import { formatDate } from '../../../lib/utils';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -18,7 +18,6 @@ import {
 
 export default function TelephonyCRMPage() {
   const { user } = useAuthStore();
-  const { dark } = useThemeStore();
   const isAdmin = ['superadmin', 'owner', 'admin'].includes(user?.role);
 
   // Tabs: 'overview', 'calls', 'complaints', 'lost-found', 'callbacks', 'voice-config', 'staff'
@@ -435,10 +434,10 @@ export default function TelephonyCRMPage() {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={analytics.dailyCalls} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={dark ? '#1f2937' : '#E5E7EB'} />
-                    <XAxis dataKey="date" stroke={dark ? '#9ca3af' : '#6B7280'} fontSize={11} />
-                    <YAxis stroke={dark ? '#9ca3af' : '#6B7280'} fontSize={11} />
-                    <Tooltip contentStyle={{ backgroundColor: dark ? '#111827' : '#ffffff', borderColor: dark ? '#1f2937' : '#E5E7EB', color: dark ? '#fff' : '#111827' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} />
+                    <YAxis stroke="var(--text-secondary)" fontSize={11} />
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
                     <Line type="monotone" dataKey="count" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 4 }} activeDot={{ r: 6 }} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -474,7 +473,7 @@ export default function TelephonyCRMPage() {
                         <Cell key={`cell-${idx}`} fill={cell.color} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: dark ? '#111827' : '#ffffff', borderColor: dark ? '#1f2937' : '#E5E7EB', color: dark ? '#fff' : '#111827' }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
