@@ -26,6 +26,39 @@ jobs:
             set -e
             cd /root/AI-Automation/dev
 
+            # Safe function to kill processes on a port without killing PM2 daemon
+            safe_kill_port() {
+              local port=$1
+              echo "Checking port $port..."
+              local pids=""
+              if command -v lsof >/dev/null 2>&1; then
+                pids=$(lsof -t -i :$port 2>/dev/null || true)
+              elif command -v fuser >/dev/null 2>&1; then
+                pids=$(fuser $port/tcp 2>/dev/null || true)
+              fi
+              
+              if [ -z "$pids" ]; then
+                echo "No processes found on port $port."
+                return 0
+              fi
+              
+              for pid in $pids; do
+                local cmd=""
+                if [ -r /proc/$pid/cmdline ]; then
+                  cmd=$(cat /proc/$pid/cmdline | tr '\0' ' ' 2>/dev/null || true)
+                else
+                  cmd=$(ps -p $pid -o cmd= 2>/dev/null || true)
+                fi
+                
+                if echo "$cmd" | grep -qE "pm2:|Daemon.js|God Daemon"; then
+                  echo "Skipping PM2 daemon (PID: $pid, Command: $cmd) on port $port"
+                else
+                  echo "Killing process on port $port (PID: $pid, Command: $cmd)"
+                  kill -9 $pid || true
+                fi
+              done
+            }
+
             # Fetch latest remote changes
             git fetch origin
 
@@ -83,8 +116,8 @@ jobs:
               npm install --prefix backend
               pm2 delete AI-Automation-Backend || true
               pm2 delete AI-Automation-Worker || true
-              fuser -k 5000/tcp || true
-              fuser -k 5001/tcp || true
+              safe_kill_port 5000
+              safe_kill_port 5001
               pm2 start ecosystem.config.js --only AI-Automation-Backend,AI-Automation-Worker
             else
               echo "No Backend changes detected. Skipping Backend deployment."
@@ -96,7 +129,7 @@ jobs:
               npm install --prefix frontend
               npm run build --prefix frontend
               pm2 delete AI-Automation-FE || true
-              fuser -k 3000/tcp || true
+              safe_kill_port 3000
               pm2 start ecosystem.config.js --only AI-Automation-FE
             else
               echo "No Frontend changes detected. Skipping Frontend deployment."
