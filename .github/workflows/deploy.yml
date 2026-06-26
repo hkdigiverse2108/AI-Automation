@@ -66,7 +66,7 @@ jobs:
                   cmd=$(ps -p $pid -o cmd= 2>/dev/null || true)
                 fi
                 
-                if echo "$cmd" | grep -qE "pm2:|Daemon.js|God Daemon"; then
+                if echo "$cmd" | grep -qE "Daemon.js|God Daemon"; then
                   echo "Skipping PM2 daemon (PID: $pid, Command: $cmd) on port $port"
                 else
                   echo "Killing process on port $port (PID: $pid, Command: $cmd)"
