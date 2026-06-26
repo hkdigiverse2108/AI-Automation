@@ -127,10 +127,17 @@ jobs:
             if [ "$FRONTEND_CHANGED" = "true" ] || [ "$ROOT_CHANGED" = "true" ]; then
               echo "Deploying Frontend changes..."
               npm install --prefix frontend
+              # Clean Next.js cache and previous build to prevent stale cache reuse
+              rm -rf frontend/.next
               npm run build --prefix frontend
               pm2 delete AI-Automation-FE || true
               safe_kill_port 3000
               pm2 start ecosystem.config.js --only AI-Automation-FE
+              
+              # Clear Nginx reverse proxy cache if enabled and reload Nginx
+              echo "Clearing Nginx cache..."
+              rm -rf /var/cache/nginx/* || true
+              systemctl reload nginx || service nginx reload || true
             else
               echo "No Frontend changes detected. Skipping Frontend deployment."
             fi
