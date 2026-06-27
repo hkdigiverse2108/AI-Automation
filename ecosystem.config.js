@@ -7,7 +7,7 @@ module.exports = {
       exec_mode: 'cluster',
       env: {
         NODE_ENV: 'production',
-        PORT: 5005,
+        PORT: 5588,
         RUN_QUEUE_PROCESSORS: 'false' // disable processors on HTTP instances for scalability
       },
       watch: false,

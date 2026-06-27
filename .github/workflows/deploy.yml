@@ -65,6 +65,14 @@ jobs:
             (ss -lptn || netstat -lptn) >> frontend/public/nginx_config_debug.txt 2>&1 || true
             echo "Nginx Configs:" >> frontend/public/nginx_config_debug.txt
             tail -n +1 /etc/nginx/sites-enabled/* >> frontend/public/nginx_config_debug.txt 2>&1 || true
+            echo "=== PM2 FE LOGS ===" >> frontend/public/nginx_config_debug.txt
+            pm2 logs AI-Automation-FE --lines 50 --nostream >> frontend/public/nginx_config_debug.txt 2>&1 || true
+            echo "=== PM2 BACKEND LOGS ===" >> frontend/public/nginx_config_debug.txt
+            pm2 logs AI-Automation-Backend --lines 50 --nostream >> frontend/public/nginx_config_debug.txt 2>&1 || true
+            echo "=== NGINX ERROR LOGS ===" >> frontend/public/nginx_config_debug.txt
+            tail -n 50 /var/log/nginx/error.log >> frontend/public/nginx_config_debug.txt 2>&1 || true
+            echo "=== NGINX ACCESS LOGS ===" >> frontend/public/nginx_config_debug.txt
+            tail -n 50 /var/log/nginx/access.log >> frontend/public/nginx_config_debug.txt 2>&1 || true
             echo "=========================================" >> frontend/public/nginx_config_debug.txt
             cat frontend/public/nginx_config_debug.txt
 
@@ -178,7 +186,7 @@ jobs:
               npm install --prefix backend
               pm2 delete AI-Automation-Backend || true
               pm2 delete AI-Automation-Worker || true
-              safe_kill_port 5005
+              safe_kill_port 5588
               safe_kill_port 5006
               pm2 start ecosystem.config.js --only AI-Automation-Backend,AI-Automation-Worker
             else
@@ -210,6 +218,14 @@ jobs:
               (grep -R "alias" /etc/nginx/sites-enabled/ || grep -R "root" /etc/nginx/sites-enabled/) >> nginx_config_debug.txt 2>&1 || true
               echo "Showing Nginx server block configs:" >> nginx_config_debug.txt
               cat /etc/nginx/sites-enabled/* >> nginx_config_debug.txt 2>&1 || true
+              echo "=== PM2 FE LOGS ===" >> nginx_config_debug.txt
+              pm2 logs AI-Automation-FE --lines 50 --nostream >> nginx_config_debug.txt 2>&1 || true
+              echo "=== PM2 BACKEND LOGS ===" >> nginx_config_debug.txt
+              pm2 logs AI-Automation-Backend --lines 50 --nostream >> nginx_config_debug.txt 2>&1 || true
+              echo "=== NGINX ERROR LOGS ===" >> nginx_config_debug.txt
+              tail -n 50 /var/log/nginx/error.log >> nginx_config_debug.txt 2>&1 || true
+              echo "=== NGINX ACCESS LOGS ===" >> nginx_config_debug.txt
+              tail -n 50 /var/log/nginx/access.log >> nginx_config_debug.txt 2>&1 || true
               echo "===================" >> nginx_config_debug.txt
               # Copy diagnostics file to backend uploads folder to retrieve it via URL
               mkdir -p backend/uploads

@@ -16,7 +16,7 @@ const getBaseURL = () => {
       if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
         return `${rawUrl.replace(/\/$/, '')}/api`;
       }
-      return 'http://localhost:5005/api';
+      return 'http://localhost:5588/api';
     }
   }
 
