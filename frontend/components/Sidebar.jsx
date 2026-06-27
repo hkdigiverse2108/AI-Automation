@@ -90,19 +90,7 @@ export default function Sidebar({ isOpen, onClose }) {
   };
 
   // Filter navigation sections based on user role and feature permissions
-  const allSections = user?.role === 'agent'
-    ? [
-        {
-          title: 'Main',
-          items: [
-            { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, badge: true },
-            { href: '/dashboard/tasks', label: 'Tasks', icon: ClipboardList },
-            { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle },
-            { href: '/dashboard/catalog', label: 'Catalog', icon: ShoppingBag }
-          ]
-        }
-      ]
-    : user?.role === 'superadmin'
+  const allSections = user?.role === 'superadmin'
     ? [
         {
           title: 'Super Admin Menu',
@@ -131,7 +119,7 @@ export default function Sidebar({ isOpen, onClose }) {
           ]
         }
       ]
-    : // Admin role: filter navSections by feature permissions
+    : // Admin, Owner, and Agent roles: filter navSections by feature permissions
       navSections.map(section => ({
         ...section,
         items: section.items.filter(item => {

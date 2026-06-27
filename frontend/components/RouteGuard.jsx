@@ -38,8 +38,8 @@ export default function RouteGuard({ children }) {
   const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
-    // Superadmins and agents have their own access control
-    if (!user || user.role === 'superadmin' || user.role === 'agent') {
+    // Superadmins bypass permission checks
+    if (!user || user.role === 'superadmin') {
       setBlocked(false);
       return;
     }
