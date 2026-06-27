@@ -12,7 +12,7 @@ import { Menu, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardLayout({ children }) {
-  const { isAuthenticated, loading, checkAuth, user } = useAuthStore();
+  const { isAuthenticated, loading, checkAuth, user, permissions } = useAuthStore();
   const { init: initTheme } = useThemeStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -35,19 +35,45 @@ export default function DashboardLayout({ children }) {
     if (!loading && !isAuthenticated) {
       router.push('/login');
     } else if (!loading && isAuthenticated && user?.role === 'agent') {
-      const allowedPaths = [
-        '/dashboard/inbox',
-        '/dashboard/team-chat',
-        '/dashboard/tasks',
-        '/dashboard/notifications',
-        '/dashboard/catalog'
-      ];
-      const isAllowed = allowedPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
-      if (!isAllowed) {
+      if (!permissions) return;
+
+      const routeToSlugMap = {
+        '/dashboard': 'dashboard',
+        '/dashboard/inbox': 'inbox',
+        '/dashboard/contacts': 'contacts',
+        '/dashboard/catalog': 'catalog',
+        '/dashboard/contacts/groups': 'groups',
+        '/dashboard/follow-ups': 'follow-ups',
+        '/dashboard/tasks': 'tasks',
+        '/dashboard/call-logs': 'call-logs',
+        '/dashboard/team': 'team',
+        '/dashboard/team-chat': 'team-chat',
+        '/dashboard/campaigns': 'campaigns',
+        '/dashboard/unofficial-campaigns': 'unofficial-campaigns',
+        '/dashboard/templates': 'templates',
+        '/dashboard/bot-builder': 'bot-builder',
+        '/dashboard/analytics': 'analytics',
+        '/dashboard/subscription': 'subscription',
+        '/dashboard/chat-logs': 'chat-logs',
+        '/dashboard/settings': 'settings',
+      };
+
+      let matchedSlug = routeToSlugMap[pathname];
+      if (!matchedSlug) {
+        const sortedPaths = Object.keys(routeToSlugMap).sort((a, b) => b.length - a.length);
+        for (const routePath of sortedPaths) {
+          if (routePath !== '/dashboard' && pathname.startsWith(routePath + '/')) {
+            matchedSlug = routeToSlugMap[routePath];
+            break;
+          }
+        }
+      }
+
+      if (matchedSlug && !permissions.includes(matchedSlug)) {
         router.push('/dashboard/inbox');
       }
     }
-  }, [loading, isAuthenticated, user, pathname, router]);
+  }, [loading, isAuthenticated, user, permissions, pathname, router]);
 
   // Check subscription status
   useEffect(() => {
