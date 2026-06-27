@@ -9,6 +9,7 @@ import {
 import api from '../../../lib/api';
 import { useConfirmStore } from '../../../lib/store';
 import { formatTime } from '../../../lib/utils';
+import AgentPermissionsTab from '../../../components/AgentPermissionsTab';
 
 export default function TeamPage() {
   const confirm = useConfirmStore(state => state.confirm);
@@ -285,6 +286,16 @@ export default function TeamPage() {
         >
           Monitoring & Performance
         </button>
+        <button
+          onClick={() => setActiveTab('permissions')}
+          className={`px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all ${
+            activeTab === 'permissions'
+              ? 'border-wa-green text-wa-green'
+              : 'border-transparent text-wa-text-secondary hover:text-wa-text-primary'
+          }`}
+        >
+          Agent Permissions
+        </button>
       </div>
 
       {activeTab === 'members' ? (
@@ -458,7 +469,7 @@ export default function TeamPage() {
             )}
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'monitoring' ? (
         /* MONITORING & PERFORMANCE DASHBOARD */
         <div className="space-y-6">
           {/* Stats Cards */}
@@ -596,6 +607,8 @@ export default function TeamPage() {
             </div>
           </div>
         </div>
+      ) : (
+        <AgentPermissionsTab />
       )}
 
       {/* MEMBER CREATE/EDIT MODAL */}

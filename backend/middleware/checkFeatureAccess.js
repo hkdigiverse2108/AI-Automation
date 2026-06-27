@@ -1,5 +1,6 @@
 const Feature = require('../models/Feature');
 const AdminFeaturePermission = require('../models/AdminFeaturePermission');
+const AgentFeaturePermission = require('../models/AgentFeaturePermission');
 
 function checkFeatureAccess(featureSlug) {
   return async (req, res, next) => {
@@ -31,8 +32,24 @@ function checkFeatureAccess(featureSlug) {
         return res.status(403).json({
           success: false,
           message: 'Permission denied',
-          error: `Feature "${feature.name}" is disabled for this account.`
+          error: `Feature "${feature.name}" is disabled for this organization.`
         });
+      }
+
+      // If user is an agent, verify agent-specific permissions
+      if (req.user && req.user.role === 'agent') {
+        const agentPermission = await AgentFeaturePermission.findOne({
+          agent_id: req.user._id,
+          feature_id: feature._id
+        });
+
+        if (agentPermission && agentPermission.can_view === false) {
+          return res.status(403).json({
+            success: false,
+            message: 'Permission denied',
+            error: `Feature "${feature.name}" is disabled for your user account.`
+          });
+        }
       }
 
       next();
