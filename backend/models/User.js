@@ -94,7 +94,7 @@ userSchema.methods.toSafeObject = function () {
 };
 
 userSchema.statics.hashPassword = async function (password) {
-  return bcrypt.hash(password, 12);
+  return bcrypt.hash(password, 10);
 };
 
 module.exports = mongoose.model('User', userSchema);

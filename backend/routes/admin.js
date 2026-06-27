@@ -615,13 +615,16 @@ router.post('/users/:id/reset-password', async (req, res) => {
       return res.status(400).json({ success: false, error: 'New password must be at least 8 characters long' });
     }
 
-    const user = await User.findById(id);
+    const user = await User.findById(id).select('+passwordHash +passwordHistory');
     if (!user || user.isDeleted) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
     const passwordHash = await User.hashPassword(newPassword);
     user.passwordHash = passwordHash;
+    if (!user.passwordHistory) {
+      user.passwordHistory = [];
+    }
     user.passwordHistory.push(passwordHash);
     await user.save();
 
