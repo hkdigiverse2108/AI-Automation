@@ -10,7 +10,12 @@ export function getSocket() {
 
   let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-    socketUrl = 'http://localhost:5588';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (apiUrl && (apiUrl.startsWith('http://') || apiUrl.startsWith('https://'))) {
+      socketUrl = apiUrl.replace(/\/api\/?$/, '');
+    } else {
+      socketUrl = 'http://localhost:5588';
+    }
   }
   if (!socketUrl && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
     socketUrl = window.location.origin;

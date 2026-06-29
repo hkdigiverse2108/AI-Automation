@@ -11,12 +11,10 @@ const getBaseURL = () => {
       return '/api';
     }
 
-    // If browser IS on localhost, determine local backend URL
+    // On localhost, always use relative '/api' to route through Next.js rewrites proxy.
+    // This avoids CORS issues when connecting to external/live backends.
     if (hostname === 'localhost') {
-      if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
-        return `${rawUrl.replace(/\/$/, '')}/api`;
-      }
-      return 'http://localhost:5588/api';
+      return '/api';
     }
   }
 

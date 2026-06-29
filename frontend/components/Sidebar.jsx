@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useAuthStore, useThemeStore, useConversationStore } from '../lib/store';
 import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Bot, FileText,
@@ -59,6 +59,7 @@ const navSections = [
 
 export default function Sidebar({ isOpen, onClose }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, permissions, logout } = useAuthStore();
   const { dark, toggle } = useThemeStore();
   const hasUnread = useConversationStore((state) => state.conversations.some(c => c.unreadCount > 0));
@@ -141,6 +142,56 @@ export default function Sidebar({ isOpen, onClose }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Determine which menu item is currently active based on pathname and searchParams
+  let activeHref = null;
+  let bestScore = -1;
+
+  allSections.forEach(section => {
+    section.items.forEach(item => {
+      if (item.href === '#logout') return;
+
+      const [hrefPath, hrefQuery] = item.href.split('?');
+
+      // Check path match
+      let isPathMatch = false;
+      if (hrefPath === '/dashboard') {
+        isPathMatch = pathname === '/dashboard';
+      } else {
+        isPathMatch = pathname === hrefPath || pathname.startsWith(hrefPath + '/');
+      }
+
+      if (!isPathMatch) return;
+
+      // Check query params match
+      let queryScore = 0;
+      if (hrefQuery) {
+        const hrefParams = new URLSearchParams(hrefQuery);
+        let queryParamsMatch = true;
+        for (const [key, value] of hrefParams.entries()) {
+          const paramValue = searchParams ? searchParams.get(key) : null;
+          // Default fallback for tab=organizations when tab is missing in URL
+          if (paramValue === null && key === 'tab' && value === 'organizations') {
+            queryScore += 0.5;
+            continue;
+          }
+          if (paramValue !== value) {
+            queryParamsMatch = false;
+            break;
+          }
+          queryScore += 1;
+        }
+        if (!queryParamsMatch) return;
+      }
+
+      // Score based on path length and query matches
+      const score = hrefPath.length + (queryScore * 1000);
+      if (score > bestScore) {
+        bestScore = score;
+        activeHref = item.href;
+      }
+    });
+  });
+
   return (
     <>
       {/* Backdrop overlay for mobile drawer */}
@@ -208,7 +259,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
               <div className="space-y-0.5">
                 {section.items.map(({ href, label, icon: Icon, badge, onClick }) => {
-                  const isActive = href !== '#logout' && (pathname === href || (href !== '/dashboard' && pathname.startsWith(href)));
+                  const isActive = href === activeHref;
                   const showBadge = href === '/dashboard/inbox' ? hasUnread : badge;
                   const itemContent = (
                     <>

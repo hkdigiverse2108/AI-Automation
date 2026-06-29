@@ -41,12 +41,14 @@ function applySecurity(app) {
         const allowed = env.ALLOWED_ORIGINS.map(url => url.replace(/\/$/, ''));
         
         const isHkDigiverse = normalizedOrigin.endsWith('.hkdigiverse.com') || normalizedOrigin === 'https://hkdigiverse.com';
+        const isLocal = normalizedOrigin.startsWith('http://localhost:') || normalizedOrigin === 'http://localhost';
         
         if (
           allowed.includes(normalizedOrigin) ||
           normalizedOrigin.includes('ngrok-free.app') ||
           normalizedOrigin.includes('ngrok.io') ||
-          isHkDigiverse
+          isHkDigiverse ||
+          isLocal
         ) {
           callback(null, true);
         } else {
