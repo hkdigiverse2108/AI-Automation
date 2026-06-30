@@ -460,20 +460,33 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
       const activeFlows = await BotFlow.find({ userId, isActive: true }).lean();
       const userText = (content.text || '').toLowerCase().trim();
 
-      for (const f of activeFlows) {
-        if (f.trigger.type === 'any') {
-          flow = f;
-          break;
+      const isQualified = contact.customFields && contact.customFields.get('conversationStatus') === 'Qualified Lead';
+      const isHkUser = userId.toString() === '6a4256a6f959e4aa133771ab';
+      
+      if (isHkUser) {
+        let targetFlowName = 'Digital Business Transformation Campaign Bot';
+        if (isQualified) {
+          targetFlowName = 'Event Registration & Payment Bot';
         }
-        if (f.trigger.type === 'keyword' && f.trigger.keywords?.length) {
-          if (f.trigger.keywords.some((kw) => userText.includes(kw.toLowerCase()))) {
+        flow = activeFlows.find(f => f.name === targetFlowName);
+      }
+
+      if (!flow) {
+        for (const f of activeFlows) {
+          if (f.trigger.type === 'any') {
             flow = f;
             break;
           }
-        }
-        if (f.trigger.type === 'source' && f.trigger.source === contact.source) {
-          flow = f;
-          break;
+          if (f.trigger.type === 'keyword' && f.trigger.keywords?.length) {
+            if (f.trigger.keywords.some((kw) => userText.includes(kw.toLowerCase()))) {
+              flow = f;
+              break;
+            }
+          }
+          if (f.trigger.type === 'source' && f.trigger.source === contact.source) {
+            flow = f;
+            break;
+          }
         }
       }
 
@@ -524,7 +537,7 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
     }
 
     // If current node is a question and we got a reply, save the variable, then advance
-    if (currentNode.type === 'question' && !isNew && content.text) {
+    if (currentNode.type === 'question' && !isNew && (content.text || msgType === 'image' || content.mediaId)) {
       // 1. Gather all valid choices from the question message configuration
       const validChoices = [];
       const msgData = currentNode.data?.message;
@@ -604,13 +617,38 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
         const hasGujarati = (str) => /[\u0A80-\u0AFF]/.test(str);
         const isGuj = hasGujarati(questionText) || hasGujarati(varName);
 
+        // Payment screenshot validation
+        if (varName === 'payment_screenshot') {
+          if (msgType !== 'image' && !content.mediaId) {
+            const errorText = "Please upload only the payment screenshot to continue your registration.";
+            await sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, errorText, 'bot', io);
+            await executeNode(userId, conversation, contact, flow, currentNode, phoneNumberId, token, io, content);
+            return;
+          }
+        }
+
         // Phone number validation
         if (varName.toLowerCase().includes('phone') || varName.toLowerCase().includes('mobile')) {
+          const isHkUser = userId.toString() === '6a4256a6f959e4aa133771ab';
           const cleanedPhone = textVal.replace(/[+\s\-]/g, '');
-          const isPhoneValid = /^\d{8,15}$/.test(cleanedPhone);
+          
+          let isPhoneValid = false;
+          if (isHkUser) {
+            let localNumber = cleanedPhone;
+            if (localNumber.startsWith('91') && localNumber.length === 12) {
+              localNumber = localNumber.substring(2);
+            } else if (localNumber.startsWith('0') && localNumber.length === 11) {
+              localNumber = localNumber.substring(1);
+            }
+            isPhoneValid = /^[6-9]\d{9}$/.test(localNumber);
+          } else {
+            isPhoneValid = /^\d{8,15}$/.test(cleanedPhone);
+          }
           
           if (!isPhoneValid) {
-            let errorText = "Please enter a valid phone number (digits only, e.g., 9876543210).";
+            let errorText = isHkUser 
+              ? "Please enter a valid Indian mobile number (e.g., 9876543210)."
+              : "Please enter a valid phone number (digits only, e.g., 9876543210).";
             if (isGuj) {
               errorText = "કૃપા કરીને સાચો ફોન નંબર દાખલ કરો (ફક્ત અંકો, જેમ કે 9876543210).";
             }
@@ -690,6 +728,9 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
             await executeNode(userId, conversation, contact, flow, currentNode, phoneNumberId, token, io, content);
             return;
           }
+        } else if (varName === 'payment_screenshot') {
+          conversation.flowVariables.set(varName, content.mediaUrl || content.mediaId || '');
+          await syncFlowVariablesToCRM(userId, contact, conversation);
         } else {
           conversation.flowVariables.set(varName, content.text || content.interactive?.title || '');
           await syncFlowVariablesToCRM(userId, contact, conversation);
@@ -1594,6 +1635,22 @@ async function syncFlowVariablesToCRM(userId, contact, conversation) {
       contact.customFields.set('leadSource', 'WhatsApp Event Campaign');
       contact.customFields.set('conversationStatus', 'Qualified Lead');
       contact.customFields.set('qualificationTime', new Date().toISOString());
+      contact.segment = 'hot';
+      contact.engagementScore = 100;
+    }
+
+    // Event Registration & Payment Bot Mappings
+    if (vars.customer_name) contact.name = vars.customer_name;
+    if (vars.mobile_number) contact.customFields.set('mobileNumber', vars.mobile_number);
+    if (vars.business_name) contact.customFields.set('businessName', vars.business_name);
+    if (vars.company_size) contact.customFields.set('companySize', vars.company_size);
+    if (vars.city) contact.customFields.set('city', vars.city);
+    if (vars.payment_screenshot) {
+      contact.customFields.set('paymentScreenshot', vars.payment_screenshot);
+      contact.customFields.set('paymentScreenshotReceived', 'YES');
+      contact.customFields.set('paymentStatus', 'Screenshot Received');
+      contact.customFields.set('registrationStatus', 'Payment Verification Pending');
+      contact.customFields.set('registrationTime', new Date().toISOString());
       contact.segment = 'hot';
       contact.engagementScore = 100;
     }
