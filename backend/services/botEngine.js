@@ -460,10 +460,30 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
       const activeFlows = await BotFlow.find({ userId, isActive: true }).lean();
       const userText = (content.text || '').toLowerCase().trim();
 
-      const isQualified = contact.customFields && contact.customFields.get('conversationStatus') === 'Qualified Lead';
       const isHkUser = userId.toString() === '6a4256a6f959e4aa133771ab';
+      let isQualified = false;
       
       if (isHkUser) {
+        if (isNew) {
+          // If conversation is deleted or brand new, reset qualification/registration custom fields in CRM
+          if (contact.customFields) {
+            contact.customFields.set('conversationStatus', undefined);
+            contact.customFields.set('registrationStatus', undefined);
+            contact.customFields.set('paymentScreenshotReceived', undefined);
+            contact.customFields.set('leadStatus', undefined);
+            contact.customFields.set('interestStatus', undefined);
+            contact.customFields.set('businessCategory', undefined);
+            contact.customFields.set('companySize', undefined);
+            contact.customFields.set('city', undefined);
+            contact.customFields.set('paymentScreenshot', undefined);
+            contact.customFields.set('paymentStatus', undefined);
+            contact.markModified('customFields');
+            await contact.save();
+          }
+        } else {
+          isQualified = contact.customFields && contact.customFields.get('conversationStatus') === 'Qualified Lead';
+        }
+
         let targetFlowName = 'Digital Business Transformation Campaign Bot';
         if (isQualified) {
           targetFlowName = 'Event Registration & Payment Bot';
