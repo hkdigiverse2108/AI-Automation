@@ -1577,7 +1577,25 @@ async function syncFlowVariablesToCRM(userId, contact, conversation) {
     if (vars.business_type) contact.customFields.set('businessType', vars.business_type);
     if (vars.company_size) contact.customFields.set('companySize', vars.company_size);
     if (vars.meeting_preference) contact.customFields.set('meetingPreference', vars.meeting_preference);
-    
+    // Event specific mappings for Digital Business Transformation
+    if (vars.interest) {
+      const isInterested = vars.interest === 'Interested' || vars.interest.includes('Interested');
+      contact.customFields.set('leadStatus', isInterested ? 'Interested' : 'Not Interested');
+      contact.customFields.set('interestStatus', isInterested ? 'Interested' : 'Not Interested');
+      if (isInterested) {
+        contact.segment = 'warm';
+      }
+    }
+    if (vars.business_category) {
+      contact.customFields.set('businessCategory', vars.business_category);
+      contact.customFields.set('eventName', 'Digital Business Transformation');
+      contact.customFields.set('leadSource', 'WhatsApp Event Campaign');
+      contact.customFields.set('conversationStatus', 'Qualified Lead');
+      contact.customFields.set('qualificationTime', new Date().toISOString());
+      contact.segment = 'hot';
+      contact.engagementScore = 100;
+    }
+
     // Calculate Lead Score & Priority
     let score = 0;
     let priority = 'cold';
