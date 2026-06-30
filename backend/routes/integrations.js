@@ -130,13 +130,10 @@ router.post('/meta', async (req, res) => {
       const displayName = org.metaConfig.whatsapp.statusDetails?.displayName || 'WhatsApp Account';
       const phoneNumber = org.metaConfig.whatsapp.statusDetails?.phoneNumber || 'Unknown';
 
-      // Find or create WhatsAppAccount associated with the admin's userId or phoneNumberId
-      let waAccount = await WhatsAppAccount.findOne({
-        $or: [{ userId: req.userId }, { phoneNumberId }]
-      });
+      // Find or create WhatsAppAccount associated with this specific phoneNumberId
+      let waAccount = await WhatsAppAccount.findOne({ phoneNumberId });
       if (waAccount) {
         waAccount.phoneNumber = phoneNumber;
-        waAccount.phoneNumberId = phoneNumberId;
         waAccount.accessToken = org.metaConfig.whatsapp.accessToken; // encrypted
         waAccount.wabaId = wabaId;
         waAccount.displayName = displayName;
@@ -270,12 +267,10 @@ router.post('/meta/test', async (req, res) => {
 
       // Sync WhatsAppAccount model if successful
       if (type === 'whatsapp' && org.metaConfig.whatsapp.status === 'connected') {
-        let waAccount = await WhatsAppAccount.findOne({
-          $or: [{ userId: req.userId }, { phoneNumberId: org.metaConfig.whatsapp.phoneNumberId }]
-        });
+        const targetPhoneId = org.metaConfig.whatsapp.phoneNumberId;
+        let waAccount = await WhatsAppAccount.findOne({ phoneNumberId: targetPhoneId });
         if (waAccount) {
           waAccount.phoneNumber = org.metaConfig.whatsapp.statusDetails.phoneNumber;
-          waAccount.phoneNumberId = org.metaConfig.whatsapp.phoneNumberId;
           waAccount.wabaId = org.metaConfig.whatsapp.wabaId;
           waAccount.displayName = org.metaConfig.whatsapp.statusDetails.displayName;
           waAccount.isActive = true;
@@ -284,7 +279,7 @@ router.post('/meta/test', async (req, res) => {
           await WhatsAppAccount.create({
             userId: req.userId,
             phoneNumber: org.metaConfig.whatsapp.statusDetails.phoneNumber,
-            phoneNumberId: org.metaConfig.whatsapp.phoneNumberId,
+            phoneNumberId: targetPhoneId,
             accessToken: org.metaConfig.whatsapp.accessToken,
             wabaId: org.metaConfig.whatsapp.wabaId,
             displayName: org.metaConfig.whatsapp.statusDetails.displayName,
@@ -363,12 +358,9 @@ router.post('/meta/test', async (req, res) => {
         await org.save();
 
         // Sync with WhatsAppAccount model
-        let waAccount = await WhatsAppAccount.findOne({
-          $or: [{ userId: req.userId }, { phoneNumberId }]
-        });
+        let waAccount = await WhatsAppAccount.findOne({ phoneNumberId });
         if (waAccount) {
           waAccount.phoneNumber = phoneNumber;
-          waAccount.phoneNumberId = phoneNumberId;
           waAccount.wabaId = wabaId;
           waAccount.displayName = displayName;
           waAccount.isActive = true;
@@ -405,12 +397,9 @@ router.post('/meta/test', async (req, res) => {
           await org.save();
 
           // Sync with WhatsAppAccount model
-          let waAccount = await WhatsAppAccount.findOne({
-            $or: [{ userId: req.userId }, { phoneNumberId }]
-          });
+          let waAccount = await WhatsAppAccount.findOne({ phoneNumberId });
           if (waAccount) {
             waAccount.phoneNumber = org.metaConfig.whatsapp.statusDetails.phoneNumber;
-            waAccount.phoneNumberId = phoneNumberId;
             waAccount.wabaId = wabaId;
             waAccount.displayName = org.metaConfig.whatsapp.statusDetails.displayName;
             waAccount.isActive = true;
@@ -562,12 +551,13 @@ router.post('/meta/disconnect', async (req, res) => {
 
     // Deactivate WhatsAppAccount if type is whatsapp
     if (type === 'whatsapp') {
-      const waAccount = await WhatsAppAccount.findOne({
-        $or: [{ userId: req.userId }, { phoneNumberId: org.metaConfig?.whatsapp?.phoneNumberId }]
-      });
-      if (waAccount) {
-        waAccount.isActive = false;
-        await waAccount.save();
+      const targetPhoneId = org.metaConfig?.whatsapp?.phoneNumberId;
+      if (targetPhoneId) {
+        const waAccount = await WhatsAppAccount.findOne({ phoneNumberId: targetPhoneId });
+        if (waAccount) {
+          waAccount.isActive = false;
+          await waAccount.save();
+        }
       }
     }
 
@@ -592,7 +582,146 @@ router.post('/meta/disconnect', async (req, res) => {
     res.status(500).json({ success: false, error: 'Internal disconnect execution failure', code: 'DISCONNECT_ERROR' });
   }
 });
+// POST /api/settings/integrations/meta/register-phone - Call Meta Register API for a phone number
+router.post('/meta/register-phone', async (req, res) => {
+  try {
+    const org = await Organization.findById(req.organizationId);
+    if (!org) {
+      return res.status(404).json({ success: false, error: 'Organization not found', code: 'ORG_NOT_FOUND' });
+    }
 
+    const { phoneNumberId, pin } = req.body;
+    if (!phoneNumberId || !pin) {
+      return res.status(400).json({ success: false, error: 'Phone Number ID and PIN are required', code: 'MISSING_FIELDS' });
+    }
 
+    // 1. Get WABA configuration and decrypted Access Token
+    const config = org.metaConfig ? org.metaConfig.whatsapp : null;
+    if (!config || !config.accessToken) {
+      return res.status(400).json({ success: false, error: 'WhatsApp Access Token is not configured', code: 'NOT_CONFIGURED' });
+    }
+
+    const token = decryptField(config.accessToken);
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Access token decryption failed', code: 'DECRYPTION_ERROR' });
+    }
+
+    const GRAPH_URL = 'https://graph.facebook.com/v18.0';
+
+    logger.info(`[META REGISTER PHONE REQUEST] POST ${GRAPH_URL}/${phoneNumberId}/register`, {
+      phoneNumberId,
+      pin: '••••••'
+    });
+
+    // 2. Call registration endpoint on Meta
+    let regResponse;
+    try {
+      regResponse = await axios.post(`${GRAPH_URL}/${phoneNumberId}/register`, {
+        messaging_product: 'whatsapp',
+        pin: pin
+      }, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      logger.info(`[META REGISTER PHONE RESPONSE] SUCCESS:`, { response: regResponse.data });
+    } catch (apiErr) {
+      const errData = apiErr.response?.data?.error || {};
+      logger.error(`[META REGISTER PHONE API ERROR] FAILED:`, {
+        status: apiErr.response?.status,
+        message: errData.message || apiErr.message,
+        code: errData.code,
+        error_subcode: errData.error_subcode,
+        response: apiErr.response?.data
+      });
+      return res.status(apiErr.response?.status || 500).json({
+        success: false,
+        error: errData.message || apiErr.message,
+        code: 'META_API_ERROR',
+        details: errData
+      });
+    }
+
+    // 3. Fetch phone number details (display_phone_number, verified_name)
+    let displayPhoneNumber = '';
+    let verifiedName = '';
+    try {
+      const phoneRes = await axios.get(`${GRAPH_URL}/${phoneNumberId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      displayPhoneNumber = phoneRes.data.display_phone_number || '';
+      verifiedName = phoneRes.data.verified_name || '';
+      logger.info(`[META REGISTER PHONE DETAILS] SUCCESS:`, { displayPhoneNumber, verifiedName });
+    } catch (detailErr) {
+      logger.warn('Failed to retrieve registered phone number details:', detailErr.message);
+    }
+
+    const now = new Date();
+
+    // 4. Update organization config if registering the active number
+    if (org.metaConfig.whatsapp.phoneNumberId === phoneNumberId) {
+      org.metaConfig.whatsapp.status = 'connected';
+      org.metaConfig.whatsapp.statusDetails = {
+        businessName: org.metaConfig.whatsapp.statusDetails?.businessName || 'Ajnabh Infotech',
+        displayName: verifiedName || org.metaConfig.whatsapp.statusDetails?.displayName || 'WhatsApp Account',
+        phoneNumber: displayPhoneNumber || org.metaConfig.whatsapp.statusDetails?.phoneNumber || 'Unknown',
+        tokenStatus: 'Active',
+        errorReason: '',
+        lastVerified: now
+      };
+      await org.save();
+    }
+
+    // 5. Upsert WhatsAppAccount specifically by phoneNumberId so we do not overwrite other accounts
+    let waAccount = await WhatsAppAccount.findOne({ phoneNumberId });
+    if (waAccount) {
+      waAccount.phoneNumber = displayPhoneNumber || waAccount.phoneNumber;
+      waAccount.wabaId = config.wabaId;
+      waAccount.displayName = verifiedName || waAccount.displayName;
+      waAccount.accessToken = config.accessToken; // encrypted
+      waAccount.isActive = true;
+      waAccount.webhookVerified = true;
+      await waAccount.save();
+    } else {
+      await WhatsAppAccount.create({
+        userId: req.userId,
+        phoneNumber: displayPhoneNumber || 'Unknown',
+        phoneNumberId,
+        accessToken: config.accessToken,
+        wabaId: config.wabaId,
+        displayName: verifiedName || 'WhatsApp Account',
+        isActive: true,
+        webhookVerified: true
+      });
+    }
+
+    const AuditLog = require('../models/AuditLog');
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user._id,
+      actorName: req.user.name,
+      action: 'REGISTER_WHATSAPP_PHONE_NUMBER',
+      resource: 'WhatsAppAccount',
+      resourceId: phoneNumberId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      message: 'Phone number registered successfully and synced in platform',
+      data: {
+        phoneNumberId,
+        displayPhoneNumber,
+        verifiedName
+      }
+    });
+
+  } catch (error) {
+    logger.error('Phone number registration endpoint error:', error.message);
+    res.status(500).json({ success: false, error: 'Internal execution failure', code: 'REGISTRATION_ERROR' });
+  }
+});
 
 module.exports = router;

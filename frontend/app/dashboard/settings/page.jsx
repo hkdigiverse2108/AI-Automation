@@ -69,6 +69,11 @@ export default function SettingsPage() {
   const [disconnectingConnection, setDisconnectingConnection] = useState({ whatsapp: false, facebook: false, instagram: false });
   const [waTokenLifespan, setWaTokenLifespan] = useState('permanent');
 
+  // Phone registration states
+  const [registeringPhone, setRegisteringPhone] = useState(false);
+  const [showRegModal, setShowRegModal] = useState(false);
+  const [regPin, setRegPin] = useState('');
+
   // Credential Visibility Toggles
   const [showWaToken, setShowWaToken] = useState(false);
   const [showWaSecret, setShowWaSecret] = useState(false);
@@ -230,6 +235,38 @@ export default function SettingsPage() {
       toast.error(errorMsg);
     } finally {
       setDisconnectingConnection(prev => ({ ...prev, [type]: false }));
+    }
+  };
+
+  const handleRegisterPhone = async (e) => {
+    if (e) e.preventDefault();
+    if (!regPin.trim() || regPin.trim().length !== 6) {
+      toast.error('Please enter a valid 6-digit PIN.');
+      return;
+    }
+
+    setRegisteringPhone(true);
+    const toastId = toast.loading('Registering phone number with Meta Cloud API...');
+    try {
+      // Auto-save active configuration before registering
+      await api.post('/settings/integrations/meta', metaConfig);
+
+      const { data } = await api.post('/settings/integrations/meta/register-phone', {
+        phoneNumberId: metaConfig.whatsapp.phoneNumberId,
+        pin: regPin.trim()
+      });
+
+      if (data.success) {
+        toast.success('WhatsApp number registered successfully!', { id: toastId });
+        setShowRegModal(false);
+        setRegPin('');
+        fetchMetaConfig();
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Registration failed. Please verify your PIN and Meta credentials.';
+      toast.error(errorMsg, { id: toastId });
+    } finally {
+      setRegisteringPhone(false);
     }
   };
 
@@ -1158,6 +1195,17 @@ export default function SettingsPage() {
                       )}
                     </button>
 
+                    {activeSubTab === 'whatsapp' && (
+                      <button
+                        type="button"
+                        onClick={() => setShowRegModal(true)}
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 text-wa-text-primary dark:text-white border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg dark:hover:bg-wa-dark-hover rounded-xl text-xs font-semibold transition-all duration-200 w-full sm:w-auto"
+                      >
+                        <Smartphone className="w-4 h-4 text-emerald-500" />
+                        <span>Register Phone ID</span>
+                      </button>
+                    )}
+
                     {metaConfig[activeSubTab]?.status && metaConfig[activeSubTab]?.status !== 'disconnected' && (
                       <button
                         type="button"
@@ -1636,6 +1684,77 @@ export default function SettingsPage() {
               </div>
             </form>
           )}
+        </div>
+      )}
+
+      {/* WhatsApp Registration Modal */}
+      {showRegModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border pb-3">
+              <h3 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-emerald-500" />
+                <span>Register Phone Number</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRegModal(false);
+                  setRegPin('');
+                }}
+                className="text-wa-text-secondary hover:text-wa-text-primary text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs text-wa-text-secondary leading-relaxed">
+              <p>
+                To enable sending messages via Meta Cloud API, you must register your verified phone number. This setup authorizes your number on the WhatsApp servers.
+              </p>
+              <p className="font-semibold text-amber-600 dark:text-amber-400">
+                Current Phone ID: <span className="font-mono">{metaConfig.whatsapp.phoneNumberId}</span>
+              </p>
+            </div>
+
+            <form onSubmit={handleRegisterPhone} className="space-y-4 pt-2">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-extrabold uppercase text-wa-text-secondary">
+                  Two-Step Verification 6-Digit PIN *
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  required
+                  placeholder="e.g. 123456"
+                  value={regPin}
+                  onChange={(e) => setRegPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="w-full px-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-center text-wa-text-primary dark:text-white font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-wa-green/30"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRegModal(false);
+                    setRegPin('');
+                  }}
+                  className="px-4 py-2 text-xs font-semibold border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg dark:hover:bg-wa-dark-hover rounded-xl text-wa-text-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={registeringPhone || regPin.length !== 6}
+                  className="flex items-center gap-2 px-4 py-2 text-white bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 rounded-xl text-xs font-semibold shadow-md transition-all duration-200"
+                >
+                  {registeringPhone ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  <span>Register Number</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

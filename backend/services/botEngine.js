@@ -497,6 +497,32 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
       return;
     }
 
+    // Intercept "Go Back" action
+    const userText = (content.text || '').toLowerCase().trim();
+    const idVal = (content.interactive?.id || '').toLowerCase().trim();
+    if (userText === 'back' || userText === 'go back' || idVal === 'back' || idVal === 'btn_back') {
+      let visited = conversation.flowVariables.get('visited_nodes') || '';
+      const visitedList = visited ? visited.split(',') : [];
+      if (visitedList.length > 1) {
+        // Pop current node
+        visitedList.pop();
+        // Get previous node
+        const prevNodeId = visitedList[visitedList.length - 1];
+        // Pop it as well since executeNode will re-add it
+        visitedList.pop();
+        conversation.flowVariables.set('visited_nodes', visitedList.join(','));
+        conversation.markModified('flowVariables');
+        
+        const prevNode = flow.nodes.find(n => n.id === prevNodeId);
+        if (prevNode) {
+          conversation.currentNodeId = prevNode.id;
+          await conversation.save();
+          await executeNode(userId, conversation, contact, flow, prevNode, phoneNumberId, token, io, content);
+          return;
+        }
+      }
+    }
+
     // If current node is a question and we got a reply, save the variable, then advance
     if (currentNode.type === 'question' && !isNew && content.text) {
       // 1. Gather all valid choices from the question message configuration
@@ -656,6 +682,7 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
             }
             conversation.flowVariables.set('features', current);
             conversation.markModified('flowVariables');
+            await syncFlowVariablesToCRM(userId, contact, conversation);
             conversation.currentNodeId = currentNode.id;
             await conversation.save();
 
@@ -665,6 +692,7 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
           }
         } else {
           conversation.flowVariables.set(varName, content.text || content.interactive?.title || '');
+          await syncFlowVariablesToCRM(userId, contact, conversation);
         }
       }
       // Move to next node
@@ -800,6 +828,18 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
   const vars = Object.fromEntries(conversation.flowVariables || new Map());
   if (!vars['features']) {
     vars['features'] = 'None';
+  }
+
+  // Track visited nodes for "Go Back" navigation
+  if (node.type === 'question') {
+    let visited = conversation.flowVariables.get('visited_nodes') || '';
+    const visitedList = visited ? visited.split(',') : [];
+    if (visitedList[visitedList.length - 1] !== node.id) {
+      visitedList.push(node.id);
+      conversation.flowVariables.set('visited_nodes', visitedList.join(','));
+      conversation.markModified('flowVariables');
+      await conversation.save();
+    }
   }
 
   switch (node.type) {
@@ -1512,6 +1552,84 @@ async function triggerBotFlowForPhone(userId, phone, io) {
     );
   } catch (err) {
     logger.error('triggerBotFlowForPhone error:', err);
+  }
+}
+
+async function syncFlowVariablesToCRM(userId, contact, conversation) {
+  try {
+    const vars = Object.fromEntries(conversation.flowVariables || new Map());
+    
+    // Map standard fields
+    if (vars.name) contact.name = vars.name;
+    if (vars.email) contact.email = vars.email;
+    
+    // Map custom fields
+    if (!contact.customFields) contact.customFields = new Map();
+    
+    // Set current step
+    contact.customFields.set('currentStep', conversation.currentNodeId || 'start');
+    
+    // Map service variables
+    if (vars.service) contact.customFields.set('selectedService', vars.service);
+    if (vars.sub_service) contact.customFields.set('subService', vars.sub_service);
+    if (vars.budget) contact.customFields.set('budget', vars.budget);
+    if (vars.timeline) contact.customFields.set('timeline', vars.timeline);
+    if (vars.business_type) contact.customFields.set('businessType', vars.business_type);
+    if (vars.company_size) contact.customFields.set('companySize', vars.company_size);
+    if (vars.meeting_preference) contact.customFields.set('meetingPreference', vars.meeting_preference);
+    
+    // Calculate Lead Score & Priority
+    let score = 0;
+    let priority = 'cold';
+    
+    if (vars.budget) {
+      const budgetLower = vars.budget.toLowerCase();
+      if (budgetLower.includes('above') || budgetLower.includes('enterprise') || budgetLower.includes('5l') || budgetLower.includes('2l')) {
+        score += 50;
+      } else if (budgetLower.includes('50k–2l') || budgetLower.includes('1l–5l') || budgetLower.includes('medium')) {
+        score += 30;
+      } else {
+        score += 10;
+      }
+    }
+    
+    if (vars.timeline) {
+      const timelineLower = vars.timeline.toLowerCase();
+      if (timelineLower.includes('immediately') || timelineLower.includes('now')) {
+        score += 40;
+      } else if (timelineLower.includes('1 month') || timelineLower.includes('soon')) {
+        score += 20;
+      } else {
+        score += 5;
+      }
+    }
+    
+    // Map score to segment/priority
+    if (score >= 70) {
+      priority = 'hot';
+      contact.segment = 'hot';
+    } else if (score >= 40) {
+      priority = 'warm';
+      contact.segment = 'warm';
+    } else {
+      priority = 'cold';
+      contact.segment = 'cold';
+    }
+    
+    contact.engagementScore = score;
+    contact.customFields.set('priority', priority);
+    contact.customFields.set('leadScore', score);
+    
+    // Track conversation history in custom field
+    const Message = require('../models/Message');
+    const messages = await Message.find({ userId, conversationId: conversation._id }).sort({ createdAt: 1 }).lean();
+    const transcript = messages.map(m => `${m.direction === 'inbound' ? 'Customer' : 'Bot'}: ${m.content?.text || ''}`).join('\n');
+    contact.customFields.set('conversationHistory', transcript);
+    
+    contact.markModified('customFields');
+    await contact.save();
+  } catch (err) {
+    logger.error('Failed to sync flow variables to CRM:', err.message);
   }
 }
 
