@@ -1091,7 +1091,8 @@ async function completeFlow(conversation) {
 async function sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, text, sentBy, io, type = 'text', extra = {}) {
   // Check if we need to send a matching image first
   if (type === 'text') {
-    const matchingImg = getMatchingImage(text);
+    const isWaterPark = userId.toString() === '6a1c41d8f77b0a66a50dc48d';
+    const matchingImg = isWaterPark ? getMatchingImage(text) : null;
     if (matchingImg) {
       try {
         const imgResult = await whatsapp.sendImageMessage(phoneNumberId, token, contact.phone, matchingImg.url, matchingImg.caption);
@@ -1166,7 +1167,8 @@ async function saveOutboundMessage(userId, conversation, contact, type, content,
 async function saveAndEmitMessage(userId, conversation, contact, text, sentBy, io, type, extra, apiResult) {
   // Check if we need to send a matching image first
   if (type === 'text') {
-    const matchingImg = getMatchingImage(text);
+    const isWaterPark = userId.toString() === '6a1c41d8f77b0a66a50dc48d';
+    const matchingImg = isWaterPark ? getMatchingImage(text) : null;
     if (matchingImg) {
       try {
         const waAccount = await WhatsAppAccount.findOne({ userId, isActive: true });
