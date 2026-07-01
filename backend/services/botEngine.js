@@ -248,7 +248,7 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
       conversationId: conversation._id,
       contactId: contact._id,
       direction: 'inbound',
-      type: msgType,
+      type: msgType === 'button' ? 'interactive' : msgType,
       content,
       status: 'delivered',
       metaMessageId: messageData.id,
@@ -431,6 +431,13 @@ function extractContent(messageData, msgType) {
     case 'sticker':
       content.mediaId = messageData.sticker?.id;
       break;
+    case 'button':
+      content.text = messageData.button?.text || messageData.button?.payload || '';
+      content.interactive = {
+        id: messageData.button?.payload || '',
+        title: messageData.button?.text || '',
+      };
+      break;
     default:
       content.text = JSON.stringify(messageData);
   }
@@ -461,9 +468,26 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
       const userText = (content.text || '').toLowerCase().trim();
 
       const isHkUser = userId.toString() === '6a4256a6f959e4aa133771ab';
-      let isQualified = false;
-      
       if (isHkUser) {
+        const userText = (content.text || '').toLowerCase().trim();
+        if (userText === 'start registration' || userText === 'start_registration') {
+          flow = activeFlows.find(f => f.name === 'Event Registration & Payment Bot');
+          if (flow) {
+            currentNode = flow.nodes.find((n) => n.id === 'node_reg_name');
+            if (currentNode) {
+              conversation.currentFlowId = flow._id;
+              conversation.currentNodeId = currentNode.id;
+              conversation.flowVariables = new Map();
+              conversation.markModified('flowVariables');
+              await conversation.save();
+              await BotFlow.updateOne({ _id: flow._id }, { $inc: { totalSessions: 1 } });
+              await executeNode(userId, conversation, contact, flow, currentNode, phoneNumberId, token, io, content);
+              return;
+            }
+          }
+        }
+
+        let isQualified = false;
         if (isNew) {
           // If conversation is deleted or brand new, reset qualification/registration custom fields in CRM
           if (contact.customFields) {
@@ -484,11 +508,25 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
           isQualified = contact.customFields && contact.customFields.get('conversationStatus') === 'Qualified Lead';
         }
 
-        let targetFlowName = 'Digital Business Transformation Campaign Bot';
         if (isQualified) {
-          targetFlowName = 'Event Registration & Payment Bot';
+          // Qualified leads sending normal messages should NOT trigger any bot flow automatically
+          return;
         }
-        flow = activeFlows.find(f => f.name === targetFlowName);
+
+        flow = activeFlows.find(f => f.name === 'Digital Business Transformation Campaign Bot');
+        if (flow) {
+          currentNode = flow.nodes.find((n) => n.id === (flow.entryNodeId || flow.nodes[0]?.id));
+          if (currentNode) {
+            conversation.currentFlowId = flow._id;
+            conversation.currentNodeId = currentNode.id;
+            conversation.flowVariables = new Map();
+            conversation.markModified('flowVariables');
+            await conversation.save();
+            await BotFlow.updateOne({ _id: flow._id }, { $inc: { totalSessions: 1 } });
+            await executeNode(userId, conversation, contact, flow, currentNode, phoneNumberId, token, io, content);
+            return;
+          }
+        }
       }
 
       if (!flow) {
