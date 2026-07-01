@@ -185,6 +185,7 @@ if (env.isDev()) {
 const authRoute = require('./routes/auth');
 const messagesRoute = require('./routes/messages');
 const contactsRoute = require('./routes/contacts');
+const leadsRoute = require('./routes/leads');
 const campaignsRoute = require('./routes/campaigns');
 const flowsRoute = require('./routes/flows');
 const templatesRoute = require('./routes/templates');
@@ -218,6 +219,7 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/webhook`, webhookRoutes);
   app.use(`${prefix}/messages`, messagesRoute);
   app.use(`${prefix}/contacts`, contactsRoute);
+  app.use(`${prefix}/leads`, leadsRoute);
   app.use(`${prefix}/campaigns`, campaignsRoute);
   app.use(`${prefix}/flows`, flowsRoute);
   app.use(`${prefix}/templates`, templatesRoute);

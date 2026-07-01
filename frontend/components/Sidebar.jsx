@@ -39,6 +39,7 @@ const navSections = [
     title: 'Automation',
     items: [
       { href: '/dashboard/bot-builder', label: 'Bot Builder', icon: Bot },
+      { href: '/dashboard/leads', label: 'Leads', icon: ClipboardList },
     ]
   },
   {
@@ -73,6 +74,7 @@ export default function Sidebar({ isOpen, onClose }) {
     '/dashboard': 'dashboard',
     '/dashboard/inbox': 'inbox',
     '/dashboard/contacts': 'contacts',
+    '/dashboard/leads': 'contacts',
     '/dashboard/catalog': 'catalog',
     '/dashboard/contacts/groups': 'groups',
     '/dashboard/follow-ups': 'follow-ups',
@@ -112,6 +114,7 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/admin?tab=subscriptions', label: 'Subscriptions', icon: Zap },
             { href: '/dashboard/settings?tab=integrations', label: 'Integrations', icon: Globe },
             { href: '/dashboard/bot-builder', label: 'AI Management', icon: Bot },
+            { href: '/dashboard/leads', label: 'Leads', icon: ClipboardList },
             { href: '/dashboard/admin?tab=security', label: 'Security Center', icon: Lock },
             { href: '/dashboard/chat-logs', label: 'Audit Logs', icon: Terminal },
             { href: '/dashboard/admin?tab=reports', label: 'Reports', icon: FileText },

@@ -41,6 +41,7 @@ export default function DashboardLayout({ children }) {
         '/dashboard': 'dashboard',
         '/dashboard/inbox': 'inbox',
         '/dashboard/contacts': 'contacts',
+        '/dashboard/leads': 'contacts',
         '/dashboard/catalog': 'catalog',
         '/dashboard/contacts/groups': 'groups',
         '/dashboard/follow-ups': 'follow-ups',

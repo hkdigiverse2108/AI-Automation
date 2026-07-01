@@ -1669,6 +1669,13 @@ async function syncFlowVariablesToCRM(userId, contact, conversation) {
     
     // Set current step
     contact.customFields.set('currentStep', conversation.currentNodeId || 'start');
+
+    // Dynamically save all bot flow variables to custom fields
+    for (const [key, value] of Object.entries(vars)) {
+      if (key !== 'visited_nodes' && key !== 'ai_start_time' && value !== undefined && value !== null) {
+        contact.customFields.set(key, value);
+      }
+    }
     
     // Map service variables
     if (vars.service) contact.customFields.set('selectedService', vars.service);
