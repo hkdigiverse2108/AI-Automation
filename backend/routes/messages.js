@@ -545,6 +545,8 @@ router.post('/send', async (req, res) => {
     // Extract original filename from the upload path
     const originalFilename = mediaUrl ? path.basename(mediaUrl) : 'document';
 
+    let messageText = text;
+
     if (type === 'image' && (metaMediaId || finalMediaUrl)) {
       result = await whatsapp.sendImageMessage(waAccount.phoneNumberId, token, contact.phone, finalMediaUrl, caption, metaMediaId);
     } else if (type === 'video' && (metaMediaId || finalMediaUrl)) {
@@ -559,6 +561,47 @@ router.post('/send', async (req, res) => {
         return res.status(400).json({ success: false, error: 'contactName and contactPhone required for contact message', code: 'MISSING_FIELDS' });
       }
       result = await whatsapp.sendContactMessage(waAccount.phoneNumberId, token, contact.phone, contactName, contactPhone);
+    } else if (type === 'template') {
+      const { templateId, variables = [] } = req.body;
+      if (!templateId) {
+        return res.status(400).json({ success: false, error: 'templateId is required for template message', code: 'MISSING_FIELDS' });
+      }
+      const Template = require('../models/Template');
+      const tmpl = await Template.findOne({ _id: templateId, userId });
+      if (!tmpl) {
+        return res.status(404).json({ success: false, error: 'Template not found', code: 'NOT_FOUND' });
+      }
+      
+      const templateComponents = [];
+      if (variables && variables.length > 0) {
+        templateComponents.push({
+          type: 'body',
+          parameters: variables.map((v) => ({ type: 'text', text: v }))
+        });
+      }
+
+      result = await whatsapp.sendTemplateMessage(
+        waAccount.phoneNumberId,
+        token,
+        contact.phone,
+        tmpl.name,
+        tmpl.language || 'en',
+        templateComponents
+      );
+
+      // Resolve template text for visual chat bubbles
+      let templateText = '';
+      const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+      if (bodyComp && bodyComp.text) {
+        templateText = bodyComp.text;
+        if (variables && variables.length > 0) {
+          templateText = templateText.replace(/\{\{([0-9]+)\}\}/g, (_, num) => {
+            const idx = parseInt(num, 10) - 1;
+            return variables[idx] !== undefined ? variables[idx] : `{{${num}}}`;
+          });
+        }
+      }
+      messageText = templateText || `[Template: ${tmpl.name}]`;
     } else {
       result = await whatsapp.sendTextMessage(waAccount.phoneNumberId, token, contact.phone, text);
     }
@@ -576,7 +619,7 @@ router.post('/send', async (req, res) => {
       direction: 'outbound',
       type,
       content: {
-        text: type === 'contact' ? `${req.body.contactName} (${req.body.contactPhone})` : text,
+        text: type === 'contact' ? `${req.body.contactName} (${req.body.contactPhone})` : messageText,
         mediaUrl: (type === 'image' && result?.sentUrl) ? result.sentUrl : finalMediaUrl,
         caption,
         filename: filename || originalFilename,

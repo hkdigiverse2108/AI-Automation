@@ -743,6 +743,29 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     }, 50);
   };
 
+  const handleSendTemplate = async (tmpl) => {
+    setShowQuickReplies(false);
+    const toastId = toast.loading(`Sending template ${tmpl.name}...`);
+    try {
+      const sendRes = await api.post('/messages/send', {
+        contactId: contact._id,
+        type: 'template',
+        templateId: tmpl._id,
+        variables: []
+      });
+
+      if (sendRes.data.success) {
+        toast.success('Template sent successfully!', { id: toastId });
+        await fetchMessages(conversation._id);
+        await fetchConversations();
+      } else {
+        toast.error(sendRes.data.error || 'Failed to send template', { id: toastId });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to send template', { id: toastId });
+    }
+  };
+
   const filteredTemplates = templates.filter(t =>
     t.name.toLowerCase().includes(templateSearch.toLowerCase()) ||
     getTemplateBodyText(t).toLowerCase().includes(templateSearch.toLowerCase())
@@ -1101,14 +1124,21 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                 ) : (
                   filteredTemplates.map(tmpl => {
                     const bodyText = getTemplateBodyText(tmpl);
+                    const hasButtons = tmpl.components?.some(c => c.type === 'BUTTONS' && c.buttons?.length > 0);
                     return (
                       <button
                         key={tmpl._id}
-                        onClick={() => handleSelectQuickReply(bodyText)}
+                        onClick={() => {
+                          if (hasButtons) {
+                            handleSendTemplate(tmpl);
+                          } else {
+                            handleSelectQuickReply(bodyText);
+                          }
+                        }}
                         className="w-full text-left p-2.5 rounded-xl bg-wa-bg hover:bg-wa-green/10 dark:bg-wa-dark-header/40 border border-wa-border/35 dark:border-wa-dark-border/20 hover:border-wa-green/20 group transition-all"
                       >
                         <span className="block text-xs font-bold text-wa-text-primary dark:text-white truncate group-hover:text-wa-green transition-colors">
-                          {tmpl.name}
+                          {tmpl.name} {hasButtons && <span className="ml-1 text-[9px] px-1 py-0.5 bg-wa-green/15 text-wa-green rounded font-normal font-sans">Buttons</span>}
                         </span>
                         <span className="block text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary truncate mt-0.5 font-sans">
                           {bodyText}

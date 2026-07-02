@@ -310,6 +310,25 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     const handledByAutomations = await runAutomations(userId, conversation, contact, savedMsg, phoneNumberId, token, io);
     if (handledByAutomations) return;
 
+    // If the customer is HK user and clicks/says "Start Registration", release takeover to trigger the bot flow
+    const isHkUser = userId.toString() === '6a4256a6f959e4aa133771ab';
+    if (isHkUser) {
+      const userText = (content.text || '').toLowerCase().trim();
+      if (userText === 'start registration' || userText === 'start_registration') {
+        logger.info(`Customer initiated registration for HK user. Releasing human takeover.`);
+        conversation.status = 'bot';
+        conversation.takeover_status = 'ai';
+        conversation.lock_status = false;
+        conversation.assignedAgent = null;
+        conversation.assigned_agent_id = null;
+        conversation.currentNodeId = null;
+        conversation.currentFlowId = null;
+        conversation.flowVariables = new Map();
+        conversation.markModified('flowVariables');
+        await conversation.save();
+      }
+    }
+
     // 7. Route based on conversation status
     if (conversation.status === 'human' || conversation.lock_status || conversation.takeover_status === 'human') {
       // Just save message, notify agent
