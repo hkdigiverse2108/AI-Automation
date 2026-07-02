@@ -160,8 +160,16 @@ export const useConversationStore = create((set, get) => ({
   },
 
   updateMessageStatus: (messageId, status) => {
+    const STATUS_PRIORITY = { sent: 1, delivered: 2, read: 3, failed: 0 };
     set((state) => ({
-      messages: state.messages.map((m) => (m._id === messageId ? { ...m, status } : m)),
+      messages: state.messages.map((m) => {
+        if (m._id !== messageId) return m;
+        // Prevent status downgrades (e.g., delivered -> sent)
+        const currentPriority = STATUS_PRIORITY[m.status] ?? -1;
+        const newPriority = STATUS_PRIORITY[status] ?? -1;
+        if (status !== 'failed' && newPriority <= currentPriority) return m;
+        return { ...m, status };
+      }),
     }));
   },
 

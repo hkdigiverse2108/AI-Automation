@@ -248,7 +248,10 @@ async function handleTemplateStatusUpdate(value, wabaId) {
   }
 }
 
-async function handleStatusUpdate(status) {
+// Status hierarchy: higher number = higher priority (never downgrade)
+const STATUS_PRIORITY = { 'sent': 1, 'delivered': 2, 'read': 3, 'failed': 0 };
+
+async function handleStatusUpdate(status, retryCount = 0) {
   try {
     logger.info(`Received status update: ${JSON.stringify(status)}`);
     const metaMessageId = status.id;
@@ -256,12 +259,38 @@ async function handleStatusUpdate(status) {
 
     if (!metaMessageId || !newStatus) return;
 
+    const newPriority = STATUS_PRIORITY[newStatus] ?? -1;
+
+    // Find the message first to check current status
+    let msg = await Message.findOne({ metaMessageId });
+
+    // If message not found, it might not be saved to DB yet (race condition).
+    // Retry up to 3 times with increasing delay.
+    if (!msg && retryCount < 3) {
+      const delay = (retryCount + 1) * 1000; // 1s, 2s, 3s
+      logger.info(`Message not found for metaMessageId ${metaMessageId}, retrying in ${delay}ms (attempt ${retryCount + 1}/3)`);
+      setTimeout(() => handleStatusUpdate(status, retryCount + 1), delay);
+      return;
+    }
+
+    if (!msg) {
+      logger.warn(`Message not found for status update after retries: ${metaMessageId}`);
+      return;
+    }
+
+    // Prevent status downgrades (e.g., delivered -> sent)
+    const currentPriority = STATUS_PRIORITY[msg.status] ?? -1;
+    if (newStatus !== 'failed' && newPriority <= currentPriority) {
+      logger.info(`Skipping status downgrade for ${metaMessageId}: ${msg.status} -> ${newStatus}`);
+      return;
+    }
+
     const updateFields = { status: newStatus };
     if (newStatus === 'failed' && status.errors) {
       updateFields.errorDetails = status.errors;
     }
 
-    const msg = await Message.findOneAndUpdate(
+    msg = await Message.findOneAndUpdate(
       { metaMessageId },
       updateFields,
       { new: true }
