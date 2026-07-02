@@ -572,36 +572,55 @@ router.post('/send', async (req, res) => {
         return res.status(404).json({ success: false, error: 'Template not found', code: 'NOT_FOUND' });
       }
       
-      const templateComponents = [];
-      if (variables && variables.length > 0) {
-        templateComponents.push({
-          type: 'body',
-          parameters: variables.map((v) => ({ type: 'text', text: v }))
-        });
-      }
+      if (tmpl.isCustom) {
+        // Send local custom templates as interactive button messages
+        const bodyText = tmpl.components?.find(c => c.type === 'BODY')?.text || '';
+        const buttons = tmpl.components?.find(c => c.type === 'BUTTONS')?.buttons || [];
+        const formattedButtons = buttons.map(btn => ({
+          id: btn.text,
+          title: btn.text
+        }));
 
-      result = await whatsapp.sendTemplateMessage(
-        waAccount.phoneNumberId,
-        token,
-        contact.phone,
-        tmpl.name,
-        tmpl.language || 'en',
-        templateComponents
-      );
-
-      // Resolve template text for visual chat bubbles
-      let templateText = '';
-      const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
-      if (bodyComp && bodyComp.text) {
-        templateText = bodyComp.text;
+        result = await whatsapp.sendButtonMessage(
+          waAccount.phoneNumberId,
+          token,
+          contact.phone,
+          bodyText,
+          formattedButtons
+        );
+        messageText = bodyText;
+      } else {
+        const templateComponents = [];
         if (variables && variables.length > 0) {
-          templateText = templateText.replace(/\{\{([0-9]+)\}\}/g, (_, num) => {
-            const idx = parseInt(num, 10) - 1;
-            return variables[idx] !== undefined ? variables[idx] : `{{${num}}}`;
+          templateComponents.push({
+            type: 'body',
+            parameters: variables.map((v) => ({ type: 'text', text: v }))
           });
         }
+
+        result = await whatsapp.sendTemplateMessage(
+          waAccount.phoneNumberId,
+          token,
+          contact.phone,
+          tmpl.name,
+          tmpl.language || 'en',
+          templateComponents
+        );
+
+        // Resolve template text for visual chat bubbles
+        let templateText = '';
+        const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+        if (bodyComp && bodyComp.text) {
+          templateText = bodyComp.text;
+          if (variables && variables.length > 0) {
+            templateText = templateText.replace(/\{\{([0-9]+)\}\}/g, (_, num) => {
+              const idx = parseInt(num, 10) - 1;
+              return variables[idx] !== undefined ? variables[idx] : `{{${num}}}`;
+            });
+          }
+        }
+        messageText = templateText || `[Template: ${tmpl.name}]`;
       }
-      messageText = templateText || `[Template: ${tmpl.name}]`;
     } else {
       result = await whatsapp.sendTextMessage(waAccount.phoneNumberId, token, contact.phone, text);
     }
