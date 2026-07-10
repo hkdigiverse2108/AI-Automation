@@ -69,7 +69,8 @@ export const useConversationStore = create((set, get) => ({
   fetchConversations: async (params = {}, silent = false) => {
     if (!silent) set({ loading: true });
     try {
-      const { data } = await api.get('/messages/conversations', { params });
+      const mergedParams = { limit: 200, ...params };
+      const { data } = await api.get('/messages/conversations', { params: mergedParams });
       if (data.success) set({ conversations: data.data.conversations });
     } catch {}
     if (!silent) set({ loading: false });
