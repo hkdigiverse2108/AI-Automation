@@ -120,12 +120,12 @@ formatStdout(backendProc.stdout, '[Backend]', colors.magenta);
 formatStdout(backendProc.stderr, '[Backend][Error]', colors.red);
 
 // 4. Start Frontend
-const frontendEnv = { ...runnerEnv, NODE_ENV: 'production' };
+const frontendEnv = { ...runnerEnv };
 delete frontendEnv.PORT; // Delete backend's PORT to let Next.js use port 3000
 
 const startFrontendServer = () => {
-  console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Starting Next.js production server (npm run start)...`);
-  frontendProc = spawn('npm', ['run', 'start'], {
+  console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Starting Next.js development server (npm run dev)...`);
+  frontendProc = spawn('npm', ['run', 'dev'], {
     cwd: path.join(__dirname, 'frontend'),
     shell: true,
     env: frontendEnv
@@ -142,32 +142,8 @@ const startFrontendServer = () => {
   });
 };
 
-if (process.env.SKIP_BUILD === 'true') {
-  console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} SKIP_BUILD is enabled. Skipping compilation build...`);
-  // Start server directly after a tiny delay to let backend bind ports first
-  setTimeout(startFrontendServer, 1000);
-} else {
-
-
-  console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Building Next.js application (npm run build)...`);
-  const buildProc = spawn('npm', ['run', 'build'], {
-    cwd: path.join(__dirname, 'frontend'),
-    shell: true,
-    env: frontendEnv
-  });
-
-  formatStdout(buildProc.stdout, '[Frontend-Build]', colors.green);
-  formatStdout(buildProc.stderr, '[Frontend-Build][Error]', colors.red);
-
-  buildProc.on('exit', (code) => {
-    if (code !== 0) {
-      console.log(`\n${colors.bold}${colors.red}❌ Frontend build failed with code ${code}. Halting startup...${colors.reset}`);
-      handleShutdown('Frontend Build Failure');
-      return;
-    }
-    startFrontendServer();
-  });
-}
+// Start frontend development server directly after a tiny delay
+setTimeout(startFrontendServer, 1000);
 
 // 5. Graceful shutdown handler
 let shuttingDown = false;

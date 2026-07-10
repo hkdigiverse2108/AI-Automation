@@ -48,14 +48,20 @@ async function handleProxy(req, { params }) {
 
     const resHeaders = new Headers();
     res.headers.forEach((value, key) => {
-      // Skip transfer-encoding and content-length to prevent gateway mismatch issues
-      if (key.toLowerCase() !== 'transfer-encoding' && key.toLowerCase() !== 'content-length') {
+      // Skip transfer-encoding, content-length, and content-encoding to prevent gateway/decompression mismatch issues
+      if (
+        key.toLowerCase() !== 'transfer-encoding' &&
+        key.toLowerCase() !== 'content-length' &&
+        key.toLowerCase() !== 'content-encoding'
+      ) {
         resHeaders.set(key, value);
       }
     });
 
+    const resData = await res.arrayBuffer();
+
     // Return the response
-    return new Response(res.body, {
+    return new Response(resData, {
       status: res.status,
       headers: resHeaders,
     });
