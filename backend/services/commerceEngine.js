@@ -67,9 +67,29 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
     let commerceState = conversation.flowVariables.get('commerce_state') || null;
     let inCommerce = conversation.flowVariables.get('in_commerce') === 'true';
 
-    // Keywords to trigger catalog entry (including show products and substring checks)
-    const triggerKeywords = ['catalog', 'menu', 'shop', 'buy', 'products', 'categories', 'show products', 'show product'];
-    const isTriggerKeyword = triggerKeywords.includes(textLower) || triggerKeywords.some(kw => textLower.includes(kw));
+    // Never intercept interactive payloads meant for other bot flows
+    const isOtherFlowInteractive = textVal.startsWith('it_') || 
+                                   textVal.startsWith('srv_') || 
+                                   textVal.startsWith('quote_') || 
+                                   textVal.startsWith('btn_') || 
+                                   textVal.startsWith('nav_') || 
+                                   textVal.startsWith('contact_') || 
+                                   textVal.startsWith('node_') ||
+                                   textVal.startsWith('menu_') ||
+                                   textVal.startsWith('lang_');
+    if (isOtherFlowInteractive) {
+      return false;
+    }
+
+    // Only proceed if the user actually has active commerce products configured
+    const activeProductsCount = await Product.countDocuments({ userId, isActive: true });
+    if (activeProductsCount === 0 && !inCommerce && !commerceState) {
+      return false;
+    }
+
+    // Keywords to trigger catalog entry (exact matches only, not loose substring checks)
+    const triggerKeywords = ['catalog', 'open shop', 'show products', 'show product', 'view catalog', 'store'];
+    const isTriggerKeyword = triggerKeywords.includes(textLower);
     const isCartKeyword = ['cart', 'view cart', 'checkout'].includes(textLower);
 
     // Check for interactive callback prefixes to recover from session timeouts
@@ -80,7 +100,7 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
                             ['view_cart', 'back_catalog', 'clear_cart', 'cancel_checkout'].includes(textVal);
 
     // Check if message is commerce related
-    const isCommerce = isTriggerKeyword || isCartKeyword || inCommerce || commerceState || isInteractiveId;
+    const isCommerce = (isTriggerKeyword || isCartKeyword || inCommerce || commerceState || isInteractiveId) && activeProductsCount > 0;
 
     try {
       const ApiLog = require('../models/ApiLog');

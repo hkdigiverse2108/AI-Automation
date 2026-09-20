@@ -473,7 +473,12 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
     let flow = null;
     let currentNode = null;
 
-    if (conversation.currentFlowId && conversation.currentNodeId) {
+    const userText = (content.text || '').toLowerCase().trim();
+    const incomingInteractiveId = (content.interactive?.id || '').toLowerCase().trim();
+    const isResetCommand = ['menu', 'main menu', 'restart', 'reset', 'start', 'it_main_menu'].includes(userText) || 
+                           ['it_main_menu', 'btn_main_menu', 'menu'].includes(incomingInteractiveId);
+
+    if (!isResetCommand && conversation.currentFlowId && conversation.currentNodeId) {
       // Continue existing flow
       flow = await BotFlow.findOne({ _id: conversation.currentFlowId, userId });
       if (flow) {
@@ -484,7 +489,6 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
     if (!flow || !currentNode) {
       // Find matching flow
       const activeFlows = await BotFlow.find({ userId, isActive: true }).lean();
-      const userText = (content.text || '').toLowerCase().trim();
 
       const isHkUser = userId.toString() === '6a4256a6f959e4aa133771ab';
       if (isHkUser) {
@@ -532,7 +536,8 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
           return;
         }
 
-        flow = activeFlows.find(f => f.name === 'Digital Business Transformation Campaign Bot');
+        flow = activeFlows.find(f => f.name.includes('IT Solutions') || f.name.includes('IT Company')) ||
+               activeFlows.find(f => f.name === 'Digital Business Transformation Campaign Bot');
         if (flow) {
           currentNode = flow.nodes.find((n) => n.id === (flow.entryNodeId || flow.nodes[0]?.id));
           if (currentNode) {
@@ -546,6 +551,10 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
             return;
           }
         }
+      }
+
+      if (!flow) {
+        flow = activeFlows.find(f => (f.name.includes('IT Solutions') || f.name.includes('IT Company')) && f.isActive);
       }
 
       if (!flow) {
@@ -588,7 +597,6 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
     }
 
     // Intercept "Go Back" action
-    const userText = (content.text || '').toLowerCase().trim();
     const idVal = (content.interactive?.id || '').toLowerCase().trim();
     if (userText === 'back' || userText === 'go back' || idVal === 'back' || idVal === 'btn_back') {
       let visited = conversation.flowVariables.get('visited_nodes') || '';
@@ -687,8 +695,10 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
       }
 
       const varName = currentNode.data?.variable;
-      if (varName) {
-        // Variable-based format validation (for free text question inputs)
+      const isInteractiveQuestion = msgData?.type === 'buttons' || msgData?.type === 'list';
+
+      if (varName && !isInteractiveQuestion) {
+        // Variable-based format validation (for free text question inputs ONLY)
         const textVal = (content.text || '').toLowerCase().trim();
         const questionText = msgData?.text || msgData?.body || msgData?.caption || '';
         const hasGujarati = (str) => /[\u0A80-\u0AFF]/.test(str);
@@ -756,8 +766,8 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
           }
         }
 
-        // Date validation
-        if (varName.toLowerCase().includes('date') || varName.toLowerCase().includes('time')) {
+        // Date validation (strictly for date variables, NOT timeline)
+        if (varName.toLowerCase().includes('date') || varName.toLowerCase() === 'booking_time' || varName.toLowerCase() === 'appointment_time') {
           const dateKeywords = ['today', 'tomorrow', 'tonight', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
           const hasDigit = /\d/.test(textVal);
           const hasDateKeyword = dateKeywords.some(kw => textVal.includes(kw));
@@ -773,6 +783,9 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
             return;
           }
         }
+      }
+
+      if (varName) {
 
         if (varName === 'features') {
           const selectionId = content.text;
@@ -1008,7 +1021,7 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
     case 'question': {
       const msgData = node.data?.message;
       if (msgData?.type === 'buttons') {
-        const text = interpolate(msgData.text || '', vars);
+        const text = interpolate(msgData.text || msgData.body || '', vars);
         const buttons = (msgData.buttons || []).map((b) => ({ id: b.id, title: b.title }));
         const result = await whatsapp.sendButtonMessage(phoneNumberId, token, contact.phone, text, buttons);
         await saveAndEmitMessage(userId, conversation, contact, text, 'bot', io, 'interactive', msgData, result);
@@ -1209,7 +1222,7 @@ async function completeFlow(conversation) {
 async function sendAndSaveMessage(userId, conversation, contact, phoneNumberId, token, text, sentBy, io, type = 'text', extra = {}) {
   // Check if we need to send a matching image first
   if (type === 'text') {
-    const isWaterPark = userId.toString() === '6a1c41d8f77b0a66a50dc48d';
+    const isWaterPark = false; // Disabled hardcoded waterpark images
     const matchingImg = isWaterPark ? getMatchingImage(text) : null;
     if (matchingImg) {
       try {
@@ -1285,7 +1298,7 @@ async function saveOutboundMessage(userId, conversation, contact, type, content,
 async function saveAndEmitMessage(userId, conversation, contact, text, sentBy, io, type, extra, apiResult) {
   // Check if we need to send a matching image first
   if (type === 'text') {
-    const isWaterPark = userId.toString() === '6a1c41d8f77b0a66a50dc48d';
+    const isWaterPark = false; // Disabled hardcoded waterpark images
     const matchingImg = isWaterPark ? getMatchingImage(text) : null;
     if (matchingImg) {
       try {

@@ -3,19 +3,23 @@ import axios from 'axios';
 const getBaseURL = () => {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    const rawUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+    const rawUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
-    // If browser is NOT on localhost, but rawUrl points to localhost,
-    // it means it fell back to localhost during build time. Use relative path.
+    // On localhost with local backend (e.g. localhost:5588), connect directly for zero-delay throughput
+    if (hostname === 'localhost' && (rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1'))) {
+      return rawUrl.endsWith('/api') ? rawUrl : `${rawUrl.replace(/\/$/, '')}/api`;
+    }
+
+    // If browser is NOT on localhost, but rawUrl points to localhost, use relative '/api'
     if (hostname !== 'localhost' && (rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1'))) {
       return '/api';
     }
 
-    // On localhost, always use relative '/api' to route through Next.js rewrites proxy.
-    // This avoids CORS issues when connecting to external/live backends.
-    if (hostname === 'localhost') {
-      return '/api';
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+      return rawUrl.endsWith('/api') ? rawUrl : `${rawUrl.replace(/\/$/, '')}/api`;
     }
+
+    return '/api';
   }
 
   const rawUrl = process.env.NEXT_PUBLIC_API_URL || '/api';

@@ -78,7 +78,7 @@ export default function AnalyticsPage() {
     return 'bg-emerald-700 dark:bg-emerald-500';
   };
 
-  if (loading) {
+  if (loading && !overview) {
     return (
       <div className="h-[80vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">

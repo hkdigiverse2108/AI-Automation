@@ -196,12 +196,14 @@ export const useConversationStore = create((set, get) => ({
   },
 }));
 
-export const useDashboardStore = create((set) => ({
+export const useDashboardStore = create((set, get) => ({
   stats: null,
   loading: false,
 
   fetchStats: async () => {
-    set({ loading: true });
+    if (!get().stats) {
+      set({ loading: true });
+    }
     try {
       const { data } = await api.get('/messages/stats');
       if (data.success) set({ stats: data.data });

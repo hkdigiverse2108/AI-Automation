@@ -22,7 +22,7 @@ export default function DashboardPage() {
     fetchStats();
   }, []);
 
-  if (loading) {
+  if (loading && !stats) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center bg-transparent">
         <div className="flex flex-col items-center gap-4">

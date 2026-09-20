@@ -1,7 +1,6 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '../lib/store';
-import { useEffect, useState } from 'react';
 import { ShieldX } from 'lucide-react';
 
 // Map URL paths to feature slugs
@@ -26,36 +25,22 @@ const routeToSlugMap = {
   '/dashboard/settings': 'settings',
 };
 
+const sortedPaths = Object.keys(routeToSlugMap).sort((a, b) => b.length - a.length);
+
 /**
  * RouteGuard - Blocks access to disabled feature routes.
- * Wraps page content and checks if current route's feature is enabled.
- * If disabled, shows a 403 forbidden screen instead of the page content.
+ * Evaluates feature permissions synchronously to prevent double-render latency.
  */
 export default function RouteGuard({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, permissions } = useAuthStore();
-  const [blocked, setBlocked] = useState(false);
 
-  useEffect(() => {
-    // Superadmins bypass permission checks
-    if (!user || user.role === 'superadmin') {
-      setBlocked(false);
-      return;
-    }
-
-    // No permissions loaded yet - allow (will be checked on next render)
-    if (!permissions) {
-      setBlocked(false);
-      return;
-    }
-
-    // Find the matching feature slug for this path
-    // Check exact match first, then prefix match for nested routes
+  // Superadmins bypass permission checks synchronously
+  let blocked = false;
+  if (user && user.role !== 'superadmin' && permissions) {
     let matchedSlug = routeToSlugMap[pathname];
     if (!matchedSlug) {
-      // Try prefix matching for nested routes like /dashboard/inbox/123
-      const sortedPaths = Object.keys(routeToSlugMap).sort((a, b) => b.length - a.length);
       for (const routePath of sortedPaths) {
         if (routePath !== '/dashboard' && pathname.startsWith(routePath + '/')) {
           matchedSlug = routeToSlugMap[routePath];
@@ -64,19 +49,10 @@ export default function RouteGuard({ children }) {
       }
     }
 
-    // If no matching slug found (e.g. /dashboard/admin pages), allow access
-    if (!matchedSlug) {
-      setBlocked(false);
-      return;
+    if (matchedSlug && !permissions.includes(matchedSlug)) {
+      blocked = true;
     }
-
-    // Check if the feature is in the allowed list
-    if (!permissions.includes(matchedSlug)) {
-      setBlocked(true);
-    } else {
-      setBlocked(false);
-    }
-  }, [pathname, user, permissions]);
+  }
 
   if (blocked) {
     return (

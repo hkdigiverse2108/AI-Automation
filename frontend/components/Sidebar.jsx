@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useAuthStore, useThemeStore, useConversationStore } from '../lib/store';
 import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Bot, FileText,
@@ -9,7 +9,7 @@ import {
   Building, Activity, Globe, Lock, X, BarChart3, CreditCard,
   FolderOpen, Calendar, ClipboardList, ShoppingBag
 } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 
 const navSections = [
   {
@@ -58,9 +58,33 @@ const navSections = [
   }
 ];
 
+// Map route paths to feature slugs for permission filtering
+const routeToSlugMap = {
+  '/dashboard': 'dashboard',
+  '/dashboard/inbox': 'inbox',
+  '/dashboard/contacts': 'contacts',
+  '/dashboard/leads': 'contacts',
+  '/dashboard/catalog': 'catalog',
+  '/dashboard/contacts/groups': 'groups',
+  '/dashboard/follow-ups': 'follow-ups',
+  '/dashboard/tasks': 'tasks',
+  '/dashboard/call-logs': 'call-logs',
+  '/dashboard/team': 'team',
+  '/dashboard/team-chat': 'team-chat',
+  '/dashboard/campaigns': 'campaigns',
+  '/dashboard/unofficial-campaigns': 'unofficial-campaigns',
+  '/dashboard/templates': 'templates',
+  '/dashboard/bot-builder': 'bot-builder',
+  '/dashboard/analytics': 'analytics',
+  '/dashboard/subscription': 'subscription',
+  '/dashboard/chat-logs': 'chat-logs',
+  '/dashboard/settings': 'settings',
+};
+
 export default function Sidebar({ isOpen, onClose }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user, permissions, logout } = useAuthStore();
   const { dark, toggle } = useThemeStore();
   const hasUnread = useConversationStore((state) => state.conversations.some(c => c.unreadCount > 0));
@@ -69,32 +93,10 @@ export default function Sidebar({ isOpen, onClose }) {
   const [hoveredItem, setHoveredItem] = useState(null);
   const menuRef = useRef(null);
 
-  // Map route paths to feature slugs for permission filtering
-  const routeToSlugMap = {
-    '/dashboard': 'dashboard',
-    '/dashboard/inbox': 'inbox',
-    '/dashboard/contacts': 'contacts',
-    '/dashboard/leads': 'contacts',
-    '/dashboard/catalog': 'catalog',
-    '/dashboard/contacts/groups': 'groups',
-    '/dashboard/follow-ups': 'follow-ups',
-    '/dashboard/tasks': 'tasks',
-    '/dashboard/call-logs': 'call-logs',
-    '/dashboard/team': 'team',
-    '/dashboard/team-chat': 'team-chat',
-    '/dashboard/campaigns': 'campaigns',
-    '/dashboard/unofficial-campaigns': 'unofficial-campaigns',
-    '/dashboard/templates': 'templates',
-    '/dashboard/bot-builder': 'bot-builder',
-    '/dashboard/analytics': 'analytics',
-    '/dashboard/subscription': 'subscription',
-    '/dashboard/chat-logs': 'chat-logs',
-    '/dashboard/settings': 'settings',
-  };
-
-  // Filter navigation sections based on user role and feature permissions
-  const allSections = user?.role === 'superadmin'
-    ? [
+  // Filter navigation sections based on user role and feature permissions (memoized)
+  const allSections = useMemo(() => {
+    if (user?.role === 'superadmin') {
+      return [
         {
           title: 'Super Admin Menu',
           items: [
@@ -122,17 +124,20 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '#logout', label: 'Logout', icon: LogOut, onClick: logout },
           ]
         }
-      ]
-    : // Admin, Owner, and Agent roles: filter navSections by feature permissions
-      navSections.map(section => ({
-        ...section,
-        items: section.items.filter(item => {
-          if (!permissions) return true; // null = all access
-          const slug = routeToSlugMap[item.href];
-          if (!slug) return true; // No slug mapping = always show (e.g. settings)
-          return permissions.includes(slug);
-        })
-      })).filter(section => section.items.length > 0);
+      ];
+    }
+
+    // Admin, Owner, and Agent roles: filter navSections by feature permissions
+    return navSections.map(section => ({
+      ...section,
+      items: section.items.filter(item => {
+        if (!permissions) return true; // null = all access
+        const slug = routeToSlugMap[item.href];
+        if (!slug) return true;
+        return permissions.includes(slug);
+      })
+    })).filter(section => section.items.length > 0);
+  }, [user?.role, permissions, logout]);
 
   // Close user menu on outside click
   useEffect(() => {
@@ -145,55 +150,66 @@ export default function Sidebar({ isOpen, onClose }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Determine which menu item is currently active based on pathname and searchParams
-  let activeHref = null;
-  let bestScore = -1;
+  // Instant hover prefetching to warm Next.js router cache before click
+  const handleItemHover = useCallback((href) => {
+    setHoveredItem(href);
+    if (href && !href.startsWith('#')) {
+      const [path] = href.split('?');
+      router.prefetch(path);
+    }
+  }, [router]);
 
-  allSections.forEach(section => {
-    section.items.forEach(item => {
-      if (item.href === '#logout') return;
+  // Determine which menu item is currently active based on pathname and searchParams (memoized)
+  const activeHref = useMemo(() => {
+    let bestMatch = null;
+    let bestScore = -1;
 
-      const [hrefPath, hrefQuery] = item.href.split('?');
+    allSections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.href === '#logout') return;
 
-      // Check path match
-      let isPathMatch = false;
-      if (hrefPath === '/dashboard') {
-        isPathMatch = pathname === '/dashboard';
-      } else {
-        isPathMatch = pathname === hrefPath || pathname.startsWith(hrefPath + '/');
-      }
+        const [hrefPath, hrefQuery] = item.href.split('?');
 
-      if (!isPathMatch) return;
-
-      // Check query params match
-      let queryScore = 0;
-      if (hrefQuery) {
-        const hrefParams = new URLSearchParams(hrefQuery);
-        let queryParamsMatch = true;
-        for (const [key, value] of hrefParams.entries()) {
-          const paramValue = searchParams ? searchParams.get(key) : null;
-          // Default fallback for tab=organizations when tab is missing in URL
-          if (paramValue === null && key === 'tab' && value === 'organizations') {
-            queryScore += 0.5;
-            continue;
-          }
-          if (paramValue !== value) {
-            queryParamsMatch = false;
-            break;
-          }
-          queryScore += 1;
+        // Check path match
+        let isPathMatch = false;
+        if (hrefPath === '/dashboard') {
+          isPathMatch = pathname === '/dashboard';
+        } else {
+          isPathMatch = pathname === hrefPath || pathname.startsWith(hrefPath + '/');
         }
-        if (!queryParamsMatch) return;
-      }
 
-      // Score based on path length and query matches
-      const score = hrefPath.length + (queryScore * 1000);
-      if (score > bestScore) {
-        bestScore = score;
-        activeHref = item.href;
-      }
+        if (!isPathMatch) return;
+
+        // Check query params match
+        let queryScore = 0;
+        if (hrefQuery) {
+          const hrefParams = new URLSearchParams(hrefQuery);
+          let queryParamsMatch = true;
+          for (const [key, value] of hrefParams.entries()) {
+            const paramValue = searchParams ? searchParams.get(key) : null;
+            if (paramValue === null && key === 'tab' && value === 'organizations') {
+              queryScore += 0.5;
+              continue;
+            }
+            if (paramValue !== value) {
+              queryParamsMatch = false;
+              break;
+            }
+            queryScore += 1;
+          }
+          if (!queryParamsMatch) return;
+        }
+
+        const score = hrefPath.length + (queryScore * 1000);
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = item.href;
+        }
+      });
     });
-  });
+
+    return bestMatch;
+  }, [allSections, pathname, searchParams]);
 
   return (
     <>
@@ -289,7 +305,7 @@ export default function Sidebar({ isOpen, onClose }) {
                   );
 
                   const itemClass = `
-                    relative flex items-center gap-3 rounded-xl transition-all duration-200 w-full text-left
+                    relative flex items-center gap-3 rounded-xl transition-colors duration-150 active:scale-[0.98] w-full text-left
                     ${collapsed ? 'w-11 h-11 justify-center mx-auto' : 'px-3 py-2.5'}
                     ${isActive
                       ? 'text-wa-green bg-wa-green/10 dark:bg-wa-green/15 font-semibold'
@@ -315,9 +331,10 @@ export default function Sidebar({ isOpen, onClose }) {
                       ) : (
                         <Link
                           href={href}
+                          prefetch={true}
                           onClick={handleItemClick}
                           title={collapsed ? label : undefined}
-                          onMouseEnter={() => setHoveredItem(href)}
+                          onMouseEnter={() => handleItemHover(href)}
                           onMouseLeave={() => setHoveredItem(null)}
                           className={itemClass}
                         >
