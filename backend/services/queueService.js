@@ -308,7 +308,12 @@ function getUnofficialCampaignQueue(userId) {
 async function initQueues(io) {
   ioInstance = io;
 
-  scheduleQueue = new Queue('scheduled-campaigns', env.REDIS_URL);
+  scheduleQueue = new Queue('scheduled-campaigns', env.REDIS_URL, {
+    defaultJobOptions: {
+      removeOnComplete: true,
+      removeOnFail: 10,
+    },
+  });
 
   if (process.env.RUN_QUEUE_PROCESSORS !== 'false') {
     logger.info('Registering background queue processors in this instance');
@@ -349,8 +354,21 @@ async function initQueues(io) {
       await checkMetaIntegrationsHealth();
     });
 
-    // Add recurring check
-    scheduleQueue.add({}, { repeat: { every: 60000 } });
+    // Add recurring check (clean previous repeatable jobs on startup to prevent accumulation)
+    try {
+      const repeatableJobs = await scheduleQueue.getRepeatableJobs();
+      for (const job of repeatableJobs) {
+        await scheduleQueue.removeRepeatableByKey(job.key);
+      }
+    } catch (err) {
+      logger.warn(`Could not clear old repeatable jobs: ${err.message}`);
+    }
+
+    scheduleQueue.add({}, {
+      repeat: { every: 60000 },
+      removeOnComplete: true,
+      removeOnFail: 10,
+    });
   } else {
     logger.info('Background queue processors are disabled (API-only mode)');
   }

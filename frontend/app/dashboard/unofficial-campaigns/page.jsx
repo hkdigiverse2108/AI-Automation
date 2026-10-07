@@ -6,7 +6,11 @@ import {
   CheckCircle2, AlertTriangle, Loader2, Clock, ArrowUpRight, Edit2, Trash2
 } from 'lucide-react';
 import api from '../../../lib/api';
-import CampaignForm from '../../../components/CampaignForm';
+import dynamic from 'next/dynamic';
+
+const CampaignForm = dynamic(() => import('../../../components/CampaignForm'), {
+  ssr: false,
+});
 import { useConfirmStore } from '../../../lib/store';
 import { formatDate } from '../../../lib/utils';
 

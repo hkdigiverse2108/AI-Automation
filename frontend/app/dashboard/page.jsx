@@ -3,7 +3,11 @@ import { useEffect } from 'react';
 import { useDashboardStore, useAuthStore } from '../../lib/store';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import Link from 'next/link';
-import { Activity, Plus, TrendingUp, TrendingDown, CheckCircle, ExternalLink } from 'lucide-react';
+import {
+  Activity, Plus, TrendingUp, TrendingDown, CheckCircle, ExternalLink,
+  Users, FileText, MessageSquare, Send, Zap, Megaphone, Bot, CheckCheck,
+  UserPlus, Inbox, Download, Code2, CheckCircle2
+} from 'lucide-react';
 
 const COLORS = ['#00a884', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6'];
 
@@ -44,14 +48,14 @@ export default function DashboardPage() {
   const deliveryRate = stats?.deliveryRate || 99.4;
 
   const statCards = [
-    { label: 'Total Contacts', value: totalContacts, icon: 'group', color: 'text-primary bg-primary/10', trend: '12%', up: true },
-    { label: 'Templates', value: totalTemplates, icon: 'description', color: 'text-status-info bg-status-info/10', trend: '4%', up: true },
-    { label: 'Unread', value: unreadChats, icon: 'mark_chat_unread', color: 'text-status-warn bg-status-warn/10', trend: '2%', up: false },
-    { label: 'Sent Today', value: sentToday, icon: 'send', color: 'text-primary bg-primary/10', trend: '28%', up: true },
-    { label: 'Active', value: activeConversations, icon: 'bolt', color: 'text-status-info bg-status-info/10', trend: '1.2%', up: true },
-    { label: 'Campaigns', value: campaignsRunning, icon: 'campaign', color: 'text-primary bg-primary/10', trend: 'Steady', up: null },
-    { label: 'Bot Sessions', value: botSessions, icon: 'smart_toy', color: 'text-tertiary bg-tertiary/10', trend: '15%', up: true },
-    { label: 'Delivery Rate', value: `${deliveryRate}%`, icon: 'done_all', color: 'text-primary bg-primary/10', trend: 'Max', up: true },
+    { label: 'Total Contacts', value: totalContacts, icon: Users, color: 'text-wa-green bg-wa-green/10 dark:bg-wa-green/15', trend: '12%', up: true },
+    { label: 'Templates', value: totalTemplates, icon: FileText, color: 'text-blue-500 bg-blue-500/10 dark:bg-blue-500/15', trend: '4%', up: true },
+    { label: 'Unread', value: unreadChats, icon: MessageSquare, color: 'text-amber-500 bg-amber-500/10 dark:bg-amber-500/15', trend: '2%', up: false },
+    { label: 'Sent Today', value: sentToday, icon: Send, color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/15', trend: '28%', up: true },
+    { label: 'Active', value: activeConversations, icon: Zap, color: 'text-cyan-500 bg-cyan-500/10 dark:bg-cyan-500/15', trend: '1.2%', up: true },
+    { label: 'Campaigns', value: campaignsRunning, icon: Megaphone, color: 'text-purple-500 bg-purple-500/10 dark:bg-purple-500/15', trend: 'Steady', up: null },
+    { label: 'Bot Sessions', value: botSessions, icon: Bot, color: 'text-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/15', trend: '15%', up: true },
+    { label: 'Delivery Rate', value: `${deliveryRate}%`, icon: CheckCheck, color: 'text-teal-500 bg-teal-500/10 dark:bg-teal-500/15', trend: 'Max', up: true },
   ];
 
   const dailyData = (stats?.dailyMessages || []).map(d => ({
@@ -123,44 +127,48 @@ export default function DashboardPage() {
       </div>
 
       {/* Horizontal Stats Scroll/Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
-        {statCards.map((card, i) => (
-          <div
-            key={i}
-            className="glass-card p-4 rounded-2xl flex flex-col justify-between hover:shadow-wa-md hover:-translate-y-1 transition-all duration-300 min-h-[110px]"
-          >
-            <div className="flex justify-between items-start mb-2">
-              <span className={`material-symbols-outlined ${card.color} p-1.5 rounded-lg text-lg shrink-0`}>
-                {card.icon}
-              </span>
-              {card.up !== null && (
-                <span className={`text-[10px] font-bold flex items-center gap-0.5 ${card.up ? 'text-wa-green' : 'text-rose-500'}`}>
-                  {card.up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  {card.trend}
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3 sm:gap-4">
+        {statCards.map((card, i) => {
+          const Icon = card.icon;
+          return (
+            <div
+              key={i}
+              style={{ animationDelay: `${i * 45}ms` }}
+              className="glass-card animate-card-in p-3.5 rounded-2xl flex flex-col justify-between hover:shadow-wa-md hover:-translate-y-1 transition-all duration-300 min-h-[110px] group cursor-default"
+            >
+              <div className="flex justify-between items-start mb-2 gap-1.5">
+                <span className={`p-2 rounded-xl shrink-0 flex items-center justify-center ${card.color} group-hover:scale-110 transition-transform duration-200`}>
+                  <Icon className="w-4 h-4" />
                 </span>
-              )}
-              {card.up === null && (
-                <span className="text-amber-500 text-[10px] font-bold">
-                  {card.trend}
-                </span>
-              )}
+                {card.up !== null && (
+                  <span className={`text-[10px] font-bold flex items-center gap-0.5 shrink-0 ${card.up ? 'text-wa-green' : 'text-rose-500'}`}>
+                    {card.up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {card.trend}
+                  </span>
+                )}
+                {card.up === null && (
+                  <span className="text-amber-500 text-[10px] font-bold shrink-0">
+                    {card.trend}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-bold uppercase tracking-wider truncate" title={card.label}>
+                  {card.label}
+                </p>
+                <p className="text-xl font-extrabold text-wa-text-primary dark:text-white mt-0.5 truncate">
+                  {card.value}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[9px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-bold uppercase tracking-wider truncate">
-                {card.label}
-              </p>
-              <p className="text-xl font-extrabold text-wa-text-primary dark:text-white mt-0.5">
-                {card.value}
-              </p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Main Dashboard Grid */}
       <div className="grid grid-cols-12 gap-6">
         {/* Messages Chart (Area) */}
-        <div className="col-span-12 lg:col-span-8 glass-card p-6">
+        <div style={{ animationDelay: '360ms' }} className="col-span-12 lg:col-span-8 glass-card animate-card-in p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
             <h3 className="text-sm font-bold text-wa-text-primary dark:text-white uppercase tracking-wider">
               Messages Last 7 Days
@@ -210,7 +218,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Conversation Status (Donut) */}
-        <div className="col-span-12 lg:col-span-4 glass-card p-6 flex flex-col justify-between">
+        <div style={{ animationDelay: '420ms' }} className="col-span-12 lg:col-span-4 glass-card animate-card-in p-6 flex flex-col justify-between">
           <h3 className="text-sm font-bold text-wa-text-primary dark:text-white uppercase tracking-wider mb-4">
             Conversation Status
           </h3>
@@ -261,7 +269,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Conversations by Source (Bar progress) */}
-        <div className="col-span-12 lg:col-span-4 glass-card p-6 flex flex-col justify-between">
+        <div style={{ animationDelay: '480ms' }} className="col-span-12 lg:col-span-4 glass-card animate-card-in p-6 flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-wa-text-primary dark:text-white uppercase tracking-wider mb-6">
               Conversations by Source
@@ -298,7 +306,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions Grid */}
-        <div className="col-span-12 lg:col-span-8 glass-card p-6 flex flex-col justify-between">
+        <div style={{ animationDelay: '540ms' }} className="col-span-12 lg:col-span-8 glass-card animate-card-in p-6 flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-wa-text-primary dark:text-white uppercase tracking-wider mb-6">
               Quick Actions
@@ -306,10 +314,10 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Link
                 href="/dashboard/campaigns"
-                className="flex flex-col items-center justify-center p-5 border border-wa-border dark:border-wa-dark-border rounded-2xl hover:bg-wa-green/10 hover:border-wa-green/30 transition-all group text-center"
+                className="flex flex-col items-center justify-center p-5 border border-wa-border dark:border-wa-dark-border rounded-2xl hover:bg-wa-green/10 hover:border-wa-green/30 transition-all duration-200 active:scale-[0.98] group text-center"
               >
-                <div className="w-11 h-11 rounded-full bg-wa-green/10 flex items-center justify-center text-wa-green mb-3 group-hover:scale-110 transition-transform">
-                  <span className="material-symbols-outlined text-xl">send</span>
+                <div className="w-11 h-11 rounded-full bg-wa-green/10 flex items-center justify-center text-wa-green mb-3 group-hover:scale-110 transition-transform duration-200">
+                  <Send className="w-5 h-5" />
                 </div>
                 <span className="font-bold text-xs text-wa-text-primary dark:text-white">New Campaign</span>
                 <p className="text-[9px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">Blast to audience</p>
@@ -317,10 +325,10 @@ export default function DashboardPage() {
 
               <Link
                 href="/dashboard/contacts"
-                className="flex flex-col items-center justify-center p-5 border border-wa-border dark:border-wa-dark-border rounded-2xl hover:bg-blue-500/10 hover:border-blue-500/30 transition-all group text-center"
+                className="flex flex-col items-center justify-center p-5 border border-wa-border dark:border-wa-dark-border rounded-2xl hover:bg-blue-500/10 hover:border-blue-500/30 transition-all duration-200 active:scale-[0.98] group text-center"
               >
-                <div className="w-11 h-11 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 mb-3 group-hover:scale-110 transition-transform">
-                  <span className="material-symbols-outlined text-xl">person_add</span>
+                <div className="w-11 h-11 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 mb-3 group-hover:scale-110 transition-transform duration-200">
+                  <UserPlus className="w-5 h-5" />
                 </div>
                 <span className="font-bold text-xs text-wa-text-primary dark:text-white">Import Contacts</span>
                 <p className="text-[9px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">CSV or API sync</p>
@@ -328,10 +336,10 @@ export default function DashboardPage() {
 
               <Link
                 href="/dashboard/bot-builder"
-                className="flex flex-col items-center justify-center p-5 border border-wa-border dark:border-wa-dark-border rounded-2xl hover:bg-rose-500/10 hover:border-rose-500/30 transition-all group text-center"
+                className="flex flex-col items-center justify-center p-5 border border-wa-border dark:border-wa-dark-border rounded-2xl hover:bg-rose-500/10 hover:border-rose-500/30 transition-all duration-200 active:scale-[0.98] group text-center"
               >
-                <div className="w-11 h-11 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mb-3 group-hover:scale-110 transition-transform">
-                  <span className="material-symbols-outlined text-xl">account_tree</span>
+                <div className="w-11 h-11 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mb-3 group-hover:scale-110 transition-transform duration-200">
+                  <Bot className="w-5 h-5" />
                 </div>
                 <span className="font-bold text-xs text-wa-text-primary dark:text-white">Create Bot Flow</span>
                 <p className="text-[9px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">Design automation</p>
@@ -339,10 +347,10 @@ export default function DashboardPage() {
 
               <Link
                 href="/dashboard/inbox"
-                className="flex flex-col items-center justify-center p-5 border border-wa-border dark:border-wa-dark-border rounded-2xl hover:bg-wa-green/10 hover:border-wa-green/30 transition-all group text-center"
+                className="flex flex-col items-center justify-center p-5 border border-wa-border dark:border-wa-dark-border rounded-2xl hover:bg-wa-green/10 hover:border-wa-green/30 transition-all duration-200 active:scale-[0.98] group text-center"
               >
-                <div className="w-11 h-11 rounded-full bg-wa-green/10 flex items-center justify-center text-wa-green mb-3 group-hover:scale-110 transition-transform">
-                  <span className="material-symbols-outlined text-xl">inbox</span>
+                <div className="w-11 h-11 rounded-full bg-wa-green/10 flex items-center justify-center text-wa-green mb-3 group-hover:scale-110 transition-transform duration-200">
+                  <Inbox className="w-5 h-5" />
                 </div>
                 <span className="font-bold text-xs text-wa-text-primary dark:text-white">Open Inbox</span>
                 <p className="text-[9px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">Reply to users</p>
@@ -352,20 +360,20 @@ export default function DashboardPage() {
 
           {/* Secondary Quick Action items */}
           <div className="mt-6 pt-4 border-t border-wa-border dark:border-wa-dark-border flex flex-wrap gap-2.5">
-            <button className="px-3.5 py-2 text-[10px] font-bold border border-wa-border dark:border-wa-dark-border rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors flex items-center gap-1.5 text-wa-text-primary dark:text-white">
-              <span className="material-symbols-outlined text-sm">download</span> Export Daily Logs
+            <button className="px-3.5 py-2 text-[10px] font-bold border border-wa-border dark:border-wa-dark-border rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-all duration-150 active:scale-95 flex items-center gap-1.5 text-wa-text-primary dark:text-white">
+              <Download className="w-3.5 h-3.5 text-wa-green" /> Export Daily Logs
             </button>
             <Link
               href="/dashboard/settings?tab=integrations"
-              className="px-3.5 py-2 text-[10px] font-bold border border-wa-border dark:border-wa-dark-border rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors flex items-center gap-1.5 text-wa-text-primary dark:text-white"
+              className="px-3.5 py-2 text-[10px] font-bold border border-wa-border dark:border-wa-dark-border rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-all duration-150 active:scale-95 flex items-center gap-1.5 text-wa-text-primary dark:text-white"
             >
-              <span className="material-symbols-outlined text-sm">settings_ethernet</span> API Integrations
+              <Code2 className="w-3.5 h-3.5 text-blue-500" /> API Integrations
             </Link>
             <Link
               href="/dashboard/templates"
-              className="px-3.5 py-2 text-[10px] font-bold border border-wa-border dark:border-wa-dark-border rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors flex items-center gap-1.5 text-wa-text-primary dark:text-white"
+              className="px-3.5 py-2 text-[10px] font-bold border border-wa-border dark:border-wa-dark-border rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-all duration-150 active:scale-95 flex items-center gap-1.5 text-wa-text-primary dark:text-white"
             >
-              <span className="material-symbols-outlined text-sm">verified</span> Manage Templates
+              <CheckCircle2 className="w-3.5 h-3.5 text-purple-500" /> Manage Templates
             </Link>
           </div>
         </div>

@@ -25,13 +25,13 @@ export default function RootLayout({ children }) {
       <body className={`min-h-screen font-sans ${inter.className}`}>
         <NextTopLoader
           color="#00a884"
-          initialPosition={0.15}
-          crawlSpeed={150}
+          initialPosition={0.3}
+          crawlSpeed={50}
           height={3}
           crawl={true}
           showSpinner={false}
           easing="ease"
-          speed={200}
+          speed={100}
           shadow="0 0 10px #00a884,0 0 5px #00a884"
           zIndex={99999}
         />

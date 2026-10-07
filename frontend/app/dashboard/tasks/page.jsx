@@ -6,8 +6,12 @@ import {
   ChevronLeft, ChevronRight, RefreshCw, Loader2, ArrowUpDown, Shield, AlertCircle, X
 } from 'lucide-react';
 import api from '../../../lib/api';
-import TaskDetailModal from '../../../components/TaskDetailModal';
+import dynamic from 'next/dynamic';
 import { useAuthStore } from '../../../lib/store';
+
+const TaskDetailModal = dynamic(() => import('../../../components/TaskDetailModal'), {
+  ssr: false,
+});
 
 export default function TasksPage() {
   const { user: currentUser } = useAuthStore();

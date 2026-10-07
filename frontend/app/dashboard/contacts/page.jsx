@@ -1,7 +1,16 @@
 'use client';
 import { useState, useEffect } from 'react';
-import ContactTable from '../../../components/ContactTable';
+import dynamic from 'next/dynamic';
 import api from '../../../lib/api';
+
+const ContactTable = dynamic(() => import('../../../components/ContactTable'), {
+  loading: () => (
+    <div className="w-full h-96 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
+    </div>
+  ),
+  ssr: false,
+});
 import { toast } from 'react-hot-toast';
 import { Tag as TagIcon, Users, Play, Plus, Trash2, X, Sparkles, Loader2, ToggleLeft, ToggleRight, Search, Edit2 } from 'lucide-react';
 import { useConfirmStore } from '../../../lib/store';
@@ -216,12 +225,13 @@ export default function ContactsPage() {
       </div>
 
       {/* RENDER ACTIVE TAB */}
-      {activeTab === 'contacts' && (
-        <ContactTable />
-      )}
+      <div key={activeTab} className="animate-page-enter">
+        {activeTab === 'contacts' && (
+          <ContactTable />
+        )}
 
-      {activeTab === 'tags' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {activeTab === 'tags' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Create tag */}
           <div className="glass-card p-6 h-fit space-y-4">
             <h3 className="text-sm font-semibold text-wa-text-primary dark:text-wa-dark-text-primary">Create New Tag</h3>
@@ -406,11 +416,12 @@ export default function ContactsPage() {
           )}
         </div>
       )}
+      </div>
 
       {/* CREATE RULE MODAL */}
       {isRuleModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden animate-slide-up flex flex-col max-h-[85vh] shadow-wa-lg">
+          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden animate-modal-pop flex flex-col max-h-[85vh] shadow-wa-lg">
             <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
               <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-wa-green" /> Configure Auto-Tag Rule
@@ -503,7 +514,7 @@ export default function ContactsPage() {
       {/* EDIT TAG MODAL */}
       {editingTag && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden animate-slide-up flex flex-col max-h-[85vh] shadow-wa-lg">
+          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden animate-modal-pop flex flex-col max-h-[85vh] shadow-wa-lg">
             <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
               <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
                 <Edit2 className="w-5 h-5 text-wa-green" /> Edit Tag

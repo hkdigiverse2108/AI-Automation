@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore, useThemeStore } from '../../lib/store';
 import Sidebar from '../../components/Sidebar';
@@ -11,7 +11,30 @@ import api from '../../lib/api';
 import { Menu, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 
+// Check if we have a cached auth state for instant render (avoids flash of spinner)
+function getCachedAuth() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem('_cachedAuthState');
+    if (cached) return JSON.parse(cached);
+  } catch {}
+  return null;
+}
+
+function setCachedAuth(user, permissions) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('_cachedAuthState', JSON.stringify({ user, permissions, ts: Date.now() }));
+  } catch {}
+}
+
+function clearCachedAuth() {
+  if (typeof window === 'undefined') return;
+  try { localStorage.removeItem('_cachedAuthState'); } catch {}
+}
+
 export default function DashboardLayout({ children }) {
+  const [mounted, setMounted] = useState(false);
   const { isAuthenticated, loading, checkAuth, user, permissions } = useAuthStore();
   const { init: initTheme } = useThemeStore();
   const router = useRouter();
@@ -20,11 +43,40 @@ export default function DashboardLayout({ children }) {
   const [subscriptionExpired, setSubscriptionExpired] = useState(false);
   const [subscriptionExpiryDate, setSubscriptionExpiryDate] = useState(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const prefetchedRef = useRef(false);
 
   useEffect(() => {
+    setMounted(true);
+    // Restore cached auth on client mount immediately so UI renders without delay
+    const cached = getCachedAuth();
+    if (cached?.user && localStorage.getItem('accessToken')) {
+      useAuthStore.setState({
+        user: cached.user,
+        permissions: cached.permissions || null,
+        isAuthenticated: true,
+        loading: false,
+      });
+    }
     checkAuth();
     initTheme();
   }, []);
+
+  // Cache auth state whenever it changes so next visit is instant
+  useEffect(() => {
+    if (!loading && isAuthenticated && user) {
+      setCachedAuth(user, permissions);
+    } else if (!loading && !isAuthenticated) {
+      clearCachedAuth();
+    }
+  }, [loading, isAuthenticated, user, permissions]);
+
+  // Prefetch top routes eagerly on mount for instant navigation
+  useEffect(() => {
+    if (prefetchedRef.current) return;
+    prefetchedRef.current = true;
+    const topRoutes = ['/dashboard', '/dashboard/inbox', '/dashboard/contacts', '/dashboard/campaigns', '/dashboard/settings'];
+    topRoutes.forEach(route => router.prefetch(route));
+  }, [router]);
 
   // Auto-close mobile sidebar drawer on navigation change
   useEffect(() => {
@@ -33,7 +85,7 @@ export default function DashboardLayout({ children }) {
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.push('/login');
+      router.replace('/login');
     } else if (!loading && isAuthenticated && user?.role === 'agent') {
       if (!permissions) return;
 
@@ -71,14 +123,29 @@ export default function DashboardLayout({ children }) {
       }
 
       if (matchedSlug && !permissions.includes(matchedSlug)) {
-        router.push('/dashboard/inbox');
+        router.replace('/dashboard/inbox');
       }
     }
   }, [loading, isAuthenticated, user, permissions, pathname, router]);
 
-  // Check subscription status
+  // Check subscription status (non-blocking — uses cache if available)
   useEffect(() => {
     if (!isAuthenticated || !user || user.role === 'superadmin') return;
+
+    // Try cached subscription status first for instant render
+    try {
+      const cachedSub = localStorage.getItem('_cachedSubStatus');
+      if (cachedSub) {
+        const parsed = JSON.parse(cachedSub);
+        // Use cache if less than 5 minutes old
+        if (Date.now() - parsed.ts < 5 * 60 * 1000) {
+          setSubscriptionStatus(parsed.status);
+          setSubscriptionExpiryDate(parsed.expiryDate);
+          if (parsed.status === 'expired') setSubscriptionExpired(true);
+        }
+      }
+    } catch {}
+
     api.get('/subscription/current').then(res => {
       const data = res.data.data;
       setSubscriptionStatus(data.subscriptionStatus);
@@ -86,6 +153,14 @@ export default function DashboardLayout({ children }) {
       if (data.subscriptionStatus === 'expired') {
         setSubscriptionExpired(true);
       }
+      // Cache subscription status
+      try {
+        localStorage.setItem('_cachedSubStatus', JSON.stringify({
+          status: data.subscriptionStatus,
+          expiryDate: data.subscriptionExpiryDate,
+          ts: Date.now()
+        }));
+      } catch {}
     }).catch(err => {
       if (err.response?.data?.code === 'SUBSCRIPTION_EXPIRED') {
         setSubscriptionExpired(true);
@@ -95,7 +170,8 @@ export default function DashboardLayout({ children }) {
     });
   }, [isAuthenticated, user]);
 
-  if (loading) {
+  // Uniform initial render on SSR and client to prevent React hydration errors
+  if (!mounted || (loading && !isAuthenticated)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-wa-panel-header dark:bg-wa-dark-bg">
         <div className="flex flex-col items-center gap-4">
@@ -191,12 +267,14 @@ export default function DashboardLayout({ children }) {
 
         {/* Main Content Area */}
         {pathname === '/dashboard/inbox' || pathname.startsWith('/dashboard/inbox/') ? (
-          <main className="flex-1 overflow-hidden focus:outline-none">
+          <main key={pathname} className="flex-1 overflow-hidden focus:outline-none animate-page-enter">
             <RouteGuard>{children}</RouteGuard>
           </main>
         ) : (
           <main className="flex-1 overflow-y-auto focus:outline-none">
-            <div className="p-4 sm:p-6 lg:p-8"><RouteGuard>{children}</RouteGuard></div>
+            <div key={pathname} className="p-4 sm:p-6 lg:p-8 animate-page-enter">
+              <RouteGuard>{children}</RouteGuard>
+            </div>
           </main>
         )}
         <ConfirmModal />

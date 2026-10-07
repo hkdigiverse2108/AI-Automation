@@ -150,14 +150,45 @@ export default function Sidebar({ isOpen, onClose }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Instant hover prefetching to warm Next.js router cache before click
+  // Instant hover prefetching to warm Next.js router & dev compiler before click
   const handleItemHover = useCallback((href) => {
     setHoveredItem(href);
     if (href && !href.startsWith('#')) {
       const [path] = href.split('?');
       router.prefetch(path);
+      if (typeof window !== 'undefined') {
+        fetch(path, { priority: 'low' }).catch(() => {});
+      }
     }
   }, [router]);
+
+  // Background warmup of accessible dashboard routes during browser idle time so first-clicks are instant
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const idleTimer = setTimeout(() => {
+      const visibleRoutes = [];
+      allSections.forEach(section => {
+        section.items.forEach(item => {
+          if (item.href && !item.href.startsWith('#')) {
+            const [path] = item.href.split('?');
+            if (path !== pathname && !visibleRoutes.includes(path)) {
+              visibleRoutes.push(path);
+            }
+          }
+        });
+      });
+
+      // Warm up each route sequentially without clogging the network
+      visibleRoutes.forEach((route, idx) => {
+        setTimeout(() => {
+          router.prefetch(route);
+          fetch(route, { priority: 'low' }).catch(() => {});
+        }, idx * 350);
+      });
+    }, 1200);
+
+    return () => clearTimeout(idleTimer);
+  }, [allSections, pathname, router]);
 
   // Determine which menu item is currently active based on pathname and searchParams (memoized)
   const activeHref = useMemo(() => {
@@ -305,10 +336,10 @@ export default function Sidebar({ isOpen, onClose }) {
                   );
 
                   const itemClass = `
-                    relative flex items-center gap-3 rounded-xl transition-colors duration-150 active:scale-[0.98] w-full text-left
-                    ${collapsed ? 'w-11 h-11 justify-center mx-auto' : 'px-3 py-2.5'}
+                    relative flex items-center gap-3 rounded-xl transition-all duration-200 active:scale-[0.97] w-full text-left
+                    ${collapsed ? 'w-11 h-11 justify-center mx-auto' : 'px-3 py-2.5 hover:translate-x-1'}
                     ${isActive
-                      ? 'text-wa-green bg-wa-green/10 dark:bg-wa-green/15 font-semibold'
+                      ? 'text-wa-green bg-wa-green/10 dark:bg-wa-green/15 font-semibold shadow-sm'
                       : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary dark:hover:text-wa-dark-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
                     }
                   `;

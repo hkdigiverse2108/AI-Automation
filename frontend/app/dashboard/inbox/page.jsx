@@ -2,8 +2,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { useConversationStore, useAuthStore } from '../../../lib/store';
 import { getSocket } from '../../../lib/socket';
-import ChatWindow from '../../../components/ChatWindow';
+import dynamic from 'next/dynamic';
 import api from '../../../lib/api';
+
+const ChatWindow = dynamic(() => import('../../../components/ChatWindow'), {
+  loading: () => (
+    <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-900/50">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
+    </div>
+  ),
+  ssr: false,
+});
 import toast from 'react-hot-toast';
 import {
   Search, MessageSquare, Bot as BotIcon, User, Sparkles, Plus, X, Loader2,

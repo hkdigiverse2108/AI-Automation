@@ -424,14 +424,18 @@ export default function TemplatesPage() {
       ) : viewMode === 'grid' ? (
         /* GRID VIEW */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {paginatedTemplates.map((template) => {
+          {paginatedTemplates.map((template, idx) => {
             const bodyComponent = template.components?.find(c => c.type === 'BODY') || {};
             const headerComponent = template.components?.find(c => c.type === 'HEADER') || {};
             const footerComponent = template.components?.find(c => c.type === 'FOOTER') || {};
             const buttonsComponent = template.components?.find(c => c.type === 'BUTTONS') || {};
 
             return (
-              <div key={template._id} className="glass-card flex flex-col justify-between hover:shadow-wa-md transition-all duration-300 group">
+              <div
+                key={template._id}
+                style={{ animationDelay: `${Math.min(idx, 12) * 35}ms` }}
+                className="glass-card animate-card-in flex flex-col justify-between hover:shadow-wa-md hover:-translate-y-1 transition-all duration-300 group"
+              >
                 <div className="p-5 border-b border-wa-border dark:border-wa-dark-border space-y-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -542,7 +546,11 @@ export default function TemplatesPage() {
               {paginatedTemplates.map((template, idx) => {
                 const serialNo = (currentPage - 1) * entriesPerPage + idx + 1;
                 return (
-                  <tr key={template._id} className="hover:bg-wa-hover/30 dark:hover:bg-wa-dark-hover/10 transition-colors">
+                  <tr
+                    key={template._id}
+                    style={{ animationDelay: `${Math.min(idx, 15) * 30}ms` }}
+                    className="animate-row-in hover:bg-wa-hover/30 dark:hover:bg-wa-dark-hover/10 transition-colors"
+                  >
                     <td className="py-3.5 px-4 font-mono font-semibold">{serialNo}</td>
                     <td className="py-3.5 px-4 font-semibold text-wa-text-primary dark:text-white">
                       <div className="flex items-center gap-1.5">

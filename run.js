@@ -4,6 +4,7 @@
  */
 
 const { spawn } = require('child_process');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
@@ -120,12 +121,81 @@ formatStdout(backendProc.stdout, '[Backend]', colors.magenta);
 formatStdout(backendProc.stderr, '[Backend][Error]', colors.red);
 
 // 4. Start Frontend
+const isProd = process.argv.includes('--prod') || process.argv.includes('--production') || process.env.NODE_ENV === 'production';
 const frontendEnv = { ...runnerEnv };
 delete frontendEnv.PORT; // Delete backend's PORT to let Next.js use port 3000
 
+// Dashboard routes to pre-warm in background so first-click is instant
+const warmupRoutes = [
+  '/',
+  '/login',
+  '/dashboard',
+  '/dashboard/inbox',
+  '/dashboard/contacts',
+  '/dashboard/campaigns',
+  '/dashboard/templates',
+  '/dashboard/bot-builder',
+  '/dashboard/leads',
+  '/dashboard/analytics',
+  '/dashboard/subscription',
+  '/dashboard/settings',
+  '/dashboard/catalog',
+  '/dashboard/tasks',
+  '/dashboard/follow-ups',
+  '/dashboard/team',
+  '/dashboard/team-chat',
+  '/dashboard/unofficial-campaigns',
+  '/dashboard/chat-logs',
+];
+
+function triggerFrontendWarmup() {
+  let attempts = 0;
+  const maxAttempts = 30;
+
+  const probe = () => {
+    if (shuttingDown) return;
+    attempts++;
+
+    const req = http.get('http://localhost:3000', (res) => {
+      res.resume();
+      console.log(`\n${colors.bold}${colors.cyan}⚡ [Warmup] Pre-compiling dashboard routes in background for instant first-clicks...${colors.reset}`);
+
+      let idx = 0;
+      const step = () => {
+        if (shuttingDown || idx >= warmupRoutes.length) {
+          if (idx >= warmupRoutes.length) {
+            console.log(`${colors.bold}${colors.green}✓ [Warmup] All primary pages pre-compiled! Navigation is now instant on first click.${colors.reset}\n`);
+          }
+          return;
+        }
+
+        const route = warmupRoutes[idx++];
+        const wReq = http.get(`http://localhost:3000${route}`, (wRes) => {
+          wRes.resume();
+          setTimeout(step, 400);
+        });
+        wReq.on('error', () => {
+          setTimeout(step, 400);
+        });
+      };
+
+      setTimeout(step, 1000);
+    });
+
+    req.on('error', () => {
+      if (attempts < maxAttempts && !shuttingDown) {
+        setTimeout(probe, 1000);
+      }
+    });
+  };
+
+  setTimeout(probe, 2500);
+}
+
 const startFrontendServer = () => {
-  console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Starting Next.js development server (npm run dev)...`);
-  frontendProc = spawn('npm', ['run', 'dev'], {
+  const scriptName = isProd ? 'start' : 'dev';
+  console.log(`${colors.bold}${colors.green}[Frontend]${colors.reset} Starting Next.js (${isProd ? 'production' : 'development'} mode: npm run ${scriptName})...`);
+  frontendProc = spawn('npm', ['run', scriptName], {
     cwd: path.join(__dirname, 'frontend'),
     shell: true,
     env: frontendEnv
@@ -133,6 +203,10 @@ const startFrontendServer = () => {
 
   formatStdout(frontendProc.stdout, '[Frontend]', colors.green);
   formatStdout(frontendProc.stderr, '[Frontend][Error]', colors.red);
+
+  if (!isProd) {
+    triggerFrontendWarmup();
+  }
 
   frontendProc.on('exit', (code) => {
     if (!shuttingDown) {

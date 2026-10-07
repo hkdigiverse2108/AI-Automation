@@ -32,7 +32,7 @@ export default function LoginPage() {
           toast.success('Credentials correct. Please provide 2FA code.');
         } else {
           toast.success('Welcome back!');
-          router.push('/dashboard');
+          router.replace('/dashboard');
         }
       } else {
         toast.error(result.error || 'Login failed');
@@ -53,7 +53,7 @@ export default function LoginPage() {
       const result = await verify2FA(tempToken, totpCode);
       if (result.success) {
         toast.success('MFA Verification successful. Welcome!');
-        router.push('/dashboard');
+        router.replace('/dashboard');
       } else {
         toast.error(result.error || 'Invalid 2FA code');
       }

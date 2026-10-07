@@ -5,7 +5,8 @@
   "main": "run.js",
   "scripts": {
     "dev": "node run.js",
-    "start": "node run.js"
+    "start": "node run.js",
+    "build": "npm --prefix frontend run build"
   },
   "keywords": [
     "whatsapp",

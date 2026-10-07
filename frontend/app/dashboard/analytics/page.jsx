@@ -142,8 +142,8 @@ export default function AnalyticsPage() {
         {statCards.map((card, i) => (
           <div
             key={i}
-            className="glass-card p-4 group hover:shadow-wa-md transition-all duration-300 hover:-translate-y-0.5"
-            style={{ animationDelay: `${i * 60}ms` }}
+            className="glass-card animate-card-in p-4 group hover:shadow-wa-md transition-all duration-300 hover:-translate-y-1 cursor-default"
+            style={{ animationDelay: `${i * 50}ms` }}
           >
             <div className="flex items-center justify-between mb-2">
               <div
@@ -168,7 +168,7 @@ export default function AnalyticsPage() {
       {/* Charts Row 1: Message Trends + Delivery Funnel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Message Volume Trends — Takes 2 columns */}
-        <div className="lg:col-span-2 glass-card p-6">
+        <div style={{ animationDelay: '300ms' }} className="lg:col-span-2 glass-card animate-card-in p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-wa-green" />

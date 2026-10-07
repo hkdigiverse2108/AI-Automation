@@ -10,7 +10,11 @@ import {
 import api from '../lib/api';
 import { ScoreBadge } from './ContactScoreCard';
 import { useConfirmStore } from '../lib/store';
-import ContactDetailsModal from './ContactDetailsModal';
+import dynamic from 'next/dynamic';
+
+const ContactDetailsModal = dynamic(() => import('./ContactDetailsModal'), {
+  ssr: false,
+});
 
 // Helper to generate a soft color class based on user initials
 const getAvatarBg = (name) => {
@@ -614,15 +618,16 @@ export default function ContactTable() {
                   </td>
                 </tr>
               ) : (
-                contacts.map((contact) => {
+                contacts.map((contact, idx) => {
                   const isChecked = selectedIds.includes(contact._id);
                   const avatarClass = getAvatarBg(contact.name);
                   const initials = contact.name ? contact.name.substring(0, 2).toUpperCase() : 'C';
-                  
+
                   return (
                     <tr 
                       key={contact._id} 
-                      className={`hover:bg-wa-bg/50 dark:hover:bg-wa-dark-header/20 transition-colors ${isChecked ? 'bg-wa-green/5 dark:bg-wa-green/5' : ''}`}
+                      style={{ animationDelay: `${Math.min(idx, 15) * 25}ms` }}
+                      className={`animate-row-in hover:bg-wa-bg/60 dark:hover:bg-wa-dark-header/30 transition-all duration-150 ${isChecked ? 'bg-wa-green/5 dark:bg-wa-green/5' : ''}`}
                     >
                       <td className="px-6 py-4">
                         <button 

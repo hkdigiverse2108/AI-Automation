@@ -7,7 +7,11 @@ import {
   MapPin, DollarSign, Calendar, Briefcase, ChevronLeft, ChevronRight, 
   Bookmark, ArrowRight, Edit2, Trash2, X, Loader2, Save
 } from 'lucide-react';
-import LeadDetailsModal from '../../../components/LeadDetailsModal';
+import dynamic from 'next/dynamic';
+
+const LeadDetailsModal = dynamic(() => import('../../../components/LeadDetailsModal'), {
+  ssr: false,
+});
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { useConfirmStore } from '../../../lib/store';
 

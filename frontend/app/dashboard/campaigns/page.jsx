@@ -6,7 +6,11 @@ import {
   CheckCircle2, AlertTriangle, Loader2, Clock, ArrowUpRight, Edit2, Trash2
 } from 'lucide-react';
 import api from '../../../lib/api';
-import CampaignForm from '../../../components/CampaignForm';
+import dynamic from 'next/dynamic';
+
+const CampaignForm = dynamic(() => import('../../../components/CampaignForm'), {
+  ssr: false,
+});
 import { useConfirmStore } from '../../../lib/store';
 import { formatDate } from '../../../lib/utils';
 
@@ -129,9 +133,13 @@ export default function CampaignsPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((card, i) => (
-          <div key={i} className="glass-card p-5">
+          <div
+            key={i}
+            style={{ animationDelay: `${i * 50}ms` }}
+            className="glass-card animate-card-in p-5 hover:shadow-wa-md hover:-translate-y-1 transition-all duration-300 group cursor-default"
+          >
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl ${card.color} ${card.text} flex items-center justify-center`}>
+              <div className={`w-10 h-10 rounded-xl ${card.color} ${card.text} flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
                 {card.icon}
               </div>
               <div>
@@ -187,7 +195,7 @@ export default function CampaignsPage() {
                   </td>
                 </tr>
               ) : (
-                campaigns.map((campaign) => {
+                campaigns.map((campaign, idx) => {
                   let target = 'All Contacts';
                   if (campaign.audience?.type === 'tag') {
                     target = `Tags: ${campaign.audience?.tags?.join(', ') || ''}`;
@@ -205,7 +213,11 @@ export default function CampaignsPage() {
                   const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
 
                   return (
-                    <tr key={campaign._id} className="hover:bg-wa-hover/50 dark:hover:bg-wa-dark-hover/50 transition-colors">
+                    <tr
+                      key={campaign._id}
+                      style={{ animationDelay: `${Math.min(idx, 15) * 30}ms` }}
+                      className="animate-row-in hover:bg-wa-hover/60 dark:hover:bg-wa-dark-hover/60 transition-all"
+                    >
                       <td className="px-6 py-4 font-semibold text-wa-text-primary dark:text-wa-dark-text-primary">{campaign.name}</td>
                       <td className="px-6 py-4 text-wa-text-secondary font-mono text-xs">{campaign.templateName}</td>
                       <td className="px-6 py-4 text-wa-text-secondary text-xs">{target}</td>

@@ -22,7 +22,7 @@ export default function Home() {
   useEffect(() => {
     if (!loading) {
       if (isAuthenticated) {
-        router.push('/dashboard');
+        router.replace('/dashboard');
       }
     }
   }, [isAuthenticated, loading, router]);

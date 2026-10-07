@@ -7,10 +7,22 @@ import {
   Phone, Video, MoreVertical, Send, Smile, Paperclip, Trash2
 } from 'lucide-react';
 import api from '../../../lib/api';
-import BotFlowCanvas from '../../../components/BotFlowCanvas';
-import FlowSimulatorPanel from '../../../components/FlowSimulatorPanel';
-import BotMediaLibrary from '../../../components/BotMediaLibrary';
+import dynamic from 'next/dynamic';
 import { useConfirmStore } from '../../../lib/store';
+
+const BotFlowCanvas = dynamic(() => import('../../../components/BotFlowCanvas'), {
+  loading: () => (
+    <div className="w-full h-[600px] flex items-center justify-center bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+      <div className="flex flex-col items-center gap-2">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
+        <span className="text-xs text-slate-500">Loading flow canvas...</span>
+      </div>
+    </div>
+  ),
+  ssr: false,
+});
+const FlowSimulatorPanel = dynamic(() => import('../../../components/FlowSimulatorPanel'), { ssr: false });
+const BotMediaLibrary = dynamic(() => import('../../../components/BotMediaLibrary'), { ssr: false });
 
 export default function BotBuilderPage() {
   const confirm = useConfirmStore((state) => state.confirm);

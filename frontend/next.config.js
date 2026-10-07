@@ -32,7 +32,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   experimental: {
-    optimizePackageImports: ['lucide-react', 'date-fns', 'recharts'],
+    optimizePackageImports: ['lucide-react', 'date-fns', 'recharts', 'reactflow', '@headlessui/react'],
   },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || rootEnv.NEXT_PUBLIC_API_URL || '',
