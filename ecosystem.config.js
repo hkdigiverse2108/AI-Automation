@@ -43,7 +43,8 @@ module.exports = {
       exec_mode: 'cluster',
       env: {
         NODE_ENV: 'production',
-        PORT: 3000
+        PORT: 3000,
+        BACKEND_INTERNAL_URL: 'http://127.0.0.1:5588'
       },
       watch: false,
       max_memory_restart: '1G',

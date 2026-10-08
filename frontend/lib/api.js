@@ -58,23 +58,54 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+    if (!original) {
+      return Promise.reject(error);
+    }
+
+    const requestUrl = original.url || '';
+    const isAuthEndpoint = (
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/refresh') ||
+      requestUrl.includes('/auth/register') ||
+      requestUrl.includes('/auth/verify-2fa') ||
+      requestUrl.includes('/auth/forgot-password') ||
+      requestUrl.includes('/auth/reset-password')
+    );
+
+    // Never attempt token refresh or reload on auth endpoints (e.g. invalid credentials during login)
+    if (isAuthEndpoint) {
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (!refreshToken) throw new Error('No refresh token');
 
-        const { data } = await axios.post(`${baseURL}/auth/refresh`, { refreshToken });
+        const cleanBase = baseURL.replace(/\/$/, '');
+        const refreshEndpoint = cleanBase.endsWith('/api')
+          ? `${cleanBase}/auth/refresh`
+          : `${cleanBase}/api/auth/refresh`;
+
+        const { data } = await axios.post(refreshEndpoint, { refreshToken });
         if (data.success) {
           localStorage.setItem('accessToken', data.data.accessToken);
           localStorage.setItem('refreshToken', data.data.refreshToken);
           original.headers.Authorization = `Bearer ${data.data.accessToken}`;
           return api(original);
         }
-      } catch {
+      } catch (refreshErr) {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        if (typeof window !== 'undefined') window.location.href = '/login';
+        // Only redirect to /login if we are not already on the login or auth page to avoid page reload loops
+        if (
+          typeof window !== 'undefined' &&
+          window.location.pathname !== '/login' &&
+          !window.location.pathname.startsWith('/login')
+        ) {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

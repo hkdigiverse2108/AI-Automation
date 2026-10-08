@@ -1,5 +1,27 @@
 import { NextResponse } from 'next/server';
 
+function resolveBackendBase() {
+  let raw = process.env.BACKEND_INTERNAL_URL || process.env.BACKEND_URL;
+
+  if (!raw && process.env.NEXT_PUBLIC_API_URL) {
+    const pub = process.env.NEXT_PUBLIC_API_URL.trim();
+    if (pub.startsWith('http://') || pub.startsWith('https://')) {
+      raw = pub;
+    }
+  }
+
+  if (!raw) {
+    const port = process.env.PORT && process.env.PORT !== '3000' ? process.env.PORT : '5588';
+    raw = `http://127.0.0.1:${port}`;
+  }
+
+  let base = raw.trim().replace(/\/$/, '');
+  if (base.endsWith('/api')) {
+    base = base.slice(0, -4);
+  }
+  return base;
+}
+
 async function handleProxy(req, { params }) {
   const pathParts = params.path || [];
   const path = pathParts.join('/');
@@ -8,7 +30,7 @@ async function handleProxy(req, { params }) {
   const { search } = new URL(req.url);
   
   // Construct the target URL pointing to the live backend
-  const targetBase = (process.env.NEXT_PUBLIC_API_URL || 'https://api-automation.hkdigiverse.com').replace(/\/$/, '');
+  const targetBase = resolveBackendBase();
   const targetUrl = `${targetBase}/api/${path}${search}`;
 
   // Clone headers and remove CORS/Host headers that cause issues
@@ -25,8 +47,12 @@ async function handleProxy(req, { params }) {
   });
   
   // Set Host header for the target
-  const targetHost = new URL(targetBase).host;
-  headers.set('host', targetHost);
+  try {
+    const targetHost = new URL(targetBase).host;
+    headers.set('host', targetHost);
+  } catch (e) {
+    // URL parse fallback
+  }
 
   const method = req.method;
   let body = undefined;

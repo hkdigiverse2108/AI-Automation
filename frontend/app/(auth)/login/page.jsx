@@ -38,9 +38,16 @@ export default function LoginPage() {
         toast.error(result.error || 'Login failed');
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Login failed');
+      console.error('[Login Submit Error]:', err);
+      const errorMsg =
+        err.response?.data?.details?.[0]?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        'Login failed';
+      toast.error(errorMsg);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handle2FAVerify = async (e) => {
@@ -58,9 +65,16 @@ export default function LoginPage() {
         toast.error(result.error || 'Invalid 2FA code');
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Verification failed');
+      console.error('[2FA Verify Error]:', err);
+      const errorMsg =
+        err.response?.data?.details?.[0]?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        'Verification failed';
+      toast.error(errorMsg);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
