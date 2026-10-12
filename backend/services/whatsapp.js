@@ -185,9 +185,14 @@ async function metaApiCall(method, url, data, token, retries = 0) {
       logger.error('Failed to save ApiLog for failure:', logErr.message);
     }
 
+    const detailedMsg = errData.error_data?.details || 
+                        errData.error_user_msg || 
+                        errData.message || 
+                        error.message;
+
     return {
       success: false,
-      error: errData.message || error.message,
+      error: detailedMsg,
       code: errData.code,
       error_subcode: errData.error_subcode,
       fbtrace_id: errData.fbtrace_id,
@@ -634,9 +639,10 @@ async function getResumableUploadHandleFromMediaId(mediaId, token) {
     logger.info(`Resumable Upload complete. Generated handle: ${handle}`);
     return handle;
   } catch (error) {
-    const errData = error.response?.data || {};
-    logger.error('Failed to generate Resumable Upload Handle:', errData);
-    throw new Error(errData.error?.message || error.message || 'Resumable Upload failed');
+    const errObj = error.response?.data?.error || error.response?.data || {};
+    const detailedMsg = errObj.error_data?.details || errObj.error_user_msg || errObj.message || error.message || 'Resumable Upload failed';
+    logger.error('Failed to generate Resumable Upload Handle:', errObj);
+    throw new Error(`Media Resumable Upload error: ${detailedMsg}`);
   }
 }
 

@@ -144,6 +144,18 @@ export default function TemplatesPage() {
       }
     }
 
+    if (newTemplate.buttonText) {
+      const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
+      if (emojiRegex.test(newTemplate.buttonText)) {
+        toast.error('Meta does not allow emojis in template buttons. Please remove emojis from button text.');
+        return;
+      }
+      if (newTemplate.buttonText.length > 25) {
+        toast.error('Button text must not exceed 25 characters');
+        return;
+      }
+    }
+
     setCreating(true);
     try {
       let payload = {};
@@ -157,19 +169,19 @@ export default function TemplatesPage() {
           isCarousel: newTemplate.isCarousel,
           headerMediaId: newTemplate.headerMediaId,
           components: newTemplate.isCarousel ? [] : [
-            { type: 'BODY', text: newTemplate.bodyText },
             ...(newTemplate.headerType === 'TEXT' && newTemplate.headerText ? [{ type: 'HEADER', format: 'TEXT', text: newTemplate.headerText }] : []),
             ...(newTemplate.headerType === 'IMAGE' ? [{ type: 'HEADER', format: 'IMAGE' }] : []),
             ...(newTemplate.headerType === 'VIDEO' ? [{ type: 'HEADER', format: 'VIDEO' }] : []),
             ...(newTemplate.headerType === 'DOCUMENT' ? [{ type: 'HEADER', format: 'DOCUMENT' }] : []),
+            { type: 'BODY', text: newTemplate.bodyText },
             ...(newTemplate.footerText ? [{ type: 'FOOTER', text: newTemplate.footerText }] : []),
             ...(newTemplate.buttonText ? [{ type: 'BUTTONS', buttons: [{ type: 'QUICK_REPLY', text: newTemplate.buttonText }] }] : [])
           ],
           carouselCards: newTemplate.isCarousel ? newTemplate.carouselCards : null
         };
       } else {
-        // Meta template builder
-        const components = [{ type: 'BODY', text: newTemplate.bodyText }];
+        // Meta template builder — HEADER must always precede BODY per Meta schema
+        const components = [];
 
         if (newTemplate.headerType === 'TEXT' && newTemplate.headerText) {
           components.push({ type: 'HEADER', format: 'TEXT', text: newTemplate.headerText });
@@ -180,6 +192,8 @@ export default function TemplatesPage() {
         } else if (newTemplate.headerType === 'DOCUMENT') {
           components.push({ type: 'HEADER', format: 'DOCUMENT' });
         }
+
+        components.push({ type: 'BODY', text: newTemplate.bodyText });
 
         if (newTemplate.footerText) {
           components.push({ type: 'FOOTER', text: newTemplate.footerText });
@@ -213,7 +227,11 @@ export default function TemplatesPage() {
         fetchTemplates();
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to submit template');
+      const errorMsg = err.response?.data?.error || 
+                       err.response?.data?.details?.error_data?.details || 
+                       err.message || 
+                       'Failed to submit template';
+      toast.error(errorMsg);
     } finally {
       setCreating(false);
     }
@@ -738,6 +756,9 @@ export default function TemplatesPage() {
                             className="input-field py-2 text-xs"
                           >
                             <option value="en">English (en)</option>
+                            <option value="en_US">English (en_US)</option>
+                            <option value="hi">Hindi (hi)</option>
+                            <option value="gu">Gujarati (gu)</option>
                             <option value="es">Spanish (es)</option>
                             <option value="pt_BR">Portuguese (pt_BR)</option>
                           </select>
@@ -820,6 +841,7 @@ export default function TemplatesPage() {
                           onChange={(e) => setNewTemplate({ ...newTemplate, buttonText: e.target.value })}
                           className="input-field py-2 text-xs"
                         />
+                        <p className="text-[10px] text-wa-text-light mt-1">Max 25 chars. (Note: Meta does not allow emojis in template buttons).</p>
                       </div>
                     </>
                   ) : (

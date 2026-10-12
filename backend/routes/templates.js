@@ -10,7 +10,11 @@ async function preprocessComponents(components, headerMediaId, token) {
   if (!components || !Array.isArray(components)) return components;
 
   // Deep clone to avoid mutating original request payload
-  const processed = JSON.parse(JSON.stringify(components));
+  let processed = JSON.parse(JSON.stringify(components));
+
+  // Meta strictly requires components in canonical visual order: HEADER -> BODY -> FOOTER -> BUTTONS
+  const componentOrder = { HEADER: 1, BODY: 2, FOOTER: 3, BUTTONS: 4 };
+  processed.sort((a, b) => (componentOrder[a.type] || 99) - (componentOrder[b.type] || 99));
 
   for (const comp of processed) {
     if (comp.type === 'BODY') {
@@ -18,17 +22,17 @@ async function preprocessComponents(components, headerMediaId, token) {
       const matches = comp.text.match(/\{\{(\d+)\}\}/g);
       if (matches) {
         // Ensure variable placeholders are sequential starting from 1
-        const indices = matches.map(m => parseInt(m.replace(/[^0-9]/g, ''))).sort((a, b) => a - b);
-        for (let i = 0; i < indices.length; i++) {
-          if (indices[i] !== i + 1) {
-            throw new Error(`Body variables must be sequential starting from 1. Found {{${indices[i]}}}, expected {{${i + 1}}}.`);
+        const uniqueIndices = [...new Set(matches.map(m => parseInt(m.replace(/[^0-9]/g, ''))))].sort((a, b) => a - b);
+        for (let i = 0; i < uniqueIndices.length; i++) {
+          if (uniqueIndices[i] !== i + 1) {
+            throw new Error(`Body variables must be sequential starting from 1. Found {{${uniqueIndices[i]}}}, expected {{${i + 1}}}.`);
           }
         }
         
         // Inject example body text values
         comp.example = {
           body_text: [
-            Array.from({ length: matches.length }, (_, i) => `value_${i + 1}`)
+            uniqueIndices.map(idx => `Sample_${idx}`)
           ]
         };
       }
@@ -39,8 +43,9 @@ async function preprocessComponents(components, headerMediaId, token) {
         if (!comp.text) throw new Error('Header text component must have text.');
         const matches = comp.text.match(/\{\{(\d+)\}\}/g);
         if (matches) {
+          const uniqueHeaderIndices = [...new Set(matches.map(m => parseInt(m.replace(/[^0-9]/g, ''))))].sort((a, b) => a - b);
           comp.example = {
-            header_text: Array.from({ length: matches.length }, (_, i) => `header_val_${i + 1}`)
+            header_text: uniqueHeaderIndices.map(idx => `Header_${idx}`)
           };
         }
       } else if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(comp.format)) {
@@ -65,6 +70,17 @@ async function preprocessComponents(components, headerMediaId, token) {
     if (comp.type === 'BUTTONS') {
       if (comp.buttons && Array.isArray(comp.buttons)) {
         for (const btn of comp.buttons) {
+          // Check for emojis in button text (Meta rejects emojis in button text with #100 Invalid parameter)
+          const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
+          if (btn.text && emojiRegex.test(btn.text)) {
+            // Strip emojis cleanly or throw clear message
+            const sanitizedText = btn.text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '').trim();
+            if (!sanitizedText) {
+              throw new Error(`Meta does not allow emojis in template button text ("${btn.text}"). Please enter plain text.`);
+            }
+            btn.text = sanitizedText;
+          }
+
           if (btn.text && btn.text.length > 25) {
             throw new Error(`Button text "${btn.text}" exceeds the 25-character limit.`);
           }
@@ -213,9 +229,13 @@ router.post('/', async (req, res) => {
 
     if (!result.success) {
       console.error('[TEMPLATES ROUTE] Meta template creation failed:', JSON.stringify(result, null, 2));
+      const detailedMetaError = result.error_data?.details || 
+                                result.error_user_msg || 
+                                result.error || 
+                                'Meta API error';
       return res.status(400).json({
         success: false,
-        error: result.error || 'Meta API error',
+        error: detailedMetaError,
         code: 'META_ERROR',
         details: {
           code: result.code,
