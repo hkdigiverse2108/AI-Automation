@@ -16,7 +16,7 @@ const ChatWindow = dynamic(() => import('../../../components/ChatWindow'), {
 import toast from 'react-hot-toast';
 import {
   Search, MessageSquare, Bot as BotIcon, User, Sparkles, Plus, X, Loader2,
-  Filter, MoreVertical, Archive, Clock
+  Filter, MoreVertical, Archive, Clock, Pin, Star
 } from 'lucide-react';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 
@@ -38,9 +38,17 @@ function formatConversationTime(dateStr) {
 
 export default function InboxPage() {
   const { user } = useAuthStore();
-  const { conversations, fetchConversations, fetchMessages, currentConversation, messages, addMessage, updateMessageStatus } = useConversationStore();
+  const { conversations, fetchConversations, fetchMessages, currentConversation, messages, addMessage, updateMessageStatus, togglePinConversation, toggleStarConversation } = useConversationStore();
 
   const sortedConversations = [...conversations].sort((a, b) => {
+    // 0. Pin priority - pinned chats always at the very top (Real WhatsApp style)
+    const aPinned = a.isPinned ? 1 : 0;
+    const bPinned = b.isPinned ? 1 : 0;
+    if (aPinned !== bPinned) return bPinned - aPinned;
+    if (aPinned && bPinned) {
+      return new Date(b.pinnedAt || b.lastMessageAt || 0) - new Date(a.pinnedAt || a.lastMessageAt || 0);
+    }
+
     // 1. Prioritize conversations awaiting human response
     const aAwaiting = (a.status === 'human' && !a.lock_status) ? 1 : 0;
     const bAwaiting = (b.status === 'human' && !b.lock_status) ? 1 : 0;
@@ -61,6 +69,42 @@ export default function InboxPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   const searchRef = useRef(null);
+
+  // Real WhatsApp style instant fuzzy/partial filter for loaded conversations
+  const displayConversations = sortedConversations.filter((conv) => {
+    if (filter === 'starred' && !conv.isStarred) return false;
+    if (filter === 'pinned' && !conv.isPinned) return false;
+
+    if (!search || !search.trim()) return true;
+    const term = search.trim().toLowerCase();
+    const contact = conv.contactId || {};
+    const name = (contact.name || '').toLowerCase();
+    const phone = (contact.phone || '').toString();
+    const phoneClean = phone.replace(/\D/g, '');
+    const termClean = term.replace(/\D/g, '');
+    const lastMsgText = (conv.lastMessage?.text || '').toLowerCase();
+    const tags = Array.isArray(contact.tags) ? contact.tags.join(' ').toLowerCase() : '';
+
+    // Check partial digits match for phone numbers (e.g. typing "9123" matches "+919123456789")
+    if (termClean.length >= 2 && phoneClean.includes(termClean)) return true;
+
+    // Check if every token in search matches name, phone, tags, or last message
+    const tokens = term.split(/\s+/).filter(Boolean);
+    const blob = `${name} ${phone} ${tags} ${lastMsgText}`;
+    return tokens.every((tok) => blob.includes(tok));
+  });
+
+  const handleTogglePin = async (convId) => {
+    const res = await togglePinConversation(convId);
+    if (res?.success) toast.success(res.message);
+    else if (res?.error) toast.error(res.error);
+  };
+
+  const handleToggleStar = async (convId) => {
+    const res = await toggleStarConversation(convId);
+    if (res?.success) toast.success(res.message);
+    else if (res?.error) toast.error(res.error);
+  };
 
   // Set default filter once user role loads
   useEffect(() => {
@@ -85,7 +129,9 @@ export default function InboxPage() {
 
   useEffect(() => {
     const params = { search: debouncedSearch || undefined };
-    if (user?.role === 'agent') {
+    if (filter === 'starred' || filter === 'pinned') {
+      params.status = filter;
+    } else if (user?.role === 'agent') {
       if (filter === 'assigned') {
         params.assignedAgent = user._id;
       } else if (filter === 'unassigned') {
@@ -160,12 +206,42 @@ export default function InboxPage() {
       }));
     });
 
+    socket.on('conversation_pinned', (data) => {
+      useConversationStore.setState((state) => ({
+        conversations: state.conversations.map((c) =>
+          c._id?.toString() === data.conversationId?.toString()
+            ? { ...c, isPinned: data.isPinned, pinnedAt: data.pinnedAt }
+            : c
+        ),
+        currentConversation:
+          state.currentConversation?._id?.toString() === data.conversationId?.toString()
+            ? { ...state.currentConversation, isPinned: data.isPinned, pinnedAt: data.pinnedAt }
+            : state.currentConversation
+      }));
+    });
+
+    socket.on('conversation_starred', (data) => {
+      useConversationStore.setState((state) => ({
+        conversations: state.conversations.map((c) =>
+          c._id?.toString() === data.conversationId?.toString()
+            ? { ...c, isStarred: data.isStarred, starredAt: data.starredAt }
+            : c
+        ),
+        currentConversation:
+          state.currentConversation?._id?.toString() === data.conversationId?.toString()
+            ? { ...state.currentConversation, isStarred: data.isStarred, starredAt: data.starredAt }
+            : state.currentConversation
+      }));
+    });
+
     return () => {
       socket.off('new_message');
       socket.off('message_status');
       socket.off('conversation_assigned');
       socket.off('conversation_read');
       socket.off('conversation_ai_updated');
+      socket.off('conversation_pinned');
+      socket.off('conversation_starred');
     };
   }, [debouncedSearch, filter, user]);
 
@@ -206,7 +282,9 @@ export default function InboxPage() {
   useEffect(() => {
     const getParams = () => {
       const params = { search: debouncedSearch || undefined };
-      if (user?.role === 'agent') {
+      if (filter === 'starred' || filter === 'pinned') {
+        params.status = filter;
+      } else if (user?.role === 'agent') {
         if (filter === 'assigned') {
           params.assignedAgent = user._id;
         } else if (filter === 'unassigned') {
@@ -256,11 +334,15 @@ export default function InboxPage() {
   const filterTabs = isAgent
     ? [
       { key: 'assigned', label: 'My Assigned' },
-      { key: 'unassigned', label: 'Unassigned Queue' }
+      { key: 'unassigned', label: 'Unassigned Queue' },
+      { key: 'starred', label: 'Starred', icon: Star },
+      { key: 'pinned', label: 'Pinned', icon: Pin },
     ]
     : [
       { key: '', label: 'All' },
       { key: 'human', label: 'Unread' },
+      { key: 'starred', label: 'Starred', icon: Star },
+      { key: 'pinned', label: 'Pinned', icon: Pin },
       { key: 'bot', label: 'Bots' },
       { key: 'ai', label: 'AI' },
       { key: 'waiting', label: 'Waiting' },
@@ -302,27 +384,44 @@ export default function InboxPage() {
 
         {/* Search Bar */}
         <div className="px-3 py-1.5 shrink-0">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-wa-text-light" />
+          <div className="relative flex items-center">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-wa-text-light pointer-events-none" />
             <input
               ref={searchRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 bg-wa-search dark:bg-wa-dark-search rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-light border border-wa-border/50 dark:border-wa-dark-border/20 focus:outline-none focus:ring-2 focus:ring-wa-green/20 focus:border-wa-green transition-colors"
+              className="w-full pl-9 pr-8 py-1.5 bg-wa-search dark:bg-wa-dark-search rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-light border border-wa-border/50 dark:border-wa-dark-border/20 focus:outline-none focus:ring-2 focus:ring-wa-green/20 focus:border-wa-green transition-colors"
               placeholder="Search or start new chat"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  searchRef.current?.focus();
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-wa-text-light hover:text-wa-text-primary p-0.5 rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
         {/* Filter Tabs — WhatsApp Web style */}
-        <div className="flex items-center gap-1.5 px-3 pb-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 px-3 pb-2 shrink-0 overflow-x-auto no-scrollbar">
           {filterTabs.map((tab) => {
             const isActive = filter === tab.key;
-            let activeClass = 'bg-wa-green/15 text-wa-green dark:bg-wa-green/20 dark:text-wa-green-light';
+            let activeClass = 'bg-wa-green/15 text-wa-green dark:bg-wa-green/20 dark:text-wa-green-light font-bold';
 
             if (isActive) {
-              if (tab.key === 'bot') {
+              if (tab.key === 'starred') {
+                activeClass = 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 font-bold border-amber-300/30';
+              } else if (tab.key === 'pinned') {
+                activeClass = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold border-emerald-300/30';
+              } else if (tab.key === 'bot') {
                 activeClass = 'bg-purple-100 text-purple-755 dark:bg-purple-950/40 dark:text-purple-300 font-bold border-purple-200/20 dark:border-purple-800/20';
               } else if (tab.key === 'ai') {
                 activeClass = 'bg-emerald-100 text-emerald-755 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold border-emerald-200/20 dark:border-emerald-800/20';
@@ -330,21 +429,30 @@ export default function InboxPage() {
                 activeClass = 'bg-amber-100 text-amber-755 dark:bg-amber-950/40 dark:text-amber-300 font-bold border-amber-200/20 dark:border-amber-800/20';
               } else if (tab.key === 'human') {
                 activeClass = 'bg-blue-100 text-blue-755 dark:bg-blue-950/40 dark:text-blue-300 font-bold border-blue-200/20 dark:border-blue-800/20';
-              } else {
-                activeClass = 'bg-wa-green/15 text-wa-green dark:bg-wa-green/20 dark:text-wa-green-light font-bold';
               }
             }
+
+            const Icon = tab.icon;
 
             return (
               <button
                 key={tab.key}
                 onClick={() => setFilter(tab.key)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border border-transparent ${isActive
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all duration-200 border border-transparent ${isActive
                   ? activeClass
                   : 'bg-wa-search dark:bg-wa-dark-search text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
                   }`}
               >
-                {tab.label}
+                {Icon && (
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${
+                    tab.key === 'starred'
+                      ? 'fill-amber-400 text-amber-500'
+                      : tab.key === 'pinned'
+                      ? 'text-emerald-600 fill-emerald-600/30 rotate-45'
+                      : ''
+                  }`} />
+                )}
+                <span>{tab.label}</span>
               </button>
             );
           })}
@@ -352,13 +460,27 @@ export default function InboxPage() {
 
         {/* Conversation List */}
         <div className="flex-1 overflow-y-auto">
-          {sortedConversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-wa-text-light px-8">
-              <MessageSquare className="w-16 h-16 mb-4 opacity-20" />
-              <p className="text-sm font-medium">No conversations yet</p>
-              <p className="text-xs mt-1 text-center opacity-70">Start a new chat to begin messaging</p>
-            </div>
-          ) : sortedConversations.map((conv) => {
+          {displayConversations.length === 0 ? (
+            search ? (
+              <div className="flex flex-col items-center justify-center h-full text-wa-text-light px-8">
+                <Search className="w-12 h-12 mb-3 opacity-20" />
+                <p className="text-sm font-medium text-wa-text-primary dark:text-white">No chats found</p>
+                <p className="text-xs mt-1 text-center opacity-70">No conversations matching &ldquo;{search}&rdquo;</p>
+                <button
+                  onClick={() => setSearch('')}
+                  className="mt-3 text-xs font-semibold text-wa-green hover:underline"
+                >
+                  Clear search
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-wa-text-light px-8">
+                <MessageSquare className="w-16 h-16 mb-4 opacity-20" />
+                <p className="text-sm font-medium">No conversations yet</p>
+                <p className="text-xs mt-1 text-center opacity-70">Start a new chat to begin messaging</p>
+              </div>
+            )
+          ) : displayConversations.map((conv) => {
             const contact = conv.contactId || {};
             const badge = STATUS_BADGES[conv.status] || {};
             const BadgeIcon = badge.icon;
@@ -371,10 +493,10 @@ export default function InboxPage() {
               <button
                 key={conv._id}
                 onClick={() => selectConversation(conv)}
-                className={`w-full text-left flex items-center gap-3 px-3 py-3 transition-colors duration-100 border-b border-wa-border/50 dark:border-wa-dark-border/50 relative overflow-hidden ${isAwaitingHuman
+                className={`group w-full text-left flex items-center gap-3 px-3 py-3 transition-colors duration-100 border-b border-wa-border/50 dark:border-wa-dark-border/50 relative overflow-hidden ${isAwaitingHuman
                   ? 'border-l-[4px] border-l-amber-500 bg-amber-500/5 dark:bg-amber-500/10'
                   : ''
-                  } ${isActive
+                  } ${conv.isPinned ? 'bg-wa-green/[0.03] dark:bg-wa-green/[0.02]' : ''} ${isActive
                     ? 'bg-wa-hover dark:bg-wa-dark-hover'
                     : 'hover:bg-wa-hover/60 dark:hover:bg-wa-dark-hover/60'
                   }`}
@@ -447,9 +569,17 @@ export default function InboxPage() {
                         </span>
                       )}
                     </div>
-                    <span className={`text-xs shrink-0 ${hasUnread ? 'text-wa-green font-medium' : 'text-wa-text-light'}`}>
-                      {formatConversationTime(conv.lastMessageAt)}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {conv.isStarred && (
+                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400 shrink-0" title="Starred chat" />
+                      )}
+                      {conv.isPinned && (
+                        <Pin className="w-3.5 h-3.5 text-wa-green fill-wa-green/30 rotate-45 shrink-0" title="Pinned chat" />
+                      )}
+                      <span className={`text-xs shrink-0 ${hasUnread ? 'text-wa-green font-medium' : 'text-wa-text-light'}`}>
+                        {formatConversationTime(conv.lastMessageAt)}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between gap-2 mt-0.5">
                     <div className="flex flex-col min-w-0 flex-1">
@@ -473,6 +603,36 @@ export default function InboxPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Quick Pin / Star Actions on hover */}
+                      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTogglePin(conv._id);
+                          }}
+                          className={`p-1 rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors ${
+                            conv.isPinned ? 'text-wa-green' : 'text-wa-text-light hover:text-wa-text-primary'
+                          }`}
+                          title={conv.isPinned ? 'Unpin chat' : 'Pin chat to top'}
+                        >
+                          <Pin className={`w-3.5 h-3.5 rotate-45 ${conv.isPinned ? 'fill-wa-green/40' : ''}`} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleStar(conv._id);
+                          }}
+                          className={`p-1 rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors ${
+                            conv.isStarred ? 'text-amber-500' : 'text-wa-text-light hover:text-amber-500'
+                          }`}
+                          title={conv.isStarred ? 'Unstar chat' : 'Star chat'}
+                        >
+                          <Star className={`w-3.5 h-3.5 ${conv.isStarred ? 'fill-amber-400 text-amber-500' : ''}`} />
+                        </button>
+                      </div>
+
                       {hasUnread && (
                         <span className="min-w-[20px] h-5 bg-wa-green text-white text-[11px] font-bold rounded-full flex items-center justify-center px-1.5">
                           {conv.unreadCount}

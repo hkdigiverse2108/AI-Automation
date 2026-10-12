@@ -12,6 +12,7 @@ import { ScoreBadge } from './ContactScoreCard';
 import { useConfirmStore } from '../lib/store';
 import { getFastCache, setFastCache } from '../lib/usePageData';
 import dynamic from 'next/dynamic';
+import Portal from './Portal';
 
 const ContactDetailsModal = dynamic(() => import('./ContactDetailsModal'), {
   ssr: false,
@@ -707,7 +708,7 @@ export default function ContactTable() {
             <tbody className="divide-y divide-wa-border dark:divide-wa-dark-border text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-12 text-center text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                  <td colSpan="9" className="px-6 py-12 text-center text-wa-text-secondary dark:text-wa-dark-text-secondary">
                     <div className="flex justify-center items-center gap-2">
                       <Loader2 className="w-5 h-5 animate-spin text-wa-green" />
                       <span className="font-medium">Loading contacts...</span>
@@ -716,7 +717,7 @@ export default function ContactTable() {
                 </tr>
               ) : contacts.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-12 text-center text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium">
+                  <td colSpan="9" className="px-6 py-12 text-center text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium">
                     No contacts found matching your criteria.
                   </td>
                 </tr>
@@ -1004,7 +1005,8 @@ export default function ContactTable() {
 
       {/* MODAL: ADD CONTACT */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header shrink-0">
               <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Create New Contact</h3>
@@ -1161,11 +1163,13 @@ export default function ContactTable() {
             </form>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* MODAL: EDIT CONTACT */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header shrink-0">
               <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Edit Contact Details</h3>
@@ -1291,11 +1295,13 @@ export default function ContactTable() {
             </form>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* MODAL: IMPORT CSV / EXCEL */}
       {isImportModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in">
             <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
               <div className="flex items-center gap-2">
@@ -1363,11 +1369,13 @@ export default function ContactTable() {
             </form>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* MODAL: DUPLICATE DETECTION & MERGE */}
       {isDuplicateModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl animate-fade-in flex flex-col max-h-[85vh]">
             <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header shrink-0">
               <div className="flex items-center gap-2.5">
@@ -1499,11 +1507,13 @@ export default function ContactTable() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* MODAL: DIRECT BULK MESSAGE */}
       {isBulkMessageModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
             <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
               <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Send Direct Bulk Message</h3>
@@ -1673,6 +1683,7 @@ export default function ContactTable() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {isDetailsModalOpen && (

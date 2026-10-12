@@ -159,6 +159,19 @@
   .wa-header {
     @apply bg-wa-panel-header dark:bg-wa-dark-panel-header px-4 py-2.5;
   }
+
+  /* ========== UNIVERSAL FULL-SCREEN MODAL OVERLAYS ========== */
+  .modal-overlay,
+  div[class*="fixed inset-0"][class*="z-50"],
+  div[class*="fixed inset-0"][class*="z-[50]"],
+  div[class*="fixed inset-0"][class*="z-[100]"],
+  div[class*="fixed inset-0"][class*="z-[9999]"],
+  div[class*="fixed inset-0"][class*="z-[99999]"] {
+    z-index: 99999 !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    background-color: rgba(0, 0, 0, 0.65) !important;
+  }
 }
 
 /* ========== CHAT BUBBLES — WhatsApp Authentic ========== */
@@ -252,11 +265,9 @@
 @keyframes pageEnter {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 @keyframes cardCascade {
@@ -299,7 +310,7 @@
     transform: translateX(0);
   }
 }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideInLeft { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes slideInRight { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes slideInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }

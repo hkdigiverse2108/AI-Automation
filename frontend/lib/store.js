@@ -208,6 +208,70 @@ export const useConversationStore = create((set, get) => ({
       return { success: false, error: err.response?.data?.error || err.message };
     }
   },
+
+  togglePinConversation: async (conversationId) => {
+    let nextPinned = false;
+    set((state) => {
+      const updatedConversations = state.conversations.map((c) => {
+        if (c._id?.toString() === conversationId?.toString()) {
+          nextPinned = !c.isPinned;
+          return { ...c, isPinned: nextPinned, pinnedAt: nextPinned ? new Date().toISOString() : null };
+        }
+        return c;
+      });
+      const updatedCurrent =
+        state.currentConversation?._id?.toString() === conversationId?.toString()
+          ? { ...state.currentConversation, isPinned: nextPinned, pinnedAt: nextPinned ? new Date().toISOString() : null }
+          : state.currentConversation;
+      return { conversations: updatedConversations, currentConversation: updatedCurrent };
+    });
+
+    try {
+      const { data } = await api.post(`/messages/conversations/${conversationId}/pin`);
+      return data;
+    } catch (err) {
+      set((state) => ({
+        conversations: state.conversations.map((c) =>
+          c._id?.toString() === conversationId?.toString()
+            ? { ...c, isPinned: !nextPinned }
+            : c
+        ),
+      }));
+      return { success: false, error: err.response?.data?.error || err.message };
+    }
+  },
+
+  toggleStarConversation: async (conversationId) => {
+    let nextStarred = false;
+    set((state) => {
+      const updatedConversations = state.conversations.map((c) => {
+        if (c._id?.toString() === conversationId?.toString()) {
+          nextStarred = !c.isStarred;
+          return { ...c, isStarred: nextStarred, starredAt: nextStarred ? new Date().toISOString() : null };
+        }
+        return c;
+      });
+      const updatedCurrent =
+        state.currentConversation?._id?.toString() === conversationId?.toString()
+          ? { ...state.currentConversation, isStarred: nextStarred, starredAt: nextStarred ? new Date().toISOString() : null }
+          : state.currentConversation;
+      return { conversations: updatedConversations, currentConversation: updatedCurrent };
+    });
+
+    try {
+      const { data } = await api.post(`/messages/conversations/${conversationId}/star`);
+      return data;
+    } catch (err) {
+      set((state) => ({
+        conversations: state.conversations.map((c) =>
+          c._id?.toString() === conversationId?.toString()
+            ? { ...c, isStarred: !nextStarred }
+            : c
+        ),
+      }));
+      return { success: false, error: err.response?.data?.error || err.message };
+    }
+  },
 }));
 
 export const useDashboardStore = create((set, get) => ({

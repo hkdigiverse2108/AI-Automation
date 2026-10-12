@@ -27,29 +27,33 @@ router.get('/', async (req, res) => {
       ]
     };
 
-    if (search) {
+    if (search && search.trim()) {
+      const cleanSearch = search.trim();
+      const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedSearch = escapeRegex(cleanSearch);
+      const digitsOnly = cleanSearch.replace(/\D/g, '');
+
       const { getOekForUser, generateHMAC } = require('../services/oekService');
       const rawOek = await getOekForUser(req.userId);
-      if (rawOek) {
-        const hmacSearch = generateHMAC(search, rawOek);
-        query.$and = [
-          {
-            $or: [
-              { nameHash: hmacSearch },
-              { phoneHash: hmacSearch }
-            ]
-          }
-        ];
-      } else {
-        query.$and = [
-          {
-            $or: [
-              { name: { $regex: search, $options: 'i' } },
-              { phone: { $regex: search, $options: 'i' } }
-            ]
-          }
-        ];
+
+      const searchConditions = [
+        { name: { $regex: escapedSearch, $options: 'i' } },
+        { phone: { $regex: escapedSearch, $options: 'i' } }
+      ];
+
+      if (digitsOnly && digitsOnly.length >= 2) {
+        searchConditions.push({ phone: { $regex: digitsOnly } });
       }
+
+      if (rawOek) {
+        const hmacSearch = generateHMAC(cleanSearch, rawOek);
+        searchConditions.push({ nameHash: hmacSearch }, { phoneHash: hmacSearch });
+        if (digitsOnly) {
+          searchConditions.push({ phoneHash: generateHMAC(digitsOnly, rawOek) });
+        }
+      }
+
+      query.$and = [{ $or: searchConditions }];
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);

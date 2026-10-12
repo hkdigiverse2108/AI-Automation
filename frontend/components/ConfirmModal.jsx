@@ -1,6 +1,7 @@
 'use client';
 import { useConfirmStore } from '../lib/store';
 import { AlertTriangle, X } from 'lucide-react';
+import Portal from './Portal';
 
 export default function ConfirmModal() {
   const { isOpen, message, title, resolve } = useConfirmStore();
@@ -8,7 +9,8 @@ export default function ConfirmModal() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+    <Portal>
+      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       {/* Backdrop with soft blur */}
       <div 
         className="absolute inset-0 bg-slate-950/40 backdrop-blur-md transition-opacity duration-300 animate-fade-in"
@@ -59,5 +61,6 @@ export default function ConfirmModal() {
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

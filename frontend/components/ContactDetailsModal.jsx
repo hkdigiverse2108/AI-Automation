@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 import { ScoreBadge } from './ContactScoreCard';
+import Portal from './Portal';
 
 export default function ContactDetailsModal({ contactId, onClose, onUpdateSuccess }) {
   const [loading, setLoading] = useState(true);
@@ -230,12 +231,14 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-8 flex flex-col items-center justify-center shadow-wa-lg w-full max-w-md">
-          <Loader2 className="w-8 h-8 animate-spin text-wa-green mb-3" />
-          <span className="text-sm font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary">Loading details...</span>
+      <Portal>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-8 flex flex-col items-center justify-center shadow-wa-lg w-full max-w-md">
+            <Loader2 className="w-8 h-8 animate-spin text-wa-green mb-3" />
+            <span className="text-sm font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary">Loading details...</span>
+          </div>
         </div>
-      </div>
+      </Portal>
     );
   }
 
@@ -250,7 +253,8 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
   );
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <Portal>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
       <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-5xl overflow-hidden shadow-wa-lg animate-fade-in flex flex-col h-[90vh]">
         
         {/* Modal Header */}
@@ -724,5 +728,6 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
 
       </div>
     </div>
+    </Portal>
   );
 }

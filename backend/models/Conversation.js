@@ -48,7 +48,11 @@ const conversationSchema = new mongoose.Schema(
     isComplaint: { type: Boolean, default: false },
     isRefundRequested: { type: Boolean, default: false },
     isLegalThreat: { type: Boolean, default: false },
-    isVipCustomer: { type: Boolean, default: false }
+    isVipCustomer: { type: Boolean, default: false },
+    isPinned: { type: Boolean, default: false },
+    pinnedAt: { type: Date },
+    isStarred: { type: Boolean, default: false },
+    starredAt: { type: Date }
   },
   { timestamps: true, strict: true }
 );
@@ -59,5 +63,7 @@ conversationSchema.index({ userId: 1, status: 1, lastMessageAt: -1 });
 conversationSchema.index({ userId: 1, contactId: 1 }, { unique: true });
 conversationSchema.index({ userId: 1, assignedAgent: 1 });
 conversationSchema.index({ userId: 1, isRead: 1 });
+conversationSchema.index({ userId: 1, isPinned: -1, lastMessageAt: -1 });
+conversationSchema.index({ userId: 1, isStarred: 1 });
 
 module.exports = mongoose.model('Conversation', conversationSchema);

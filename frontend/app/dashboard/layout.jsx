@@ -267,12 +267,12 @@ export default function DashboardLayout({ children }) {
 
         {/* Main Content Area */}
         {pathname === '/dashboard/inbox' || pathname.startsWith('/dashboard/inbox/') ? (
-          <main key={pathname} className="flex-1 overflow-hidden focus:outline-none animate-page-enter">
+          <main key={pathname} className="flex-1 overflow-hidden focus:outline-none">
             <RouteGuard>{children}</RouteGuard>
           </main>
         ) : (
           <main className="flex-1 overflow-y-auto focus:outline-none">
-            <div key={pathname} className="p-4 sm:p-6 lg:p-8 animate-page-enter">
+            <div key={pathname} className="p-4 sm:p-6 lg:p-8">
               <RouteGuard>{children}</RouteGuard>
             </div>
           </main>

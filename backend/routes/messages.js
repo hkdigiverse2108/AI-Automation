@@ -81,7 +81,15 @@ router.get('/conversations', async (req, res) => {
     const userId = req.userId;
     const query = { userId };
 
-    if (status) query.status = status;
+    if (status) {
+      if (status === 'starred') {
+        query.isStarred = true;
+      } else if (status === 'pinned') {
+        query.isPinned = true;
+      } else {
+        query.status = status;
+      }
+    }
 
     if (req.user.role === 'agent') {
       if (assignedAgent) {
@@ -121,34 +129,111 @@ router.get('/conversations', async (req, res) => {
       }
     }
 
-    let contactIds = null;
-    if (search) {
-      const { getOekForUser, generateHMAC } = require('../services/oekService');
+    if (search && search.trim()) {
+      const cleanSearch = search.trim();
+      const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedSearch = escapeRegex(cleanSearch);
+      const searchTokens = cleanSearch.toLowerCase().split(/\s+/).filter(Boolean);
+      const digitsOnly = cleanSearch.replace(/\D/g, '');
+
+      const { getOekForUser, decryptContact } = require('../services/oekService');
       const rawOek = await getOekForUser(userId);
-      const searchCriteria = [];
-      if (rawOek) {
-        const hmacSearch = generateHMAC(search, rawOek);
-        searchCriteria.push({ nameHash: hmacSearch });
-        searchCriteria.push({ phoneHash: hmacSearch });
+
+      // Check if user has encrypted contacts or rawOek exists
+      const hasEncryptedContacts = rawOek || await Contact.exists({ userId, isDeleted: { $ne: true }, isEncrypted: true });
+
+      let matchedContactIds = [];
+
+      if (hasEncryptedContacts) {
+        // Fetch contacts for this user and decrypt to allow true substring/fuzzy search
+        const userContacts = await Contact.find({ userId, isDeleted: { $ne: true } })
+          .select('_id name phone email tags notes isEncrypted encryptedFields')
+          .lean();
+
+        const decryptedContacts = userContacts.map((c) => decryptContact(c, rawOek));
+
+        matchedContactIds = decryptedContacts
+          .filter((c) => {
+            const nameStr = (c.name || '').toLowerCase();
+            const phoneStr = (c.phone || '').toString();
+            const phoneClean = phoneStr.replace(/\D/g, '');
+            const emailStr = (c.email || '').toLowerCase();
+            const tagsStr = Array.isArray(c.tags) ? c.tags.join(' ').toLowerCase() : '';
+
+            // Clean phone digits match (e.g. typing "9123" matches "+919123456789")
+            if (digitsOnly && digitsOnly.length >= 2 && phoneClean.includes(digitsOnly)) {
+              return true;
+            }
+
+            // Word tokens match (e.g. "neh" matches "Neha Gupta")
+            const fullBlob = `${nameStr} ${phoneStr} ${emailStr} ${tagsStr}`;
+            return searchTokens.every((tok) => fullBlob.includes(tok));
+          })
+          .map((c) => c._id);
       } else {
-        searchCriteria.push({ name: { $regex: search, $options: 'i' } });
-        searchCriteria.push({ phone: { $regex: search, $options: 'i' } });
+        const dbConditions = [
+          { name: { $regex: escapedSearch, $options: 'i' } },
+          { phone: { $regex: escapedSearch, $options: 'i' } },
+          { email: { $regex: escapedSearch, $options: 'i' } },
+          { tags: { $regex: escapedSearch, $options: 'i' } }
+        ];
+        if (digitsOnly && digitsOnly.length >= 2) {
+          dbConditions.push({ phone: { $regex: digitsOnly } });
+        }
+        const contacts = await Contact.find({
+          userId,
+          isDeleted: { $ne: true },
+          $or: dbConditions
+        }).select('_id').lean();
+        matchedContactIds = contacts.map((c) => c._id);
       }
 
-      const contacts = await Contact.find({
-        userId,
-        isDeleted: { $ne: true },
-        $or: searchCriteria,
-      }).select('_id').lean();
-      contactIds = contacts.map((c) => c._id);
-      query.contactId = { $in: contactIds };
+      // Also search message content (WhatsApp Web feature: find chats by message text)
+      let matchedConvIdsFromMessages = [];
+      try {
+        const matchingMessages = await Message.find({
+          userId,
+          text: { $regex: escapedSearch, $options: 'i' }
+        })
+          .select('conversationId')
+          .limit(100)
+          .lean();
+        matchedConvIdsFromMessages = matchingMessages.map((m) => m.conversationId).filter(Boolean);
+      } catch (err) {
+        // Safe regex fallback
+      }
+
+      // Build combined search clause
+      const searchOr = [];
+      if (matchedContactIds.length > 0) {
+        searchOr.push({ contactId: { $in: matchedContactIds } });
+      }
+      if (matchedConvIdsFromMessages.length > 0) {
+        searchOr.push({ _id: { $in: matchedConvIdsFromMessages } });
+      }
+
+      if (searchOr.length > 0) {
+        if (query.$or) {
+          query.$and = (query.$and || []).concat([
+            { $or: query.$or },
+            { $or: searchOr }
+          ]);
+          delete query.$or;
+        } else {
+          query.$or = searchOr;
+        }
+      } else {
+        query.contactId = { $in: [] };
+      }
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const total = await Conversation.countDocuments(query);
 
+    const effectiveSort = sort === '-lastMessageAt' ? { isPinned: -1, pinnedAt: -1, lastMessageAt: -1 } : sort;
+
     const conversations = await Conversation.find(query)
-      .sort(sort)
+      .sort(effectiveSort)
       .skip(skip)
       .limit(parseInt(limit))
       .populate('contactId', 'name phone profilePic source tags')
@@ -334,6 +419,76 @@ router.post('/conversations/:id/read', ...validateObjectId('id'), async (req, re
     res.status(500).json({ success: false, error: 'Failed to mark conversation as read', code: 'READ_ERROR' });
   }
 });
+
+// POST /messages/conversations/:id/pin — toggle pin status
+const handleTogglePin = async (req, res) => {
+  try {
+    const conversation = await Conversation.findOne({ _id: req.params.id, userId: req.userId });
+    if (!conversation) {
+      return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
+    }
+
+    conversation.isPinned = !conversation.isPinned;
+    conversation.pinnedAt = conversation.isPinned ? new Date() : null;
+    await conversation.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      const roomId = req.user.ownerId ? `user_${req.user.ownerId}` : `user_${req.userId}`;
+      io.to(roomId).emit('conversation_pinned', {
+        conversationId: conversation._id,
+        isPinned: conversation.isPinned,
+        pinnedAt: conversation.pinnedAt,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: conversation.isPinned ? 'Chat pinned to top' : 'Chat unpinned',
+      isPinned: conversation.isPinned,
+      data: { conversation },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to toggle pin', code: 'PIN_ERROR' });
+  }
+};
+router.post('/conversations/:id/pin', ...validateObjectId('id'), handleTogglePin);
+router.patch('/conversations/:id/pin', ...validateObjectId('id'), handleTogglePin);
+
+// POST /messages/conversations/:id/star — toggle star status
+const handleToggleStar = async (req, res) => {
+  try {
+    const conversation = await Conversation.findOne({ _id: req.params.id, userId: req.userId });
+    if (!conversation) {
+      return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
+    }
+
+    conversation.isStarred = !conversation.isStarred;
+    conversation.starredAt = conversation.isStarred ? new Date() : null;
+    await conversation.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      const roomId = req.user.ownerId ? `user_${req.user.ownerId}` : `user_${req.userId}`;
+      io.to(roomId).emit('conversation_starred', {
+        conversationId: conversation._id,
+        isStarred: conversation.isStarred,
+        starredAt: conversation.starredAt,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: conversation.isStarred ? 'Chat starred' : 'Chat unstarred',
+      isStarred: conversation.isStarred,
+      data: { conversation },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to toggle star', code: 'STAR_ERROR' });
+  }
+};
+router.post('/conversations/:id/star', ...validateObjectId('id'), handleToggleStar);
+router.patch('/conversations/:id/star', ...validateObjectId('id'), handleToggleStar);
 
 // POST /conversations — find or create conversation for a contact
 router.post('/conversations', async (req, res) => {

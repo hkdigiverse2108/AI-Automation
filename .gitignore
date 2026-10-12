@@ -69,3 +69,7 @@ temp/
 tmp/
 .vercel
 scratch/
+
+
+
+package-lock.json

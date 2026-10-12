@@ -6,7 +6,7 @@ import {
   Send, Paperclip, Smile, Check, CheckCheck, User, Bot, Sparkles,
   Phone, MoreVertical, Search, Mic, Image, FileText, Camera,
   UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, Trash2, Mail, Loader2, MessageSquare, ChevronLeft,
-  Download, Pin, Plus, Save
+  Download, Pin, Plus, Save, Star
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -235,8 +235,22 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   const [templateSearch, setTemplateSearch] = useState('');
   const quickRepliesRef = useRef(null);
 
-  const { sendMessage, fetchConversations, fetchMessages, deleteConversation, markConversationAsRead } = useConversationStore();
+  const { sendMessage, fetchConversations, fetchMessages, deleteConversation, markConversationAsRead, togglePinConversation, toggleStarConversation } = useConversationStore();
   const { user } = useAuthStore();
+
+  const handleTogglePin = async () => {
+    if (!conversation?._id) return;
+    const res = await togglePinConversation(conversation._id);
+    if (res?.success) toast.success(res.message);
+    else if (res?.error) toast.error(res.error);
+  };
+
+  const handleToggleStar = async () => {
+    if (!conversation?._id) return;
+    const res = await toggleStarConversation(conversation._id);
+    if (res?.success) toast.success(res.message);
+    else if (res?.error) toast.error(res.error);
+  };
 
   const isAgent = user?.role === 'agent';
   const isAdmin = ['superadmin', 'owner', 'admin'].includes(user?.role);
@@ -901,6 +915,32 @@ export default function ChatWindow({ conversation, messages, onBack }) {
               </button>
             )}
 
+            {/* Pin Toggle Button */}
+            <button
+              onClick={handleTogglePin}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+                conversation?.isPinned
+                  ? 'text-wa-green bg-wa-green/10'
+                  : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
+              }`}
+              title={conversation?.isPinned ? 'Unpin chat' : 'Pin chat to top'}
+            >
+              <Pin className={`w-4 h-4 rotate-45 ${conversation?.isPinned ? 'fill-wa-green/40' : ''}`} />
+            </button>
+
+            {/* Star Toggle Button */}
+            <button
+              onClick={handleToggleStar}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+                conversation?.isStarred
+                  ? 'text-amber-500 bg-amber-500/10'
+                  : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
+              }`}
+              title={conversation?.isStarred ? 'Unstar chat' : 'Star chat'}
+            >
+              <Star className={`w-4 h-4 ${conversation?.isStarred ? 'fill-amber-400 text-amber-500' : ''}`} />
+            </button>
+
             <button
               onClick={() => setShowSidebar(!showSidebar)}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${showSidebar ? 'text-wa-green bg-wa-green/10' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'}`}
@@ -931,6 +971,14 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                       <CheckCheck className="w-4 h-4 text-blue-500" /> Mark as Read
                     </button>
                   )}
+                  <button onClick={handleTogglePin} className="wa-dropdown-item w-full">
+                    <Pin className={`w-4 h-4 rotate-45 ${conversation?.isPinned ? 'text-wa-green fill-wa-green/40' : ''}`} />
+                    <span>{conversation?.isPinned ? 'Unpin Chat' : 'Pin Chat to Top'}</span>
+                  </button>
+                  <button onClick={handleToggleStar} className="wa-dropdown-item w-full">
+                    <Star className={`w-4 h-4 ${conversation?.isStarred ? 'text-amber-500 fill-amber-400' : ''}`} />
+                    <span>{conversation?.isStarred ? 'Unstar Chat' : 'Star Chat'}</span>
+                  </button>
                   <div className="border-t border-wa-border dark:border-wa-dark-border my-1"></div>
                   <button onClick={handleDeleteChat} className="wa-dropdown-item w-full text-red-500 hover:text-red-650 hover:bg-red-50/50 dark:hover:bg-red-950/20">
                     <Trash2 className="w-4 h-4 text-red-500" /> Delete Chat

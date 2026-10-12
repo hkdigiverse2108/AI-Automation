@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 import { useAuthStore } from '../lib/store';
+import Portal from './Portal';
 
 export default function TaskDetailModal({ taskId, onClose, onUpdateSuccess }) {
   const { user: currentUser } = useAuthStore();
@@ -301,7 +302,8 @@ export default function TaskDetailModal({ taskId, onClose, onUpdateSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <Portal>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
       <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border w-full max-w-4xl max-h-[90vh] rounded-2xl flex flex-col shadow-wa-lg overflow-hidden animate-scale-up">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-wa-border dark:border-wa-dark-border shrink-0 bg-wa-hover dark:bg-wa-dark-panel-header">
@@ -735,5 +737,6 @@ export default function TaskDetailModal({ taskId, onClose, onUpdateSuccess }) {
         )}
       </div>
     </div>
+    </Portal>
   );
 }

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { X, Play, Calendar, Users, FileText, AlertCircle, Loader2, FolderOpen } from 'lucide-react';
 import api from '../lib/api';
+import Portal from './Portal';
 
 export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficial }) {
   const [templates, setTemplates] = useState([]);
@@ -189,7 +190,8 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <Portal>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
       <div className="bg-white dark:bg-dark-900 border border-dark-200 dark:border-dark-700 rounded-2xl w-full max-w-2xl overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-dark-100 dark:border-dark-700 flex justify-between items-center bg-dark-50 dark:bg-dark-800 shrink-0">
@@ -515,5 +517,6 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

@@ -16,108 +16,169 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 router.get('/', async (req, res) => {
   try {
     const { search, tags, source, optedOut, segment, groupId, page = 1, limit = 20, sort = '-createdAt' } = req.query;
-    const query = { userId: req.userId, isDeleted: { $ne: true } };
+    const baseQuery = { userId: req.userId, isDeleted: { $ne: true } };
 
     if (groupId && mongoose.Types.ObjectId.isValid(groupId)) {
       const ContactGroup = require('../models/ContactGroup');
       const mapping = await ContactGroup.find({ groupId, organizationId: req.organizationId }).select('contactId').lean();
       const contactIds = mapping.map((m) => m.contactId);
-      query._id = { $in: contactIds };
+      baseQuery._id = { $in: contactIds };
     }
 
-    if (search) {
-      const { getOekForUser, generateHMAC, decryptAES } = require('../services/oekService');
-      const rawOek = await getOekForUser(req.userId);
-      
-      const Tag = require('../models/Tag');
-      const ContactNote = require('../models/ContactNote');
-
-      // 1. Search tags by name
-      const matchedTags = await Tag.find({ organizationId: req.organizationId, name: { $regex: search, $options: 'i' } }).select('name').lean();
-      const matchedTagNames = matchedTags.map(t => t.name);
-
-      // 2. Search notes by text
-      let noteContactIds = [];
-      if (rawOek) {
-        const allNotes = await ContactNote.find({ organizationId: req.organizationId }).select('contactId note isEncrypted').lean();
-        for (const n of allNotes) {
-          const decNote = n.isEncrypted ? decryptAES(n.note, rawOek) : n.note;
-          if (decNote && decNote.toLowerCase().includes(search.toLowerCase())) {
-            noteContactIds.push(n.contactId);
-          }
-        }
-      } else {
-        const matchedNotes = await ContactNote.find({
-          organizationId: req.organizationId,
-          note: { $regex: search, $options: 'i' }
-        }).select('contactId').lean();
-        noteContactIds = matchedNotes.map(n => n.contactId);
-      }
-
-      // 3. Search standard fields
-      let searchConditions = [];
-      if (rawOek) {
-        const hmacSearch = generateHMAC(search, rawOek);
-        searchConditions = [
-          { nameHash: hmacSearch },
-          { phoneHash: hmacSearch },
-          { emailHash: hmacSearch },
-        ];
-      } else {
-        searchConditions = [
-          { name: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
-        ];
-      }
-
-      // 4. Combine search conditions
-      query.$or = [...searchConditions];
-      if (matchedTagNames.length > 0) {
-        query.$or.push({ tags: { $in: matchedTagNames } });
-      }
-      if (noteContactIds.length > 0) {
-        query.$or.push({ _id: { $in: noteContactIds } });
-      }
-    }
-    if (tags) query.tags = { $in: tags.split(',') };
-    if (source) query.source = source;
-    if (segment) query.segment = segment;
-    if (optedOut !== undefined) query.optedOut = optedOut === 'true';
+    if (tags) baseQuery.tags = { $in: tags.split(',') };
+    if (source) baseQuery.source = source;
+    if (segment) baseQuery.segment = segment;
+    if (optedOut !== undefined) baseQuery.optedOut = optedOut === 'true';
 
     // Additional filters
     if (req.query.assignedAgent) {
       if (mongoose.Types.ObjectId.isValid(req.query.assignedAgent)) {
-        query.assignedAgent = req.query.assignedAgent;
+        baseQuery.assignedAgent = req.query.assignedAgent;
       } else if (req.query.assignedAgent === 'unassigned') {
-        query.assignedAgent = { $exists: false };
+        baseQuery.assignedAgent = { $exists: false };
       }
     }
 
     if (req.query.startDate || req.query.endDate) {
-      query.createdAt = {};
-      if (req.query.startDate) query.createdAt.$gte = new Date(req.query.startDate);
-      if (req.query.endDate) query.createdAt.$lte = new Date(req.query.endDate);
+      baseQuery.createdAt = {};
+      if (req.query.startDate) baseQuery.createdAt.$gte = new Date(req.query.startDate);
+      if (req.query.endDate) baseQuery.createdAt.$lte = new Date(req.query.endDate);
     }
 
     if (req.query.lastActivityStart || req.query.lastActivityEnd) {
-      query.lastMessageAt = {};
-      if (req.query.lastActivityStart) query.lastMessageAt.$gte = new Date(req.query.lastActivityStart);
-      if (req.query.lastActivityEnd) query.lastMessageAt.$lte = new Date(req.query.lastActivityEnd);
+      baseQuery.lastMessageAt = {};
+      if (req.query.lastActivityStart) baseQuery.lastMessageAt.$gte = new Date(req.query.lastActivityStart);
+      if (req.query.lastActivityEnd) baseQuery.lastMessageAt.$lte = new Date(req.query.lastActivityEnd);
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [contacts, total] = await Promise.all([
-      Contact.find(query).sort(sort).skip(skip).limit(parseInt(limit)).lean(),
-      Contact.countDocuments(query),
-    ]);
-
-    const { getOekForUser, decryptContact } = require('../services/oekService');
+    const { getOekForUser, decryptContact, decryptAES, generateHMAC } = require('../services/oekService');
     const rawOek = await getOekForUser(req.userId);
-    const decryptedContacts = contacts.map((c) => decryptContact(c, rawOek));
 
-    res.json({ success: true, data: { contacts: decryptedContacts, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) } });
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const cleanSearch = (search || '').trim();
+
+    let decryptedContacts = [];
+    let total = 0;
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 20;
+
+    if (!cleanSearch) {
+      // Normal paginated query without search
+      const skip = (pageNum - 1) * limitNum;
+      const [contacts, totalCount] = await Promise.all([
+        Contact.find(baseQuery).sort(sort).skip(skip).limit(limitNum).lean(),
+        Contact.countDocuments(baseQuery),
+      ]);
+      decryptedContacts = contacts.map((c) => decryptContact(c, rawOek));
+      total = totalCount;
+    } else {
+      // Universal Smart Search
+      // Step A: Database-level candidates query
+      const escapedSearch = escapeRegex(cleanSearch);
+      const searchTokens = cleanSearch.toLowerCase().split(/\s+/).filter(Boolean);
+      const digitsOnly = cleanSearch.replace(/\D/g, '');
+
+      const dbSearchConditions = [
+        { name: { $regex: escapedSearch, $options: 'i' } },
+        { phone: { $regex: escapedSearch, $options: 'i' } },
+        { email: { $regex: escapedSearch, $options: 'i' } },
+        { tags: { $regex: escapedSearch, $options: 'i' } },
+        { notes: { $regex: escapedSearch, $options: 'i' } },
+      ];
+
+      if (digitsOnly && digitsOnly.length >= 2) {
+        dbSearchConditions.push({ phone: { $regex: digitsOnly } });
+      }
+
+      if (mongoose.Types.ObjectId.isValid(cleanSearch)) {
+        dbSearchConditions.push({ _id: new mongoose.Types.ObjectId(cleanSearch) });
+      }
+
+      if (rawOek) {
+        const hmacSearch = generateHMAC(cleanSearch, rawOek);
+        dbSearchConditions.push(
+          { nameHash: hmacSearch },
+          { phoneHash: hmacSearch },
+          { emailHash: hmacSearch }
+        );
+        if (digitsOnly) {
+          dbSearchConditions.push({ phoneHash: generateHMAC(digitsOnly, rawOek) });
+        }
+      }
+
+      // Check if any contacts in DB are encrypted
+      const hasEncryptedContacts = rawOek || await Contact.exists({ ...baseQuery, isEncrypted: true });
+
+      if (hasEncryptedContacts) {
+        // When encrypted data exists, fetch user's candidate contacts, decrypt and do full fuzzy/substring match
+        const allCandidates = await Contact.find(baseQuery).sort(sort).lean();
+        const decryptedAll = allCandidates.map((c) => decryptContact(c, rawOek));
+
+        const matched = decryptedAll.filter((c) => {
+          const nameStr = (c.name || '').toLowerCase();
+          const phoneStr = (c.phone || '').toString();
+          const phoneClean = phoneStr.replace(/\D/g, '');
+          const emailStr = (c.email || '').toLowerCase();
+          const tagsStr = Array.isArray(c.tags) ? c.tags.join(' ').toLowerCase() : '';
+          const notesStr = (c.notes || '').toLowerCase();
+          const idStr = (c._id || '').toString().toLowerCase();
+
+          // Match by ID
+          if (idStr.includes(cleanSearch.toLowerCase())) return true;
+
+          // Match by clean phone digits
+          if (digitsOnly && digitsOnly.length >= 2 && phoneClean.includes(digitsOnly)) {
+            return true;
+          }
+
+          // Match if every search word is present in name, phone, email, tags or notes
+          const fullBlob = `${nameStr} ${phoneStr} ${emailStr} ${tagsStr} ${notesStr}`;
+          const allTokensMatch = searchTokens.every(tok => fullBlob.includes(tok));
+          if (allTokensMatch) return true;
+
+          // Also check customFields values
+          if (c.customFields && typeof c.customFields === 'object') {
+            const cfValues = Object.values(c.customFields).join(' ').toLowerCase();
+            if (searchTokens.every(tok => `${fullBlob} ${cfValues}`.includes(tok))) {
+              return true;
+            }
+          }
+
+          return false;
+        });
+
+        total = matched.length;
+        const skip = (pageNum - 1) * limitNum;
+        decryptedContacts = matched.slice(skip, skip + limitNum);
+      } else {
+        // Plaintext direct MongoDB database search
+        const query = {
+          ...baseQuery,
+          $or: dbSearchConditions,
+        };
+
+        const skip = (pageNum - 1) * limitNum;
+        const [contacts, totalCount] = await Promise.all([
+          Contact.find(query).sort(sort).skip(skip).limit(limitNum).lean(),
+          Contact.countDocuments(query),
+        ]);
+
+        decryptedContacts = contacts.map((c) => decryptContact(c, rawOek));
+        total = totalCount;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        contacts: decryptedContacts,
+        total,
+        page: pageNum,
+        pages: Math.ceil(total / limitNum) || 1,
+      },
+    });
   } catch (error) {
+    console.error('Fetch contacts error:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch contacts', code: 'FETCH_ERROR' });
   }
 });
