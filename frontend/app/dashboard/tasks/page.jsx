@@ -8,6 +8,7 @@ import {
 import api from '../../../lib/api';
 import dynamic from 'next/dynamic';
 import { useAuthStore } from '../../../lib/store';
+import { getFastCache, setFastCache } from '../../../lib/usePageData';
 
 const TaskDetailModal = dynamic(() => import('../../../components/TaskDetailModal'), {
   ssr: false,
@@ -15,12 +16,13 @@ const TaskDetailModal = dynamic(() => import('../../../components/TaskDetailModa
 
 export default function TasksPage() {
   const { user: currentUser } = useAuthStore();
-  const [tasks, setTasks] = useState([]);
-  const [total, setTotal] = useState(0);
+  const cachedTasks = getFastCache('tasks_my_p1', null);
+  const [tasks, setTasks] = useState(cachedTasks?.tasks || []);
+  const [total, setTotal] = useState(cachedTasks?.total || 0);
   const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(1);
+  const [pages, setPages] = useState(cachedTasks?.pages || 1);
   const [limit] = useState(10);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!cachedTasks?.tasks?.length);
   const [submitting, setSubmitting] = useState(false);
 
   // Tab & Filters State
@@ -71,7 +73,9 @@ export default function TasksPage() {
 
   // Fetch list of tasks
   const fetchTasks = async () => {
-    setLoading(true);
+    if (tasks.length === 0) {
+      setLoading(true);
+    }
     try {
       const params = {
         page,
@@ -86,10 +90,18 @@ export default function TasksPage() {
 
       const { data } = await api.get('/tasks', { params });
       if (data.success) {
-        setTasks(data.data.tasks);
+        const taskList = data.data.tasks || [];
+        setTasks(taskList);
         if (viewMode === 'list') {
-          setTotal(data.data.total);
-          setPages(data.data.pages);
+          setTotal(data.data.total || 0);
+          setPages(data.data.pages || 1);
+          if (activeTab === 'my-tasks' && page === 1 && !search && !statusFilter && !priorityFilter) {
+            setFastCache('tasks_my_p1', {
+              tasks: taskList,
+              total: data.data.total || 0,
+              pages: data.data.pages || 1
+            });
+          }
         }
       }
     } catch (err) {
@@ -112,6 +124,7 @@ export default function TasksPage() {
         newCounts[tab] = results[index].data.data.total;
       });
       setCounts(newCounts);
+      setFastCache('task_counts', newCounts);
     } catch (err) {
       console.error('Failed to fetch task metrics:', err.message);
     }
@@ -122,7 +135,9 @@ export default function TasksPage() {
     try {
       const { data } = await api.get('/tasks/users');
       if (data.success) {
-        setUsers(data.data.users || []);
+        const u = data.data.users || [];
+        setUsers(u);
+        setFastCache('task_users', u);
       }
     } catch (err) {
       console.error('Failed to fetch assignable users:', err.message);

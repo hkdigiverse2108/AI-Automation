@@ -146,6 +146,10 @@ const warmupRoutes = [
   '/dashboard/team-chat',
   '/dashboard/unofficial-campaigns',
   '/dashboard/chat-logs',
+  '/dashboard/triggers',
+  '/dashboard/notifications',
+  '/dashboard/call-logs',
+  '/dashboard/contacts/groups',
 ];
 
 function triggerFrontendWarmup() {

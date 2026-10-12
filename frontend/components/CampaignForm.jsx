@@ -105,11 +105,14 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
     setVariables(next);
   };
 
-  const hasImageHeader = selectedTemplate?.components?.some(
-    c => c.type === 'HEADER' && c.format === 'IMAGE'
+  const headerComponent = selectedTemplate?.components?.find(
+    c => c.type === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(c.format)
   );
+  const headerMediaFormat = headerComponent?.format; // 'IMAGE' | 'VIDEO' | 'DOCUMENT'
+  const hasMediaHeader = !!headerMediaFormat;
+  const hasImageHeader = hasMediaHeader;
 
-  const handleImageUpload = async (e) => {
+  const handleMediaUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
@@ -123,22 +126,23 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
       });
       if (data.success) {
         setHeaderMediaId(data.mediaId);
-        toast.success('Header image uploaded successfully!');
+        toast.success(`Header ${headerMediaFormat ? headerMediaFormat.toLowerCase() : 'media'} uploaded successfully!`);
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to upload image');
+      toast.error(err.response?.data?.error || 'Failed to upload media');
     } finally {
       setUploadingImage(false);
     }
   };
+  const handleImageUpload = handleMediaUpload;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name) return toast.error('Campaign name is required');
     if (!selectedTemplate) return toast.error('Please select a template');
     
-    if (hasImageHeader && !headerMediaId) {
-      return toast.error('This template requires a header image to be uploaded');
+    if (hasMediaHeader && !headerMediaId) {
+      return toast.error(`This template requires a header ${headerMediaFormat.toLowerCase()} to be uploaded`);
     }
     
     if (audienceType === 'tag' && !audienceTags) {
@@ -360,15 +364,25 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
             {/* Template Body Preview & Parameters Mapping */}
             {selectedTemplate && (
               <div className="p-4 bg-dark-50 dark:bg-dark-800/40 border border-dark-250 dark:border-dark-700/50 rounded-xl space-y-4 animate-fade-in">
-                {hasImageHeader && (
+                {hasMediaHeader && (
                   <div className="border-b border-dark-200 dark:border-dark-700 pb-4 space-y-2">
-                    <label className="block text-xs font-bold uppercase text-dark-600 dark:text-dark-350">Header Image *</label>
-                    <p className="text-xs text-dark-400">This template requires a header image. Select a JPEG/PNG image from your PC to upload.</p>
+                    <label className="block text-xs font-bold uppercase text-dark-600 dark:text-dark-350">
+                      {headerMediaFormat === 'VIDEO' ? 'Header Video *' : headerMediaFormat === 'DOCUMENT' ? 'Header Document / PDF *' : 'Header Image *'}
+                    </label>
+                    <p className="text-xs text-dark-400">
+                      {headerMediaFormat === 'VIDEO'
+                        ? 'This template requires a header video (MP4/3GP). Select a video from your PC to upload.'
+                        : headerMediaFormat === 'DOCUMENT'
+                        ? 'This template requires a header document (PDF). Select a PDF file from your PC to upload.'
+                        : 'This template requires a header image. Select a JPEG/PNG image from your PC to upload.'}
+                    </p>
                     <div className="flex flex-col gap-2">
                       {headerMediaId && (
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-450 bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-lg">
-                            {selectedTemplate?.headerMediaId === headerMediaId ? '✓ Pre-saved Template Image Loaded' : '✓ Override Image Uploaded'}
+                            {selectedTemplate?.headerMediaId === headerMediaId
+                              ? `✓ Pre-saved Template ${headerMediaFormat} Loaded`
+                              : `✓ Override ${headerMediaFormat} Uploaded`}
                           </span>
                           <span className="text-[10px] text-dark-400">(ID: {headerMediaId})</span>
                         </div>
@@ -376,15 +390,21 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
                       <div className="flex items-center gap-3">
                         <input 
                           type="file" 
-                          accept="image/*" 
-                          onChange={handleImageUpload}
+                          accept={
+                            headerMediaFormat === 'VIDEO'
+                              ? 'video/mp4,video/3gpp'
+                              : headerMediaFormat === 'DOCUMENT'
+                              ? 'application/pdf,.pdf'
+                              : 'image/*'
+                          }
+                          onChange={handleMediaUpload}
                           disabled={uploadingImage}
                           className="text-xs text-dark-600 dark:text-dark-350 file:mr-4 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-dark-100 hover:file:bg-brand-100 cursor-pointer"
                         />
                         {uploadingImage && (
                           <div className="flex items-center gap-1.5 text-xs text-brand-600 dark:text-brand-400">
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Uploading image...</span>
+                            <span>Uploading {headerMediaFormat?.toLowerCase() || 'media'}...</span>
                           </div>
                         )}
                       </div>
@@ -395,7 +415,11 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
                   <span className="block text-xs font-bold uppercase text-dark-400 mb-1.5">Template Preview</span>
                   <div className="bg-white dark:bg-dark-900 p-3 rounded-lg border border-dark-200 dark:border-dark-800 max-w-sm text-sm shadow-sm space-y-2">
                     {selectedTemplate.components.map((c, i) => {
-                      if (c.type === 'HEADER') return <div key={i} className="font-bold text-dark-800 dark:text-white border-b border-dark-100 dark:border-dark-800 pb-1 text-xs">{c.text}</div>;
+                      if (c.type === 'HEADER') return (
+                        <div key={i} className="font-bold text-dark-800 dark:text-white border-b border-dark-100 dark:border-dark-800 pb-1 text-xs flex items-center gap-1.5">
+                          {c.format === 'VIDEO' ? '🎥 [Video Header]' : c.format === 'DOCUMENT' ? '📄 [Document/PDF Header]' : c.format === 'IMAGE' ? '🖼️ [Image Header]' : (c.text || 'Header')}
+                        </div>
+                      );
                       if (c.type === 'BODY') return <div key={i} className="text-dark-700 dark:text-dark-300 whitespace-pre-wrap">{c.text}</div>;
                       if (c.type === 'FOOTER') return <div key={i} className="text-xs text-dark-400 mt-1">{c.text}</div>;
                       if (c.type === 'BUTTONS') return (

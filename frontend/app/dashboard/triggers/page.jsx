@@ -8,20 +8,22 @@ import {
 import api from '../../../lib/api';
 import { useConfirmStore } from '../../../lib/store';
 import { formatDateOnly } from '../../../lib/utils';
+import { getFastCache, setFastCache } from '../../../lib/usePageData';
 
 export default function TriggersPage() {
   const confirm = useConfirmStore(state => state.confirm);
-  const [triggers, setTriggers] = useState([]);
-  const [templates, setTemplates] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const cachedTriggers = getFastCache('triggers_page_1', null);
+  const [triggers, setTriggers] = useState(cachedTriggers?.triggers || []);
+  const [templates, setTemplates] = useState(() => getFastCache('templates', []));
+  const [loading, setLoading] = useState(!cachedTriggers?.triggers?.length);
   const [submitting, setSubmitting] = useState(false);
 
   // Search & Pagination states
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalTriggers, setTotalTriggers] = useState(0);
+  const [totalPages, setTotalPages] = useState(cachedTriggers?.pages || 1);
+  const [totalTriggers, setTotalTriggers] = useState(cachedTriggers?.total || 0);
 
   // Modal / Form states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,7 +40,9 @@ export default function TriggersPage() {
     try {
       const { data } = await api.get('/templates');
       if (data.success) {
-        setTemplates(data.data.templates);
+        const tmpls = data.data.templates || [];
+        setTemplates(tmpls);
+        setFastCache('templates', tmpls);
       }
     } catch (err) {
       toast.error('Failed to load WhatsApp templates');
@@ -46,7 +50,9 @@ export default function TriggersPage() {
   };
 
   const fetchTriggers = async () => {
-    setLoading(true);
+    if (triggers.length === 0) {
+      setLoading(true);
+    }
     try {
       const { data } = await api.get('/triggers', {
         params: {
@@ -56,9 +62,15 @@ export default function TriggersPage() {
         }
       });
       if (data.success) {
-        setTriggers(data.data.triggers);
-        setTotalPages(data.data.pages || 1);
-        setTotalTriggers(data.data.total || 0);
+        const list = data.data.triggers || [];
+        const pages = data.data.pages || 1;
+        const total = data.data.total || 0;
+        setTriggers(list);
+        setTotalPages(pages);
+        setTotalTriggers(total);
+        if (page === 1 && !search) {
+          setFastCache('triggers_page_1', { triggers: list, pages, total });
+        }
       }
     } catch (err) {
       toast.error('Failed to load reply triggers');

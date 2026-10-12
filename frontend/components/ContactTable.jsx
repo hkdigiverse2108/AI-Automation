@@ -5,11 +5,12 @@ import { toast } from 'react-hot-toast';
 import { 
   Search, Plus, Upload, Trash2, Filter, ChevronLeft, ChevronRight, 
   X, Mail, Phone, User, Tag, HelpCircle, Loader2, MessageSquare, Edit2, CheckSquare, Square,
-  Calendar, Eye
+  Calendar, Eye, Copy, FileSpreadsheet, AlertCircle, Check, Sparkles
 } from 'lucide-react';
 import api from '../lib/api';
 import { ScoreBadge } from './ContactScoreCard';
 import { useConfirmStore } from '../lib/store';
+import { getFastCache, setFastCache } from '../lib/usePageData';
 import dynamic from 'next/dynamic';
 
 const ContactDetailsModal = dynamic(() => import('./ContactDetailsModal'), {
@@ -52,16 +53,18 @@ const getTagColorClass = (tag) => {
 export default function ContactTable() {
   const router = useRouter();
   const confirm = useConfirmStore(state => state.confirm);
-  const [contacts, setContacts] = useState([]);
-  const [total, setTotal] = useState(0);
+
+  const cachedContacts = getFastCache('contacts_page_1', null);
+  const [contacts, setContacts] = useState(cachedContacts?.contacts || []);
+  const [total, setTotal] = useState(cachedContacts?.total || 0);
   const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(1);
+  const [pages, setPages] = useState(cachedContacts?.pages || 1);
   const [limit] = useState(10);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!cachedContacts?.contacts?.length);
 
   // Advanced Filters State
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [agents, setAgents] = useState([]);
+  const [agents, setAgents] = useState(() => getFastCache('team_agents', []));
   const [assignedAgent, setAssignedAgent] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -87,6 +90,7 @@ export default function ContactTable() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   
   // Add Contact Form State
   const [newContact, setNewContact] = useState({
@@ -96,6 +100,7 @@ export default function ContactTable() {
     source: 'manual',
     tags: ''
   });
+  const [addCustomFields, setAddCustomFields] = useState([]);
 
   // Edit Contact Form State
   const [editingContact, setEditingContact] = useState({
@@ -104,8 +109,15 @@ export default function ContactTable() {
     email: '',
     tags: ''
   });
+  const [editCustomFields, setEditCustomFields] = useState([]);
+
+  // Duplicate Scanner State
+  const [duplicateScanning, setDuplicateScanning] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState([]);
+  const [selectedPrimaryMap, setSelectedPrimaryMap] = useState({});
+  const [mergingGroupIndex, setMergingGroupIndex] = useState(null);
   
-  // CSV Import State
+  // Import (CSV / Excel) State
   const [csvFile, setCsvFile] = useState(null);
   const [importing, setImporting] = useState(false);
 
@@ -158,7 +170,9 @@ export default function ContactTable() {
     try {
       const { data } = await api.get('/team-chat/users');
       if (data.success) {
-        setAgents(data.data.users || []);
+        const users = data.data.users || [];
+        setAgents(users);
+        setFastCache('team_agents', users);
       }
     } catch (err) {
       console.error('Failed to load agents list', err);
@@ -170,7 +184,10 @@ export default function ContactTable() {
   }, []);
 
   const fetchContacts = async () => {
-    setLoading(true);
+    // Only show loading spinner if we don't already have contacts rendered
+    if (contacts.length === 0) {
+      setLoading(true);
+    }
     try {
       const params = {
         page,
@@ -192,6 +209,14 @@ export default function ContactTable() {
         setContacts(data.data.contacts);
         setTotal(data.data.total);
         setPages(data.data.pages);
+        // Cache default page 1 for instant return
+        if (page === 1 && !debouncedSearch && !selectedTag && !source && optedOut === '' && !segment && !assignedAgent) {
+          setFastCache('contacts_page_1', {
+            contacts: data.data.contacts,
+            total: data.data.total,
+            pages: data.data.pages,
+          });
+        }
         // Clear selection when contacts change or reload
         setSelectedIds([]);
       }
@@ -231,15 +256,22 @@ export default function ContactTable() {
     }
     
     try {
+      const customFieldsObj = {};
+      addCustomFields.forEach((f) => {
+        if (f.key && f.key.trim()) customFieldsObj[f.key.trim()] = f.value;
+      });
+
       const payload = {
         ...newContact,
-        tags: newContact.tags ? newContact.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+        tags: newContact.tags ? newContact.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        customFields: customFieldsObj
       };
       const { data } = await api.post('/contacts', payload);
       if (data.success) {
         toast.success('Contact added successfully');
         setIsAddModalOpen(false);
         setNewContact({ name: '', phone: '', email: '', source: 'manual', tags: '' });
+        setAddCustomFields([]);
         fetchContacts();
       }
     } catch (err) {
@@ -255,10 +287,16 @@ export default function ContactTable() {
     }
 
     try {
+      const customFieldsObj = {};
+      editCustomFields.forEach((f) => {
+        if (f.key && f.key.trim()) customFieldsObj[f.key.trim()] = f.value;
+      });
+
       const payload = {
         name: editingContact.name,
         email: editingContact.email,
-        tags: editingContact.tags ? editingContact.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+        tags: editingContact.tags ? editingContact.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        customFields: customFieldsObj
       };
       const { data } = await api.put(`/contacts/${editingContact._id}`, payload);
       if (data.success) {
@@ -272,6 +310,9 @@ export default function ContactTable() {
   };
 
   const openEditModal = (contact) => {
+    const cf = contact.customFields;
+    const entries = cf ? Object.entries(cf).map(([k, v]) => ({ key: k, value: String(v) })) : [];
+    setEditCustomFields(entries);
     setEditingContact({
       _id: contact._id,
       name: contact.name || '',
@@ -301,7 +342,6 @@ export default function ContactTable() {
     
     setLoading(true);
     try {
-      // Call individual soft deletes in parallel
       const deletePromises = selectedIds.map(id => api.delete(`/contacts/${id}`));
       await Promise.all(deletePromises);
       toast.success(`${selectedIds.length} contacts deleted successfully`);
@@ -330,7 +370,7 @@ export default function ContactTable() {
   const handleImportCSV = async (e) => {
     e.preventDefault();
     if (!csvFile) {
-      toast.error('Please select a CSV file');
+      toast.error('Please select a CSV or Excel file');
       return;
     }
 
@@ -352,6 +392,61 @@ export default function ContactTable() {
       toast.error(err.response?.data?.error || 'Import failed');
     } finally {
       setImporting(false);
+    }
+  };
+
+  // Duplicate Scanner Handlers
+  const handleOpenDuplicateScanner = async () => {
+    setIsDuplicateModalOpen(true);
+    setDuplicateScanning(true);
+    try {
+      const { data } = await api.get('/contacts/duplicates');
+      if (data.success) {
+        const groups = data.data.groups || [];
+        setDuplicateGroups(groups);
+        const initialMap = {};
+        groups.forEach((grp, idx) => {
+          initialMap[idx] = grp.suggestedPrimaryId || grp.contacts[0]?._id;
+        });
+        setSelectedPrimaryMap(initialMap);
+      }
+    } catch (err) {
+      toast.error('Failed to scan for duplicate contacts');
+    } finally {
+      setDuplicateScanning(false);
+    }
+  };
+
+  const handleMergeGroup = async (groupIndex) => {
+    const group = duplicateGroups[groupIndex];
+    if (!group) return;
+    const primaryId = selectedPrimaryMap[groupIndex] || group.contacts[0]?._id;
+    const duplicateIds = group.contacts.map(c => c._id).filter(id => id.toString() !== primaryId.toString());
+
+    if (duplicateIds.length === 0) {
+      toast.error('Please select a valid primary contact different from duplicates');
+      return;
+    }
+
+    if (!await confirm(`Merge ${duplicateIds.length} duplicate contacts into the selected primary contact? Messages, tags, notes, and custom fields will be consolidated.`)) {
+      return;
+    }
+
+    setMergingGroupIndex(groupIndex);
+    try {
+      const { data } = await api.post('/contacts/merge', {
+        primaryContactId: primaryId,
+        duplicateContactIds: duplicateIds
+      });
+      if (data.success) {
+        toast.success(data.message || 'Contacts merged successfully!');
+        setDuplicateGroups(prev => prev.filter((_, idx) => idx !== groupIndex));
+        fetchContacts();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to merge contacts');
+    } finally {
+      setMergingGroupIndex(null);
     }
   };
 
@@ -384,11 +479,19 @@ export default function ContactTable() {
         </div>
         <div className="flex items-center gap-3">
           <button 
+            onClick={handleOpenDuplicateScanner}
+            className="flex items-center gap-2 px-3.5 py-2 border border-amber-500/30 dark:border-amber-500/20 text-amber-600 dark:text-amber-400 bg-amber-500/5 hover:bg-amber-500/10 rounded-xl text-sm font-semibold transition-all duration-200"
+            title="Scan and merge duplicate contacts"
+          >
+            <Copy className="w-4 h-4 text-amber-500" />
+            <span>Duplicate Scanner</span>
+          </button>
+          <button 
             onClick={() => setIsImportModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 border border-wa-border dark:border-wa-dark-border text-wa-text-primary dark:text-wa-dark-text-primary bg-white dark:bg-wa-dark-panel hover:bg-wa-bg dark:hover:bg-wa-dark-header rounded-xl text-sm font-semibold transition-all duration-200"
           >
             <Upload className="w-4 h-4" />
-            <span>Import CSV</span>
+            <span>Import CSV / Excel</span>
           </button>
           <button 
             onClick={() => setIsAddModalOpen(true)}
@@ -902,15 +1005,15 @@ export default function ContactTable() {
       {/* MODAL: ADD CONTACT */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
-            <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
+          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header shrink-0">
               <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Create New Contact</h3>
               <button onClick={() => setIsAddModalOpen(false)} className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors">
                 <X className="w-5 h-5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
               </button>
             </div>
             
-            <form onSubmit={handleAddContact} className="p-6 space-y-4">
+            <form onSubmit={handleAddContact} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Full Name *</label>
                 <div className="relative">
@@ -971,6 +1074,75 @@ export default function ContactTable() {
                 <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">Comma-separated tags list</p>
               </div>
 
+              {/* Dynamic Custom Fields in Add Contact */}
+              <div className="pt-3 border-t border-wa-border dark:border-wa-dark-border space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary">Custom Fields (Optional)</label>
+                  <button
+                    type="button"
+                    onClick={() => setAddCustomFields([...addCustomFields, { key: '', value: '' }])}
+                    className="text-xs font-semibold text-wa-green hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Field
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {['Company', 'City', 'Designation'].map((field) => (
+                    <button
+                      key={field}
+                      type="button"
+                      onClick={() => {
+                        if (!addCustomFields.some(f => f.key.toLowerCase() === field.toLowerCase())) {
+                          setAddCustomFields([...addCustomFields, { key: field, value: '' }]);
+                        }
+                      }}
+                      className="px-2 py-0.5 text-[10px] rounded-md bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border text-wa-text-secondary hover:text-wa-green hover:border-wa-green/40 transition-colors"
+                    >
+                      + {field}
+                    </button>
+                  ))}
+                </div>
+
+                {addCustomFields.length > 0 && (
+                  <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                    {addCustomFields.map((f, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Field name (e.g. City)"
+                          value={f.key}
+                          onChange={(e) => {
+                            const updated = [...addCustomFields];
+                            updated[idx].key = e.target.value;
+                            setAddCustomFields(updated);
+                          }}
+                          className="w-1/2 px-3 py-1.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-lg text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-1 focus:ring-wa-green"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Value"
+                          value={f.value}
+                          onChange={(e) => {
+                            const updated = [...addCustomFields];
+                            updated[idx].value = e.target.value;
+                            setAddCustomFields(updated);
+                          }}
+                          className="w-1/2 px-3 py-1.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-lg text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-1 focus:ring-wa-green"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAddCustomFields(addCustomFields.filter((_, i) => i !== idx))}
+                          className="p-1 text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
                 <button 
                   type="button" 
@@ -994,15 +1166,15 @@ export default function ContactTable() {
       {/* MODAL: EDIT CONTACT */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
-            <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
+          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header shrink-0">
               <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Edit Contact Details</h3>
               <button onClick={() => setIsEditModalOpen(false)} className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors">
                 <X className="w-5 h-5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
               </button>
             </div>
             
-            <form onSubmit={handleEditContact} className="p-6 space-y-4">
+            <form onSubmit={handleEditContact} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Full Name *</label>
                 <div className="relative">
@@ -1047,6 +1219,60 @@ export default function ContactTable() {
                 <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">Comma-separated tags list</p>
               </div>
 
+              {/* Dynamic Custom Fields in Edit Contact */}
+              <div className="pt-3 border-t border-wa-border dark:border-wa-dark-border space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary">Custom Fields</label>
+                  <button
+                    type="button"
+                    onClick={() => setEditCustomFields([...editCustomFields, { key: '', value: '' }])}
+                    className="text-xs font-semibold text-wa-green hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Field
+                  </button>
+                </div>
+
+                {editCustomFields.length > 0 ? (
+                  <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                    {editCustomFields.map((f, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Field name"
+                          value={f.key}
+                          onChange={(e) => {
+                            const updated = [...editCustomFields];
+                            updated[idx].key = e.target.value;
+                            setEditCustomFields(updated);
+                          }}
+                          className="w-1/2 px-3 py-1.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-lg text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-1 focus:ring-wa-green"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Value"
+                          value={f.value}
+                          onChange={(e) => {
+                            const updated = [...editCustomFields];
+                            updated[idx].value = e.target.value;
+                            setEditCustomFields(updated);
+                          }}
+                          className="w-1/2 px-3 py-1.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-lg text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-1 focus:ring-wa-green"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditCustomFields(editCustomFields.filter((_, i) => i !== idx))}
+                          className="p-1 text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary italic">No custom fields assigned to this contact.</p>
+                )}
+              </div>
+
               <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
                 <button 
                   type="button" 
@@ -1067,12 +1293,15 @@ export default function ContactTable() {
         </div>
       )}
 
-      {/* MODAL: IMPORT CSV */}
+      {/* MODAL: IMPORT CSV / EXCEL */}
       {isImportModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
+          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in">
             <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
-              <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Import Audience CSV</h3>
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-wa-green" />
+                <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Import Audience (CSV & Excel)</h3>
+              </div>
               <button onClick={() => setIsImportModalOpen(false)} className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors">
                 <X className="w-5 h-5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
               </button>
@@ -1080,27 +1309,30 @@ export default function ContactTable() {
 
             <form onSubmit={handleImportCSV} className="p-6 space-y-4">
               <div className="p-4 bg-wa-green/10 border border-wa-green/30 dark:border-wa-green/20 rounded-xl space-y-2">
-                <h4 className="text-xs font-bold text-wa-green dark:text-wa-green-light uppercase flex items-center gap-1">
-                  <HelpCircle className="w-4 h-4" /> CSV File Format Guidelines
+                <h4 className="text-xs font-bold text-wa-green dark:text-wa-green-light uppercase flex items-center gap-1.5">
+                  <HelpCircle className="w-4 h-4" /> Spreadsheet Format Guidelines (.csv, .xlsx, .xls)
                 </h4>
                 <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary leading-relaxed">
-                  Your CSV must have a header row. The <span className="font-bold">phone</span> column is required (include country code). Optional: <span className="font-bold">name</span>, <span className="font-bold">email</span>, <span className="font-bold">tags</span> (semi-colon separated).
+                  Your spreadsheet must have a header row with a <span className="font-bold text-wa-text-primary dark:text-white">phone</span> column (with country code). Optional: <span className="font-bold text-wa-text-primary dark:text-white">name</span>, <span className="font-bold text-wa-text-primary dark:text-white">email</span>, <span className="font-bold text-wa-text-primary dark:text-white">tags</span>.
+                </p>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">
+                  💡 <strong>Custom Fields Auto-Import:</strong> Any extra columns (like Company, City, Address) will automatically be saved into Custom Fields!
                 </p>
                 <div className="bg-wa-bg dark:bg-wa-dark-header p-2.5 rounded-lg border border-wa-border dark:border-wa-dark-border font-mono text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary overflow-x-auto leading-relaxed">
-                  phone,name,email,tags<br />
-                  +14155552671,John Doe,john@test.com,vip;leads<br />
-                  +14155559876,Jane Smith,,promo
+                  phone,name,email,tags,company,city<br />
+                  +14155552671,John Doe,john@test.com,vip;leads,HK Digiverse,Ahmedabad<br />
+                  +919876543210,Jane Smith,,promo,Acme Corp,Surat
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Select CSV File</label>
+                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Select CSV or Excel File</label>
                 <input
                   type="file"
-                  accept=".csv"
+                  accept=".csv, .xlsx, .xls"
                   required
                   onChange={(e) => setCsvFile(e.target.files[0])}
-                  className="w-full text-xs text-wa-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-wa-border dark:file:border-wa-dark-border file:text-xs file:font-semibold file:bg-wa-bg dark:file:bg-wa-dark-header file:text-wa-text-primary dark:file:text-wa-dark-text-primary hover:file:bg-wa-border dark:hover:file:bg-wa-dark-border cursor-pointer transition-colors"
+                  className="w-full text-xs text-wa-text-secondary file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border file:border-wa-border dark:file:border-wa-dark-border file:text-xs file:font-semibold file:bg-wa-bg dark:file:bg-wa-dark-header file:text-wa-text-primary dark:file:text-wa-dark-text-primary hover:file:bg-wa-border dark:hover:file:bg-wa-dark-border cursor-pointer transition-colors"
                 />
               </div>
 
@@ -1121,7 +1353,7 @@ export default function ContactTable() {
                   {importing ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Importing...</span>
+                      <span>Importing Spreadsheet...</span>
                     </>
                   ) : (
                     <span>Start Import</span>
@@ -1129,6 +1361,142 @@ export default function ContactTable() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DUPLICATE DETECTION & MERGE */}
+      {isDuplicateModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl animate-fade-in flex flex-col max-h-[85vh]">
+            <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                  <Copy className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary text-base">Duplicate Contact Scanner</h3>
+                  <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary">Detect contacts sharing the same phone number or email and merge them cleanly.</p>
+                </div>
+              </div>
+              <button onClick={() => setIsDuplicateModalOpen(false)} className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors">
+                <X className="w-5 h-5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {duplicateScanning ? (
+                <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                  <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+                  <p className="text-sm font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary">Scanning audience for duplicates...</p>
+                </div>
+              ) : duplicateGroups.length === 0 ? (
+                <div className="py-12 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto mb-3">
+                    <Check className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary text-base">Zero Duplicates Found!</h4>
+                  <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary max-w-sm mx-auto">
+                    Your contact database has no duplicate records sharing the same phone number or email address.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between text-xs text-amber-700 dark:text-amber-300">
+                    <span>Found <strong>{duplicateGroups.length}</strong> duplicate cluster(s) across your database.</span>
+                    <span className="text-[11px] opacity-80">Select which contact to keep as Primary (Master).</span>
+                  </div>
+
+                  {duplicateGroups.map((group, gIdx) => {
+                    const currentPrimaryId = selectedPrimaryMap[gIdx] || group.contacts[0]?._id;
+                    const isMergingThis = mergingGroupIndex === gIdx;
+
+                    return (
+                      <div key={gIdx} className="border border-wa-border dark:border-wa-dark-border rounded-xl p-4 bg-wa-bg/30 dark:bg-wa-dark-header/20 space-y-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                              Matching {group.type}: {group.matchKey}
+                            </span>
+                            <span className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium">({group.contacts.length} copies)</span>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isMergingThis}
+                            onClick={() => handleMergeGroup(gIdx)}
+                            className="px-3.5 py-1.5 text-xs font-bold text-white bg-wa-green hover:bg-wa-green-hover rounded-lg shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            {isMergingThis ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                            <span>Merge Group</span>
+                          </button>
+                        </div>
+
+                        {/* Contacts Comparison Table / List */}
+                        <div className="space-y-2">
+                          {group.contacts.map((c) => {
+                            const isPrimary = c._id.toString() === currentPrimaryId?.toString();
+                            return (
+                              <label
+                                key={c._id}
+                                className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
+                                  isPrimary 
+                                    ? 'bg-emerald-500/10 border-emerald-500/40 dark:bg-emerald-500/10 dark:border-emerald-500/30' 
+                                    : 'bg-white dark:bg-wa-dark-panel border-wa-border dark:border-wa-dark-border hover:border-wa-green/30'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`primary_${gIdx}`}
+                                  checked={isPrimary}
+                                  onChange={() => setSelectedPrimaryMap({ ...selectedPrimaryMap, [gIdx]: c._id })}
+                                  className="mt-1 text-wa-green focus:ring-wa-green"
+                                />
+                                <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                  <div>
+                                    <span className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary block truncate">
+                                      {c.name || 'Anonymous'}
+                                      {isPrimary && <span className="ml-1.5 text-[10px] bg-emerald-500 text-white font-bold px-1.5 py-0.2 rounded">PRIMARY</span>}
+                                    </span>
+                                    <span className="text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono text-[11px]">{c.phone}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-wa-text-secondary dark:text-wa-dark-text-secondary block truncate">{c.email || 'No email'}</span>
+                                    <span className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary capitalize">Source: {c.source || 'manual'}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary block">
+                                      Messages: {c.totalMessages || 0}
+                                    </span>
+                                    <div className="flex gap-1 flex-wrap mt-0.5">
+                                      {(c.tags || []).slice(0, 3).map((t, ti) => (
+                                        <span key={ti} className="text-[9px] px-1 py-0.2 rounded bg-wa-bg dark:bg-wa-dark-header border border-wa-border/50">{t}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t border-wa-border dark:border-wa-dark-border bg-wa-bg dark:bg-wa-dark-header flex justify-between items-center shrink-0">
+              <span className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                Merging consolidates all chat histories, notes, and tags into the selected Primary contact.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsDuplicateModalOpen(false)}
+                className="px-4 py-1.5 text-xs font-semibold border border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel rounded-lg hover:bg-wa-bg"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

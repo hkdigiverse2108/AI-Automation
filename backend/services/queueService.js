@@ -56,33 +56,37 @@ async function processCampaignJob(job, isUnofficial) {
 
       result = await whatsapp.sendUnofficialMessage(phoneNumberId, token, contact.phone, templateText || `[Template: ${templateName}]`, headerMediaId);
     } else {
+      // Resolve template language and component format dynamically
+      const Template = require('../models/Template');
+      const tmpl = await Template.findOne({ name: templateName, userId: jobUserId });
+      const languageCode = tmpl ? (tmpl.language || 'en') : 'en';
+
       const templateComponents = [];
 
       if (headerMediaId) {
+        const headerComp = tmpl?.components?.find((c) => c.type === 'HEADER' || c.type?.toLowerCase() === 'header');
+        const format = (headerComp?.format || 'IMAGE').toLowerCase();
+
+        const mediaParam = {
+          type: format,
+          [format]: {
+            id: headerMediaId,
+            ...(format === 'document' ? { filename: 'document.pdf' } : {}),
+          },
+        };
+
         templateComponents.push({
           type: 'header',
-          parameters: [
-            {
-              type: 'image',
-              image: {
-                id: headerMediaId
-              }
-            }
-          ]
+          parameters: [mediaParam],
         });
       }
 
       if (variables.length > 0) {
         templateComponents.push({
           type: 'body',
-          parameters: variables.map((v) => ({ type: 'text', text: v }))
+          parameters: variables.map((v) => ({ type: 'text', text: v })),
         });
       }
-
-      // Resolve template language dynamically
-      const Template = require('../models/Template');
-      const tmpl = await Template.findOne({ name: templateName, userId: jobUserId });
-      const languageCode = tmpl ? (tmpl.language || 'en') : 'en';
 
       result = await whatsapp.sendTemplateMessage(phoneNumberId, token, contact.phone, templateName, languageCode, templateComponents);
     }

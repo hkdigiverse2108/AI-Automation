@@ -34,7 +34,6 @@ const paymentSchema = new mongoose.Schema(
 );
 
 paymentSchema.index({ organizationId: 1, createdAt: -1 });
-paymentSchema.index({ status: 1 });
 
 /**
  * Auto-generate invoice number before save (only for new payments).

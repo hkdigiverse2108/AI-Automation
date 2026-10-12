@@ -1,18 +1,17 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   FileText, RefreshCw, Plus, Trash2, CheckCircle2,
   Clock, AlertTriangle, X, Loader2, Sparkles, LayoutGrid, List, Search, ChevronLeft, ChevronRight, Edit3, Image, Settings
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { usePageData } from '../../../lib/usePageData';
 import { useConfirmStore } from '../../../lib/store';
 import { formatDateOnly } from '../../../lib/utils';
 
 export default function TemplatesPage() {
   const confirm = useConfirmStore(state => state.confirm);
-  const [templates, setTemplates] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -34,6 +33,7 @@ export default function TemplatesPage() {
     headerText: '',
     headerMediaId: '',
     headerMediaUrl: '',
+    headerMediaFilename: '',
     bodyText: '',
     footerText: '',
     buttonText: '',
@@ -47,7 +47,7 @@ export default function TemplatesPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingCardIdx, setUploadingCardIdx] = useState(null);
 
-  const handleImageUpload = async (e, cardIdx = null) => {
+  const handleMediaUpload = async (e, cardIdx = null) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -57,7 +57,7 @@ export default function TemplatesPage() {
       return;
     }
 
-    // Create local Object URL for instant image preview
+    // Create local Object URL for instant preview
     const localUrl = URL.createObjectURL(file);
 
     if (cardIdx !== null) {
@@ -65,7 +65,7 @@ export default function TemplatesPage() {
       cardsCopy[cardIdx].headerMediaUrl = localUrl;
       setNewTemplate(prev => ({ ...prev, carouselCards: cardsCopy }));
     } else {
-      setNewTemplate(prev => ({ ...prev, headerMediaUrl: localUrl }));
+      setNewTemplate(prev => ({ ...prev, headerMediaUrl: localUrl, headerMediaFilename: file.name }));
     }
 
     const formData = new FormData();
@@ -89,29 +89,25 @@ export default function TemplatesPage() {
         } else {
           setNewTemplate(prev => ({ ...prev, headerMediaId: data.mediaId }));
         }
-        toast.success('Header image uploaded!');
+        toast.success('Header media uploaded successfully!');
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to upload image');
+      toast.error(err.response?.data?.error || 'Failed to upload media');
     } finally {
       setUploadingImage(false);
       setUploadingCardIdx(null);
     }
   };
 
-  const fetchTemplates = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get('/templates');
-      if (data.success) setTemplates(data.data.templates);
-    } catch (err) {
-      toast.error('Failed to load templates');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleImageUpload = handleMediaUpload;
 
-  useEffect(() => { fetchTemplates(); }, []);
+  const templateFetcher = useCallback(async () => {
+    const { data } = await api.get('/templates');
+    if (data.success) return data.data.templates;
+    throw new Error('Failed');
+  }, []);
+
+  const { data: templates = [], loading, refresh: fetchTemplates } = usePageData('templates', templateFetcher);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -164,6 +160,8 @@ export default function TemplatesPage() {
             { type: 'BODY', text: newTemplate.bodyText },
             ...(newTemplate.headerType === 'TEXT' && newTemplate.headerText ? [{ type: 'HEADER', format: 'TEXT', text: newTemplate.headerText }] : []),
             ...(newTemplate.headerType === 'IMAGE' ? [{ type: 'HEADER', format: 'IMAGE' }] : []),
+            ...(newTemplate.headerType === 'VIDEO' ? [{ type: 'HEADER', format: 'VIDEO' }] : []),
+            ...(newTemplate.headerType === 'DOCUMENT' ? [{ type: 'HEADER', format: 'DOCUMENT' }] : []),
             ...(newTemplate.footerText ? [{ type: 'FOOTER', text: newTemplate.footerText }] : []),
             ...(newTemplate.buttonText ? [{ type: 'BUTTONS', buttons: [{ type: 'QUICK_REPLY', text: newTemplate.buttonText }] }] : [])
           ],
@@ -177,6 +175,10 @@ export default function TemplatesPage() {
           components.push({ type: 'HEADER', format: 'TEXT', text: newTemplate.headerText });
         } else if (newTemplate.headerType === 'IMAGE') {
           components.push({ type: 'HEADER', format: 'IMAGE' });
+        } else if (newTemplate.headerType === 'VIDEO') {
+          components.push({ type: 'HEADER', format: 'VIDEO' });
+        } else if (newTemplate.headerType === 'DOCUMENT') {
+          components.push({ type: 'HEADER', format: 'DOCUMENT' });
         }
 
         if (newTemplate.footerText) {
@@ -724,6 +726,8 @@ export default function TemplatesPage() {
                             <option value="NONE">None</option>
                             <option value="TEXT">Text</option>
                             <option value="IMAGE">Image</option>
+                            <option value="VIDEO">Video</option>
+                            <option value="DOCUMENT">Document / PDF</option>
                           </select>
                         </div>
                         <div>
@@ -754,19 +758,31 @@ export default function TemplatesPage() {
                         </div>
                       )}
 
-                      {newTemplate.headerType === 'IMAGE' && (
+                      {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(newTemplate.headerType) && (
                         <div className="space-y-2 animate-fade-in border-b border-wa-border dark:border-wa-dark-border pb-3">
-                          <label className="block text-xs font-bold text-wa-text-secondary uppercase">Header Media (Image) *</label>
+                          <label className="block text-xs font-bold text-wa-text-secondary uppercase">
+                            Header Media ({newTemplate.headerType === 'IMAGE' ? 'Image' : newTemplate.headerType === 'VIDEO' ? 'Video' : 'Document / PDF'}) *
+                          </label>
                           <div className="flex items-center gap-3">
                             <input
                               type="file"
-                              accept="image/png, image/jpeg, image/jpg"
-                              onChange={(e) => handleImageUpload(e)}
+                              accept={
+                                newTemplate.headerType === 'IMAGE'
+                                  ? 'image/png, image/jpeg, image/jpg'
+                                  : newTemplate.headerType === 'VIDEO'
+                                  ? 'video/mp4, video/3gpp'
+                                  : 'application/pdf, .pdf'
+                              }
+                              onChange={(e) => handleMediaUpload(e)}
                               disabled={uploadingImage}
                               className="text-xs text-wa-text-secondary file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-wa-search file:text-wa-text-primary hover:file:bg-wa-green/10 cursor-pointer"
                             />
                             {uploadingImage && <Loader2 className="w-4 h-4 animate-spin text-wa-green" />}
-                            {!uploadingImage && newTemplate.headerMediaId && <span className="text-xs font-semibold text-wa-green bg-wa-green/10 px-2.5 py-1 rounded-lg">✓ Uploaded</span>}
+                            {!uploadingImage && newTemplate.headerMediaId && (
+                              <span className="text-xs font-semibold text-wa-green bg-wa-green/10 px-2.5 py-1 rounded-lg">
+                                ✓ {newTemplate.headerType === 'IMAGE' ? 'Image' : newTemplate.headerType === 'VIDEO' ? 'Video' : 'Document'} Uploaded
+                              </span>
+                            )}
                           </div>
                         </div>
                       )}
@@ -975,6 +991,44 @@ export default function TemplatesPage() {
                                     <span className="text-[8px] uppercase font-bold tracking-wider">No Image selected</span>
                                   </>
                                 )}
+                              </div>
+                            )}
+
+                            {newTemplate.headerType === 'VIDEO' && (
+                              <div className="bg-wa-search dark:bg-[#182229] rounded-lg overflow-hidden flex flex-col items-center justify-center text-wa-text-light text-[11px] gap-1 mb-1 border border-dashed border-wa-border dark:border-[#2f3b43] relative min-h-[100px]">
+                                {newTemplate.headerMediaUrl ? (
+                                  <video
+                                    src={newTemplate.headerMediaUrl}
+                                    controls
+                                    className="w-full h-auto max-h-[140px] rounded-lg bg-black"
+                                  />
+                                ) : newTemplate.headerMediaId ? (
+                                  <>
+                                    <span className="text-sm">🎥</span>
+                                    <span className="text-[8px] uppercase font-bold text-wa-green">Header Video Uploaded</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-sm">🎬</span>
+                                    <span className="text-[8px] uppercase font-bold tracking-wider">No Video selected</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+
+                            {newTemplate.headerType === 'DOCUMENT' && (
+                              <div className="bg-wa-search dark:bg-[#182229] rounded-lg p-2.5 flex items-center gap-2.5 mb-1 border border-wa-border dark:border-[#2f3b43]">
+                                <div className="w-8 h-8 rounded bg-red-100 dark:bg-red-950/40 text-red-600 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                  PDF
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-semibold text-wa-text-primary dark:text-white truncate">
+                                    {newTemplate.headerMediaFilename || 'Document.pdf'}
+                                  </p>
+                                  <p className="text-[9px] text-wa-text-secondary">
+                                    {newTemplate.headerMediaId ? '✓ Document Uploaded' : 'No Document selected'}
+                                  </p>
+                                </div>
                               </div>
                             )}
                             {newTemplate.headerType === 'TEXT' && newTemplate.headerText && (

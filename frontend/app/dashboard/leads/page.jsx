@@ -14,15 +14,18 @@ const LeadDetailsModal = dynamic(() => import('../../../components/LeadDetailsMo
 });
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { useConfirmStore } from '../../../lib/store';
+import { getFastCache, setFastCache } from '../../../lib/usePageData';
 
 export default function LeadsPage() {
   const confirm = useConfirmStore((state) => state.confirm);
-  const [leads, setLeads] = useState([]);
-  const [total, setTotal] = useState(0);
+
+  const cachedLeads = getFastCache('leads_page_1', null);
+  const [leads, setLeads] = useState(cachedLeads?.leads || []);
+  const [total, setTotal] = useState(cachedLeads?.total || 0);
   const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(1);
+  const [pages, setPages] = useState(cachedLeads?.pages || 1);
   const [limit] = useState(10);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!cachedLeads?.leads?.length);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   
@@ -46,7 +49,9 @@ export default function LeadsPage() {
   });
 
   const fetchLeads = async () => {
-    setLoading(true);
+    if (leads.length === 0) {
+      setLoading(true);
+    }
     try {
       const params = {
         page,
@@ -55,9 +60,19 @@ export default function LeadsPage() {
       };
       const { data } = await api.get('/leads', { params });
       if (data.success) {
-        setLeads(data.data.leads || []);
-        setTotal(data.data.total || 0);
-        setPages(data.data.pages || 1);
+        const fetchedLeads = data.data.leads || [];
+        const fetchedTotal = data.data.total || 0;
+        const fetchedPages = data.data.pages || 1;
+        setLeads(fetchedLeads);
+        setTotal(fetchedTotal);
+        setPages(fetchedPages);
+        if (page === 1 && !debouncedSearch) {
+          setFastCache('leads_page_1', {
+            leads: fetchedLeads,
+            total: fetchedTotal,
+            pages: fetchedPages
+          });
+        }
       }
     } catch (err) {
       toast.error('Failed to load leads data');

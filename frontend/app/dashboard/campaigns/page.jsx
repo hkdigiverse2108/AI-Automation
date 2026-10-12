@@ -1,11 +1,12 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   Megaphone, Plus, Play, Pause, RefreshCw, BarChart2, Calendar,
   CheckCircle2, AlertTriangle, Loader2, Clock, ArrowUpRight, Edit2, Trash2
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { usePageData } from '../../../lib/usePageData';
 import dynamic from 'next/dynamic';
 
 const CampaignForm = dynamic(() => import('../../../components/CampaignForm'), {
@@ -16,37 +17,23 @@ import { formatDate } from '../../../lib/utils';
 
 export default function CampaignsPage() {
   const confirm = useConfirmStore((state) => state.confirm);
-  const [campaigns, setCampaigns] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
-  const [stats, setStats] = useState({
-    running: 0,
-    scheduled: 0,
-    completed: 0,
-    totalSent: 0
-  });
 
-  const fetchCampaigns = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get('/campaigns');
-      if (data.success) {
-        setCampaigns(data.data.campaigns);
-        const running = data.data.campaigns.filter(c => c.status === 'running').length;
-        const scheduled = data.data.campaigns.filter(c => c.status === 'scheduled').length;
-        const completed = data.data.campaigns.filter(c => c.status === 'completed').length;
-        const totalSent = data.data.campaigns.reduce((acc, c) => acc + (c.stats?.sent || 0), 0);
-        setStats({ running, scheduled, completed, totalSent });
-      }
-    } catch (err) {
-      toast.error('Failed to load campaigns list');
-    } finally {
-      setLoading(false);
-    }
+  const fetcher = useCallback(async () => {
+    const { data } = await api.get('/campaigns');
+    if (data.success) return data.data.campaigns;
+    throw new Error('Failed');
+  }, []);
+
+  const { data: campaigns = [], loading, refresh: fetchCampaigns } = usePageData('campaigns', fetcher);
+
+  const stats = {
+    running: campaigns.filter(c => c.status === 'running').length,
+    scheduled: campaigns.filter(c => c.status === 'scheduled').length,
+    completed: campaigns.filter(c => c.status === 'completed').length,
+    totalSent: campaigns.reduce((acc, c) => acc + (c.stats?.sent || 0), 0),
   };
-
-  useEffect(() => { fetchCampaigns(); }, []);
 
   const handleStartCampaign = async (id) => {
     try {

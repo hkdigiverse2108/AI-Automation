@@ -29,6 +29,11 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
   const [tagActionLoading, setTagActionLoading] = useState(false);
   const tagDropdownRef = useRef(null);
 
+  // Custom Fields states
+  const [isEditingCustomFields, setIsEditingCustomFields] = useState(false);
+  const [customFieldList, setCustomFieldList] = useState([]);
+  const [savingCustomFields, setSavingCustomFields] = useState(false);
+
   useEffect(() => {
     async function loadDetails() {
       setLoading(true);
@@ -36,7 +41,11 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
         // Fetch contact
         const contactRes = await api.get(`/contacts/${contactId}`);
         if (contactRes.data.success) {
-          setContact(contactRes.data.data.contact);
+          const c = contactRes.data.data.contact;
+          setContact(c);
+          const cf = c.customFields;
+          const entries = cf ? Object.entries(cf).map(([k, v]) => ({ key: k, value: String(v) })) : [];
+          setCustomFieldList(entries);
         }
 
         // Fetch notes
@@ -336,6 +345,126 @@ export default function ContactDetailsModal({ contactId, onClose, onUpdateSucces
                 <span className="text-xs text-wa-text-primary dark:text-wa-dark-text-secondary font-medium">Score & Segment</span>
                 <ScoreBadge score={contact.engagementScore} segment={contact.segment} size="sm" />
               </div>
+            </div>
+
+            {/* Custom Fields Section */}
+            <div className="glass-card p-5 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-wa-border dark:border-wa-dark-border">
+                <h4 className="text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary tracking-wider">
+                  Custom Fields
+                </h4>
+                {!isEditingCustomFields ? (
+                  <button
+                    onClick={() => setIsEditingCustomFields(true)}
+                    className="p-1 rounded text-wa-text-secondary hover:text-wa-green transition-colors"
+                    title="Edit Custom Fields"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        const cf = contact.customFields;
+                        const entries = cf ? Object.entries(cf).map(([k, v]) => ({ key: k, value: String(v) })) : [];
+                        setCustomFieldList(entries);
+                        setIsEditingCustomFields(false);
+                      }}
+                      className="p-1 rounded text-wa-text-secondary hover:text-red-500"
+                      title="Cancel"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setSavingCustomFields(true);
+                        try {
+                          const obj = {};
+                          customFieldList.forEach(item => {
+                            if (item.key.trim()) obj[item.key.trim()] = item.value;
+                          });
+                          const { data } = await api.put(`/contacts/${contactId}`, { customFields: obj });
+                          if (data.success) {
+                            toast.success('Custom fields saved');
+                            setContact(prev => ({ ...prev, customFields: obj }));
+                            setIsEditingCustomFields(false);
+                            if (onUpdateSuccess) onUpdateSuccess();
+                          }
+                        } catch (err) {
+                          toast.error('Failed to update custom fields');
+                        } finally {
+                          setSavingCustomFields(false);
+                        }
+                      }}
+                      disabled={savingCustomFields}
+                      className="p-1 rounded bg-wa-green text-white hover:bg-wa-green-hover"
+                      title="Save"
+                    >
+                      {savingCustomFields ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {!isEditingCustomFields ? (
+                <div className="space-y-2">
+                  {customFieldList.length === 0 ? (
+                    <p className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary italic">No custom fields assigned.</p>
+                  ) : (
+                    customFieldList.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-wa-bg/60 dark:bg-wa-dark-header/40 border border-wa-border/50 dark:border-wa-dark-border/40">
+                        <span className="font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase text-[10px]">{item.key}</span>
+                        <span className="font-medium text-wa-text-primary dark:text-white font-mono text-[11px] truncate max-w-[170px]">{item.value}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {customFieldList.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Field"
+                        value={item.key}
+                        onChange={(e) => {
+                          const updated = [...customFieldList];
+                          updated[idx].key = e.target.value;
+                          setCustomFieldList(updated);
+                        }}
+                        className="w-1/2 px-2 py-1 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-lg text-wa-text-primary dark:text-white"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Value"
+                        value={item.value}
+                        onChange={(e) => {
+                          const updated = [...customFieldList];
+                          updated[idx].value = e.target.value;
+                          setCustomFieldList(updated);
+                        }}
+                        className="w-1/2 px-2 py-1 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-lg text-wa-text-primary dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomFieldList(customFieldList.filter((_, i) => i !== idx));
+                        }}
+                        className="p-1 text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setCustomFieldList([...customFieldList, { key: '', value: '' }])}
+                    className="w-full py-1 text-[11px] font-semibold text-wa-green border border-dashed border-wa-green/40 hover:bg-wa-green/10 rounded-lg flex items-center justify-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Add Custom Field
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Contact Tags Section */}

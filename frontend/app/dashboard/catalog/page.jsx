@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useAuthStore } from '../../../lib/store';
+import { getFastCache, setFastCache } from '../../../lib/usePageData';
 
 export default function CatalogDashboard() {
   const { user } = useAuthStore();
@@ -18,21 +19,23 @@ export default function CatalogDashboard() {
   const [contacts, setContacts] = useState([]);
   const [selectedContactId, setSelectedContactId] = useState('');
   
-  // Categories states
-  const [categories, setCategories] = useState([]);
+  // Categories states (restored instantly)
+  const cachedCategories = getFastCache('catalog_categories', []);
+  const [categories, setCategories] = useState(cachedCategories || []);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [catName, setCatName] = useState('');
   const [catDesc, setCatDesc] = useState('');
   const [catSaving, setCatSaving] = useState(false);
 
-  // Products Browse states
-  const [products, setProducts] = useState([]);
-  const [prodTotal, setProdTotal] = useState(0);
-  const [prodPages, setProdPages] = useState(1);
+  // Products Browse states (restored instantly)
+  const cachedProducts = getFastCache('catalog_browse_p1', null);
+  const [products, setProducts] = useState(cachedProducts?.products || []);
+  const [prodTotal, setProdTotal] = useState(cachedProducts?.total || 0);
+  const [prodPages, setProdPages] = useState(cachedProducts?.pages || 1);
   const [prodPage, setProdPage] = useState(1);
   const [prodLimit] = useState(8);
-  const [prodLoading, setProdLoading] = useState(false);
+  const [prodLoading, setProdLoading] = useState(!cachedProducts?.products?.length);
   
   // Browse filter parameters
   const [searchVal, setSearchVal] = useState('');
@@ -148,7 +151,9 @@ export default function CatalogDashboard() {
     try {
       const { data } = await api.get('/categories');
       if (data.success) {
-        setCategories(data.data.categories || []);
+        const cats = data.data.categories || [];
+        setCategories(cats);
+        setFastCache('catalog_categories', cats);
       }
     } catch (err) {
       toast.error('Failed to load categories');
@@ -156,7 +161,9 @@ export default function CatalogDashboard() {
   };
 
   const fetchProducts = async () => {
-    setProdLoading(true);
+    if (products.length === 0) {
+      setProdLoading(true);
+    }
     try {
       const params = {
         page: prodPage,
@@ -169,9 +176,19 @@ export default function CatalogDashboard() {
       };
       const { data } = await api.get('/products', { params });
       if (data.success) {
-        setProducts(data.data.products);
-        setProdTotal(data.data.pagination.total);
-        setProdPages(data.data.pagination.pages);
+        const prods = data.data.products || [];
+        const total = data.data.pagination?.total || 0;
+        const pages = data.data.pagination?.pages || 1;
+        setProducts(prods);
+        setProdTotal(total);
+        setProdPages(pages);
+        if (prodPage === 1 && !selectedCategory && !selectedStatus && !selectedFeatured && selectedSort === 'newest' && !searchVal) {
+          setFastCache('catalog_browse_p1', {
+            products: prods,
+            total,
+            pages
+          });
+        }
       }
     } catch (err) {
       toast.error('Failed to load products');

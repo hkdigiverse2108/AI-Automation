@@ -8,21 +8,25 @@ import {
 import Link from 'next/link';
 import api from '../../../lib/api';
 import { formatDate } from '../../../lib/utils';
+import { getFastCache, setFastCache } from '../../../lib/usePageData';
 
 export default function ChatLogsPage() {
   const [activeTab, setActiveTab] = useState('text'); // 'text', 'button', 'api'
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const cachedLogs = getFastCache('chat_logs_text_p1', null);
+  const [logs, setLogs] = useState(cachedLogs?.logs || []);
+  const [loading, setLoading] = useState(!cachedLogs?.logs?.length);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalLogs, setTotalLogs] = useState(0);
+  const [totalPages, setTotalPages] = useState(cachedLogs?.pages || 1);
+  const [totalLogs, setTotalLogs] = useState(cachedLogs?.total || 0);
 
   // Inspector states for details modal
   const [selectedPayload, setSelectedPayload] = useState(null);
 
   const fetchLogs = async () => {
-    setLoading(true);
+    if (logs.length === 0) {
+      setLoading(true);
+    }
     try {
       const { data } = await api.get('/chat-logs', {
         params: {
@@ -32,9 +36,15 @@ export default function ChatLogsPage() {
         }
       });
       if (data.success) {
-        setLogs(data.data.logs);
-        setTotalPages(data.data.pages || 1);
-        setTotalLogs(data.data.total || 0);
+        const l = data.data.logs || [];
+        const pgs = data.data.pages || 1;
+        const tot = data.data.total || 0;
+        setLogs(l);
+        setTotalPages(pgs);
+        setTotalLogs(tot);
+        if (activeTab === 'text' && page === 1) {
+          setFastCache('chat_logs_text_p1', { logs: l, pages: pgs, total: tot });
+        }
       }
     } catch (err) {
       toast.error('Failed to load logs database');

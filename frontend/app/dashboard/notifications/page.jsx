@@ -10,6 +10,7 @@ import {
 import api from '../../../lib/api';
 import { useAuthStore } from '../../../lib/store';
 import { useRouter } from 'next/navigation';
+import { getFastCache, setFastCache } from '../../../lib/usePageData';
 
 const TYPE_CONFIG = {
   system: { icon: Shield, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
@@ -27,19 +28,19 @@ export default function NotificationsDashboard() {
   const router = useRouter();
 
   // State Variables
-  const [notifications, setNotifications] = useState([]);
-  const [total, setTotal] = useState(0);
+  const cachedNotifs = getFastCache('notifications_p1', null);
+  const [notifications, setNotifications] = useState(cachedNotifs?.notifications || []);
+  const [total, setTotal] = useState(cachedNotifs?.total || 0);
   const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(1);
-  const [limit] = useState(15);
-  const [loading, setLoading] = useState(false);
+  const [pages, setPages] = useState(cachedNotifs?.pages || 1);
+  const [limit, setLimit] = useState(15);
+  const [loading, setLoading] = useState(!cachedNotifs?.notifications?.length);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'unread', 'read'
 
   // Fetch Notifications
   const fetchNotifications = useCallback(async () => {
-    setLoading(true);
     try {
       const params = {
         page,
@@ -51,9 +52,15 @@ export default function NotificationsDashboard() {
 
       const { data } = await api.get('/notifications', { params });
       if (data.success) {
-        setNotifications(data.data.notifications || []);
-        setTotal(data.data.total || 0);
-        setPages(data.data.pages || 1);
+        const notifList = data.data.notifications || [];
+        const tot = data.data.total || 0;
+        const pgs = data.data.pages || 1;
+        setNotifications(notifList);
+        setTotal(tot);
+        setPages(pgs);
+        if (page === 1 && statusFilter === 'all' && !typeFilter && !search) {
+          setFastCache('notifications_p1', { notifications: notifList, total: tot, pages: pgs });
+        }
       }
     } catch (err) {
       toast.error('Failed to load notifications');

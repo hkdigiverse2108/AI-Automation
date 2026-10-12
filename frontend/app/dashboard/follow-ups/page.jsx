@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useConfirmStore } from '../../../lib/store';
+import { getFastCache, setFastCache } from '../../../lib/usePageData';
 
 const TYPE_CONFIG = {
   whatsapp: { label: 'WhatsApp', icon: MessageSquare, color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800' },
@@ -17,16 +18,18 @@ const TYPE_CONFIG = {
 
 export default function FollowUpsPage() {
   const confirm = useConfirmStore((state) => state.confirm);
-  const [followUps, setFollowUps] = useState([]);
-  const [total, setTotal] = useState(0);
+  const cachedFollowUps = getFastCache('followups_p1', null);
+  const [followUps, setFollowUps] = useState(cachedFollowUps?.followUps || []);
+  const [total, setTotal] = useState(cachedFollowUps?.total || 0);
   const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(1);
+  const [pages, setPages] = useState(cachedFollowUps?.pages || 1);
   const [limit] = useState(10);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!cachedFollowUps?.followUps?.length);
   const [submitting, setSubmitting] = useState(false);
 
   // Stats / Metrics
-  const [metrics, setMetrics] = useState({
+  const cachedMetrics = getFastCache('followups_metrics', null);
+  const [metrics, setMetrics] = useState(cachedMetrics || {
     pending: 0,
     today: 0,
     overdue: 0,
@@ -65,7 +68,9 @@ export default function FollowUpsPage() {
 
   // Fetch follow-ups list
   const fetchFollowUps = async () => {
-    setLoading(true);
+    if (followUps.length === 0) {
+      setLoading(true);
+    }
     try {
       const params = {
         page,
@@ -78,9 +83,15 @@ export default function FollowUpsPage() {
       };
       const { data } = await api.get('/follow-ups', { params });
       if (data.success) {
-        setFollowUps(data.data.followUps);
-        setTotal(data.data.total);
-        setPages(data.data.pages);
+        const list = data.data.followUps || [];
+        const tot = data.data.total || 0;
+        const pgs = data.data.pages || 1;
+        setFollowUps(list);
+        setTotal(tot);
+        setPages(pgs);
+        if (page === 1 && statusFilter === 'pending' && !typeFilter && !assignedFilter && !debouncedSearch) {
+          setFastCache('followups_p1', { followUps: list, total: tot, pages: pgs });
+        }
       }
     } catch (err) {
       toast.error('Failed to load follow-ups');
@@ -107,12 +118,14 @@ export default function FollowUpsPage() {
         api.get('/follow-ups', { params: { status: 'pending', dateEnd: new Date().toISOString(), limit: 1 } })
       ]);
 
-      setMetrics({
+      const computedMetrics = {
         pending: pendingRes.data.data.total || 0,
         completed: completedRes.data.data.total || 0,
         today: todayRes.data.data.total || 0,
         overdue: overdueRes.data.data.total || 0
-      });
+      };
+      setMetrics(computedMetrics);
+      setFastCache('followups_metrics', computedMetrics);
     } catch (err) {
       console.error('Failed to fetch follow-up counts');
     }

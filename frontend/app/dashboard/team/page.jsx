@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   Users2, Plus, Trash2, Edit3, Shield, Mail, Key,
@@ -7,15 +7,13 @@ import {
   Clock, Activity, Inbox, MessageSquare
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { usePageData } from '../../../lib/usePageData';
 import { useConfirmStore } from '../../../lib/store';
 import { formatTime } from '../../../lib/utils';
 import AgentPermissionsTab from '../../../components/AgentPermissionsTab';
 
 export default function TeamPage() {
   const confirm = useConfirmStore(state => state.confirm);
-  const [agents, setAgents] = useState([]);
-  const [rules, setRules] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Tab & Telemetry Monitoring States
@@ -83,22 +81,16 @@ export default function TeamPage() {
     }
   };
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get('/team');
-      if (data.success) {
-        setAgents(data.data.agents);
-        setRules(data.data.rules);
-      }
-    } catch (err) {
-      toast.error('Failed to load team details');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const teamFetcher = useCallback(async () => {
+    const { data } = await api.get('/team');
+    if (data.success) return data.data;
+    throw new Error('Failed');
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  const { data: teamData, loading, refresh: fetchData } = usePageData('team', teamFetcher);
+
+  const agents = teamData?.agents || [];
+  const rules = teamData?.rules || [];
 
   const handleAgentSubmit = async (e) => {
     e.preventDefault();

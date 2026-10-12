@@ -61,19 +61,33 @@ export const useAuthStore = create((set) => ({
 }));
 
 export const useConversationStore = create((set, get) => ({
-  conversations: [],
+  conversations: (() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem('_cachedConversations');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return [];
+  })(),
   currentConversation: null,
   messages: [],
   loading: false,
 
   fetchConversations: async (params = {}, silent = false) => {
-    if (!silent) set({ loading: true });
+    const hasExisting = get().conversations.length > 0;
+    if (!silent && !hasExisting) set({ loading: true });
     try {
       const mergedParams = { limit: 200, ...params };
       const { data } = await api.get('/messages/conversations', { params: mergedParams });
-      if (data.success) set({ conversations: data.data.conversations });
+      if (data.success) {
+        set({ conversations: data.data.conversations });
+        try {
+          sessionStorage.setItem('_cachedConversations', JSON.stringify(data.data.conversations));
+        } catch {}
+      }
     } catch {}
-    if (!silent) set({ loading: false });
+    set({ loading: false });
   },
 
   fetchMessages: async (conversationId) => {
@@ -197,7 +211,16 @@ export const useConversationStore = create((set, get) => ({
 }));
 
 export const useDashboardStore = create((set, get) => ({
-  stats: null,
+  stats: (() => {
+    // Restore cached stats on init for instant first render
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem('_dashStats');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return null;
+  })(),
   loading: false,
 
   fetchStats: async () => {
@@ -206,7 +229,10 @@ export const useDashboardStore = create((set, get) => ({
     }
     try {
       const { data } = await api.get('/messages/stats');
-      if (data.success) set({ stats: data.data });
+      if (data.success) {
+        set({ stats: data.data });
+        try { sessionStorage.setItem('_dashStats', JSON.stringify(data.data)); } catch {}
+      }
     } catch {}
     set({ loading: false });
   },

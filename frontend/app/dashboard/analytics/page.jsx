@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   BarChart3, TrendingUp, Users, MessageSquare, Target, Zap,
@@ -12,6 +12,7 @@ import {
   LineChart, Line, Legend
 } from 'recharts';
 import api from '../../../lib/api';
+import { useMultiPageData } from '../../../lib/usePageData';
 
 const COLORS = ['#00a884', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
@@ -33,41 +34,25 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function AnalyticsPage() {
-  const [overview, setOverview] = useState(null);
-  const [messageTrends, setMessageTrends] = useState([]);
-  const [contactGrowth, setContactGrowth] = useState([]);
-  const [campaignPerf, setCampaignPerf] = useState([]);
-  const [heatmap, setHeatmap] = useState([]);
-  const [convStats, setConvStats] = useState({ byStatus: [], bySource: [] });
-  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState(30);
 
-  const fetchAll = async () => {
-    setLoading(true);
-    try {
-      const [overviewRes, trendsRes, growthRes, campRes, heatRes, convRes] = await Promise.all([
-        api.get('/analytics/overview'),
-        api.get(`/analytics/message-trends?days=${period}`),
-        api.get(`/analytics/contact-growth?days=${period}`),
-        api.get('/analytics/campaign-performance'),
-        api.get(`/analytics/hourly-activity?days=${period}`),
-        api.get('/analytics/conversation-stats'),
-      ]);
+  const fetchers = useCallback(() => ({
+    overview: () => api.get('/analytics/overview').then(r => r.data.success ? r.data.data : null),
+    trends: () => api.get(`/analytics/message-trends?days=${period}`).then(r => r.data.success ? (r.data.data.trends || []) : []),
+    growth: () => api.get(`/analytics/contact-growth?days=${period}`).then(r => r.data.success ? (r.data.data.growth || []) : []),
+    campaigns: () => api.get('/analytics/campaign-performance').then(r => r.data.success ? (r.data.data.campaigns || []) : []),
+    heatmap: () => api.get(`/analytics/hourly-activity?days=${period}`).then(r => r.data.success ? (r.data.data.heatmap || []) : []),
+    convStats: () => api.get('/analytics/conversation-stats').then(r => r.data.success ? r.data.data : { byStatus: [], bySource: [] }),
+  }), [period]);
 
-      if (overviewRes.data.success) setOverview(overviewRes.data.data);
-      if (trendsRes.data.success) setMessageTrends(trendsRes.data.data.trends || []);
-      if (growthRes.data.success) setContactGrowth(growthRes.data.data.growth || []);
-      if (campRes.data.success) setCampaignPerf(campRes.data.data.campaigns || []);
-      if (heatRes.data.success) setHeatmap(heatRes.data.data.heatmap || []);
-      if (convRes.data.success) setConvStats(convRes.data.data);
-    } catch (err) {
-      toast.error('Failed to load analytics');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: allData, loading, refresh: fetchAll } = useMultiPageData(fetchers(), { deps: [period] });
 
-  useEffect(() => { fetchAll(); }, [period]);
+  const overview = allData.overview;
+  const messageTrends = allData.trends || [];
+  const contactGrowth = allData.growth || [];
+  const campaignPerf = allData.campaigns || [];
+  const heatmap = allData.heatmap || [];
+  const convStats = allData.convStats || { byStatus: [], bySource: [] };
 
   // Heatmap helper
   const getHeatmapColor = (count) => {

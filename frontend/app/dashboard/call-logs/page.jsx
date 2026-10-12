@@ -11,6 +11,7 @@ import {
 import api from '../../../lib/api';
 import { useAuthStore } from '../../../lib/store';
 import { formatDate } from '../../../lib/utils';
+import { getFastCache, setFastCache } from '../../../lib/usePageData';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell
@@ -34,7 +35,7 @@ export default function TelephonyCRMPage() {
   const limit = 15;
 
   // Data States
-  const [analytics, setAnalytics] = useState(null);
+  const [analytics, setAnalytics] = useState(() => getFastCache('call_logs_analytics', null));
   const [callLogs, setCallLogs] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [lostItems, setLostItems] = useState([]);
@@ -80,11 +81,18 @@ export default function TelephonyCRMPage() {
   }, [activeTab, page, debouncedSearch, statusFilter]);
 
   const fetchTabData = async () => {
-    setLoading(true);
+    if (activeTab === 'overview' && !analytics) {
+      setLoading(true);
+    } else if (activeTab === 'calls' && callLogs.length === 0) {
+      setLoading(true);
+    }
     try {
       if (activeTab === 'overview') {
         const { data } = await api.get('/admin/analytics');
-        if (data.success) setAnalytics(data.data);
+        if (data.success) {
+          setAnalytics(data.data);
+          setFastCache('call_logs_analytics', data.data);
+        }
       } else if (activeTab === 'calls') {
         const { data } = await api.get('/telephony/call-logs', {
           params: { page, limit, search: debouncedSearch || undefined, callType: statusFilter || undefined }

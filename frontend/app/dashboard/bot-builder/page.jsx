@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { 
   Bot, Plus, Play, ToggleLeft, ToggleRight, Sparkles, 
@@ -7,6 +7,7 @@ import {
   Phone, Video, MoreVertical, Send, Smile, Paperclip, Trash2
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { usePageData } from '../../../lib/usePageData';
 import dynamic from 'next/dynamic';
 import { useConfirmStore } from '../../../lib/store';
 
@@ -28,7 +29,6 @@ export default function BotBuilderPage() {
   const confirm = useConfirmStore((state) => state.confirm);
   const [flows, setFlows] = useState([]);
   const [currentFlow, setCurrentFlow] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('builder'); // 'builder' or 'media'
   
@@ -78,30 +78,31 @@ export default function BotBuilderPage() {
     toast.success(`${template.name} loaded into the builder. Click "Save" to save it.`);
   };
 
-  const fetchFlows = async (selectId = null) => {
-    setLoading(true);
-    try {
-      const { data } = await api.get('/flows');
-      if (data.success) {
-        setFlows(data.data.flows);
-        if (selectId) {
-          const selected = data.data.flows.find(f => f._id === selectId);
-          setCurrentFlow(selected);
-        } else if (data.data.flows.length > 0 && !currentFlow) {
-          // Select first by default
-          setCurrentFlow(data.data.flows[0]);
-        }
+  const flowsFetcher = useCallback(async () => {
+    const { data } = await api.get('/flows');
+    if (data.success) return data.data.flows;
+    throw new Error('Failed');
+  }, []);
+
+  const { data: cachedFlows, loading, refresh: refreshFlows } = usePageData('bot-flows', flowsFetcher);
+
+  // Sync cached flows with local state
+  useEffect(() => {
+    if (cachedFlows) {
+      setFlows(cachedFlows);
+      if (!currentFlow && cachedFlows.length > 0) {
+        setCurrentFlow(cachedFlows[0]);
       }
-    } catch (err) {
-      toast.error('Failed to load bot flows');
-    } finally {
-      setLoading(false);
+    }
+  }, [cachedFlows]);
+
+  const fetchFlows = async (selectId = null) => {
+    const result = await refreshFlows();
+    if (selectId && result) {
+      const selected = result.find(f => f._id === selectId);
+      if (selected) setCurrentFlow(selected);
     }
   };
-
-  useEffect(() => {
-    fetchFlows();
-  }, []);
 
   const handleCreateNewFlow = () => {
     const defaultFlow = {

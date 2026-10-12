@@ -758,6 +758,8 @@ router.post('/bulk', async (req, res) => {
         let result;
         if (type === 'image' && resolvedMediaUrl) {
           result = await whatsapp.sendImageMessage(waAccount.phoneNumberId, token, contact.phone, resolvedMediaUrl, caption);
+        } else if (type === 'video' && resolvedMediaUrl) {
+          result = await whatsapp.sendVideoMessage(waAccount.phoneNumberId, token, contact.phone, resolvedMediaUrl, caption);
         } else if (type === 'document' && resolvedMediaUrl) {
           result = await whatsapp.sendDocumentMessage(waAccount.phoneNumberId, token, contact.phone, resolvedMediaUrl, caption);
         } else {

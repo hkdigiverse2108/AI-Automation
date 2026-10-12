@@ -125,7 +125,7 @@ router.get('/', async (req, res) => {
 // POST /contacts — create single
 router.post('/', contactValidation, async (req, res) => {
   try {
-    let { phone, name, email, source, tags } = req.body;
+    let { phone, name, email, source, tags, customFields } = req.body;
     if (phone) phone = phone.replace(/\D/g, '');
 
     const { getOekForUser, generateHMAC } = require('../services/oekService');
@@ -138,9 +138,22 @@ router.post('/', contactValidation, async (req, res) => {
       existing = await Contact.findOne({ userId: req.userId, phone, isDeleted: { $ne: true } });
     }
 
-    if (existing) return res.status(409).json({ success: false, error: 'Contact already exists', code: 'DUPLICATE' });
+    if (existing) return res.status(409).json({ success: false, error: 'Contact already exists with this phone number', code: 'DUPLICATE' });
 
-    const contact = await Contact.create({ userId: req.userId, phone, name, email, source: source || 'manual', tags: tags || [] });
+    const contactData = {
+      userId: req.userId,
+      phone,
+      name: name || '',
+      email: email || '',
+      source: source || 'manual',
+      tags: tags || []
+    };
+
+    if (customFields && typeof customFields === 'object') {
+      contactData.customFields = customFields;
+    }
+
+    const contact = await Contact.create(contactData);
 
     await createNotification({
       userId: req.user._id,
@@ -158,22 +171,30 @@ router.post('/', contactValidation, async (req, res) => {
   }
 });
 
-// POST /contacts/import — CSV upload
+// POST /contacts/import — CSV / Excel upload (.csv, .xlsx, .xls)
 router.post('/import', upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ success: false, error: 'CSV file required', code: 'NO_FILE' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'File is required (.csv, .xlsx, or .xls)', code: 'NO_FILE' });
 
-    const csv = req.file.buffer.toString('utf-8');
-    const lines = csv.split('\n').filter((l) => l.trim());
-    if (lines.length < 2) return res.status(400).json({ success: false, error: 'CSV must have header and data', code: 'INVALID_CSV' });
+    const xlsx = require('xlsx');
+    let workbook;
+    try {
+      workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    } catch (parseErr) {
+      return res.status(400).json({ success: false, error: 'Could not parse spreadsheet. Please upload a valid CSV or Excel file.', code: 'INVALID_FILE' });
+    }
 
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-    const phoneIdx = headers.indexOf('phone');
-    const nameIdx = headers.indexOf('name');
-    const emailIdx = headers.indexOf('email');
-    const tagsIdx = headers.indexOf('tags');
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      return res.status(400).json({ success: false, error: 'Sheet is empty', code: 'EMPTY_SHEET' });
+    }
 
-    if (phoneIdx === -1) return res.status(400).json({ success: false, error: 'CSV must have phone column', code: 'MISSING_PHONE' });
+    const sheet = workbook.Sheets[sheetName];
+    const rawRows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+
+    if (!rawRows || rawRows.length === 0) {
+      return res.status(400).json({ success: false, error: 'Spreadsheet has no data rows', code: 'EMPTY_DATA' });
+    }
 
     const { getOekForUser, generateHMAC, encryptAES } = require('../services/oekService');
     const rawOek = await getOekForUser(req.userId);
@@ -181,43 +202,80 @@ router.post('/import', upload.single('file'), async (req, res) => {
     let imported = 0, skipped = 0, errors = 0;
     const ops = [];
 
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',').map((c) => c.trim());
-      const rawPhone = cols[phoneIdx];
-      if (!rawPhone || !/^\+?[1-9]\d{6,14}$/.test(rawPhone)) { errors++; continue; }
-      const phone = rawPhone.replace(/\D/g, '');
+    for (const row of rawRows) {
+      const entries = Object.entries(row);
+      let phoneVal = '';
+      let nameVal = '';
+      let emailVal = '';
+      let tagsVal = '';
+      const customFields = {};
+
+      for (const [key, val] of entries) {
+        const k = key.trim().toLowerCase();
+        const v = typeof val === 'string' ? val.trim() : String(val !== undefined && val !== null ? val : '');
+
+        if (/^(phone|mobile|contact|cell|number|phone\s*number|mobile\s*number)$/i.test(k) || (k.includes('phone') && !phoneVal)) {
+          phoneVal = v;
+        } else if (/^(name|full\s*name|contact\s*name|first\s*name)$/i.test(k) || (k.includes('name') && !nameVal)) {
+          nameVal = v;
+        } else if (/^(email|e-mail|mail)$/i.test(k) || (k.includes('email') && !emailVal)) {
+          emailVal = v;
+        } else if (/^(tags?|labels?)$/i.test(k)) {
+          tagsVal = v;
+        } else if (k && v !== '') {
+          customFields[key.trim()] = v;
+        }
+      }
+
+      if (!phoneVal) {
+        errors++;
+        continue;
+      }
+
+      const cleanPhone = phoneVal.replace(/\D/g, '');
+      if (cleanPhone.length < 7 || cleanPhone.length > 15) {
+        errors++;
+        continue;
+      }
+
+      const tagsArray = tagsVal ? tagsVal.split(/[,;]/).map((t) => t.trim()).filter(Boolean) : [];
 
       let updatePayload = {
         userId: req.userId,
-        phone,
-        name: nameIdx >= 0 ? cols[nameIdx] || '' : '',
-        email: emailIdx >= 0 ? cols[emailIdx] || '' : '',
-        tags: tagsIdx >= 0 ? (cols[tagsIdx] || '').split(';').filter(Boolean) : [],
+        phone: cleanPhone,
+        name: nameVal,
+        email: emailVal ? emailVal.toLowerCase() : '',
+        tags: tagsArray,
+        customFields,
         source: 'import',
       };
 
-      let filterCondition = { userId: req.userId, phone };
+      let filterCondition = { userId: req.userId, phone: cleanPhone };
 
       if (rawOek) {
-        const encryptedPhone = encryptAES(phone, rawOek);
-        const phoneHash = generateHMAC(phone, rawOek);
-        const nameVal = nameIdx >= 0 ? cols[nameIdx] || '' : '';
-        const emailVal = emailIdx >= 0 ? cols[emailIdx] || '' : '';
-        
+        const encryptedPhone = encryptAES(cleanPhone, rawOek);
+        const phoneHash = generateHMAC(cleanPhone, rawOek);
+
+        const encryptedCustom = {};
+        for (const [ck, cv] of Object.entries(customFields)) {
+          encryptedCustom[ck] = typeof cv === 'string' ? encryptAES(cv, rawOek) : cv;
+        }
+
         updatePayload = {
           userId: req.userId,
           phone: encryptedPhone,
           phoneHash,
-          name: encryptAES(nameVal, rawOek),
-          nameHash: generateHMAC(nameVal, rawOek),
-          email: encryptAES(emailVal, rawOek),
-          emailHash: generateHMAC(emailVal, rawOek),
-          tags: tagsIdx >= 0 ? (cols[tagsIdx] || '').split(';').filter(Boolean) : [],
+          name: nameVal ? encryptAES(nameVal, rawOek) : '',
+          nameHash: nameVal ? generateHMAC(nameVal, rawOek) : '',
+          email: emailVal ? encryptAES(emailVal.toLowerCase(), rawOek) : '',
+          emailHash: emailVal ? generateHMAC(emailVal.toLowerCase(), rawOek) : '',
+          tags: tagsArray,
+          customFields: encryptedCustom,
           source: 'import',
           isEncrypted: true
         };
 
-        filterCondition = { userId: req.userId, $or: [{ phone }, { phoneHash }] };
+        filterCondition = { userId: req.userId, $or: [{ phone: cleanPhone }, { phoneHash }] };
       }
 
       ops.push({
@@ -237,9 +295,234 @@ router.post('/import', upload.single('file'), async (req, res) => {
       skipped = ops.length - imported;
     }
 
-    res.json({ success: true, data: { imported, skipped, errors, total: lines.length - 1 }, message: 'Import complete' });
+    res.json({
+      success: true,
+      data: { imported, skipped, errors, total: rawRows.length },
+      message: `Import complete: ${imported} imported, ${skipped} existing skipped, ${errors} invalid rows.`
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Import failed', code: 'IMPORT_ERROR' });
+    console.error('Import spreadsheet error:', error);
+    res.status(500).json({ success: false, error: 'Import failed', details: error.message, code: 'IMPORT_ERROR' });
+  }
+});
+
+// GET /contacts/duplicates — Scan and detect duplicate contacts
+router.get('/duplicates', async (req, res) => {
+  try {
+    const { getOekForUser, decryptContact } = require('../services/oekService');
+    const rawOek = await getOekForUser(req.userId);
+
+    const contacts = await Contact.find({ userId: req.userId, isDeleted: { $ne: true } })
+      .sort('-lastMessageAt -updatedAt')
+      .lean();
+
+    const decryptedContacts = contacts.map((c) => decryptContact(c, rawOek));
+
+    const phoneGroups = new Map();
+    const emailGroups = new Map();
+
+    for (const c of decryptedContacts) {
+      if (c.phone) {
+        const cleanPhone = String(c.phone).replace(/\D/g, '');
+        if (cleanPhone.length >= 7) {
+          if (!phoneGroups.has(cleanPhone)) phoneGroups.set(cleanPhone, []);
+          phoneGroups.get(cleanPhone).push(c);
+        }
+      }
+
+      if (c.email && typeof c.email === 'string') {
+        const cleanEmail = c.email.trim().toLowerCase();
+        if (cleanEmail && cleanEmail.includes('@')) {
+          if (!emailGroups.has(cleanEmail)) emailGroups.set(cleanEmail, []);
+          emailGroups.get(cleanEmail).push(c);
+        }
+      }
+    }
+
+    const duplicates = [];
+
+    // Collect phone duplicates
+    for (const [phone, list] of phoneGroups.entries()) {
+      if (list.length > 1) {
+        duplicates.push({
+          type: 'phone',
+          matchKey: phone,
+          count: list.length,
+          contacts: list,
+          suggestedPrimaryId: list[0]._id
+        });
+      }
+    }
+
+    // Collect email duplicates
+    for (const [email, list] of emailGroups.entries()) {
+      if (list.length > 1) {
+        const isAlreadyGrouped = duplicates.some((d) =>
+          d.contacts.length === list.length && list.every((c) => d.contacts.some((dc) => dc._id.toString() === c._id.toString()))
+        );
+        if (!isAlreadyGrouped) {
+          duplicates.push({
+            type: 'email',
+            matchKey: email,
+            count: list.length,
+            contacts: list,
+            suggestedPrimaryId: list[0]._id
+          });
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        totalGroups: duplicates.length,
+        totalDuplicates: duplicates.reduce((acc, curr) => acc + curr.contacts.length, 0),
+        groups: duplicates
+      }
+    });
+  } catch (error) {
+    console.error('Duplicates check error:', error);
+    res.status(500).json({ success: false, error: 'Failed to find duplicate contacts', code: 'DUPLICATE_SCAN_ERROR' });
+  }
+});
+
+// POST /contacts/merge — Merge duplicate contacts into a primary contact
+router.post('/merge', async (req, res) => {
+  try {
+    const { primaryContactId, duplicateContactIds } = req.body;
+    if (!primaryContactId || !Array.isArray(duplicateContactIds) || duplicateContactIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'primaryContactId and duplicateContactIds array required' });
+    }
+
+    const filteredDuplicateIds = duplicateContactIds.filter((id) => id.toString() !== primaryContactId.toString());
+    if (filteredDuplicateIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No duplicate contacts to merge' });
+    }
+
+    const primary = await Contact.findOne({ _id: primaryContactId, userId: req.userId, isDeleted: { $ne: true } });
+    if (!primary) return res.status(404).json({ success: false, error: 'Primary contact not found' });
+
+    const duplicates = await Contact.find({ _id: { $in: filteredDuplicateIds }, userId: req.userId, isDeleted: { $ne: true } });
+    if (duplicates.length === 0) return res.status(404).json({ success: false, error: 'No matching duplicate contacts found' });
+
+    const { getOekForUser, decryptContact } = require('../services/oekService');
+    const rawOek = await getOekForUser(req.userId);
+
+    const decryptedPrimary = decryptContact(primary, rawOek);
+    const decryptedDuplicates = duplicates.map((d) => decryptContact(d, rawOek));
+
+    // 1. Merge tags
+    const allTags = new Set(primary.tags || []);
+    decryptedDuplicates.forEach((d) => {
+      (d.tags || []).forEach((t) => allTags.add(t));
+    });
+    primary.tags = Array.from(allTags);
+
+    // 2. Fill missing name / email / notes
+    if (!decryptedPrimary.name) {
+      const foundName = decryptedDuplicates.find((d) => d.name)?.name;
+      if (foundName) primary.name = foundName;
+    }
+    if (!decryptedPrimary.email) {
+      const foundEmail = decryptedDuplicates.find((d) => d.email)?.email;
+      if (foundEmail) primary.email = foundEmail;
+    }
+    if (!decryptedPrimary.notes) {
+      const foundNotes = decryptedDuplicates.find((d) => d.notes)?.notes;
+      if (foundNotes) primary.notes = foundNotes;
+    }
+
+    // 3. Merge customFields
+    let mergedCustomFields = {};
+    if (decryptedPrimary.customFields) {
+      mergedCustomFields = decryptedPrimary.customFields instanceof Map ? Object.fromEntries(decryptedPrimary.customFields) : { ...decryptedPrimary.customFields };
+    }
+    decryptedDuplicates.forEach((d) => {
+      if (d.customFields) {
+        const dFields = d.customFields instanceof Map ? Object.fromEntries(d.customFields) : d.customFields;
+        for (const [k, v] of Object.entries(dFields)) {
+          if (!mergedCustomFields[k] && v !== undefined && v !== '') {
+            mergedCustomFields[k] = v;
+          }
+        }
+      }
+    });
+    primary.customFields = mergedCustomFields;
+
+    // 4. Update engagement score, total messages, last message
+    let maxScore = primary.engagementScore || 0;
+    let totalMsgs = primary.totalMessages || 0;
+    let lastMsg = primary.lastMessageAt ? new Date(primary.lastMessageAt) : null;
+
+    decryptedDuplicates.forEach((d) => {
+      if ((d.engagementScore || 0) > maxScore) maxScore = d.engagementScore;
+      totalMsgs += (d.totalMessages || 0);
+      if (d.lastMessageAt) {
+        const dDate = new Date(d.lastMessageAt);
+        if (!lastMsg || dDate > lastMsg) lastMsg = dDate;
+      }
+    });
+
+    primary.engagementScore = maxScore;
+    primary.totalMessages = totalMsgs;
+    if (lastMsg) primary.lastMessageAt = lastMsg;
+
+    await primary.save();
+
+    // 5. Re-link foreign records
+    const Conversation = require('../models/Conversation');
+    const Message = require('../models/Message');
+    const ContactNote = require('../models/ContactNote');
+    const ContactGroup = require('../models/ContactGroup');
+    const Task = require('../models/Task');
+
+    await Conversation.updateMany({ contactId: { $in: filteredDuplicateIds }, userId: req.userId }, { contactId: primary._id });
+    await Message.updateMany({ contactId: { $in: filteredDuplicateIds }, userId: req.userId }, { contactId: primary._id });
+    await ContactNote.updateMany({ contactId: { $in: filteredDuplicateIds } }, { contactId: primary._id });
+    await Task.updateMany({ contactId: { $in: filteredDuplicateIds } }, { contactId: primary._id });
+
+    // Group memberships
+    for (const dupId of filteredDuplicateIds) {
+      const dupGroups = await ContactGroup.find({ contactId: dupId });
+      for (const dg of dupGroups) {
+        const existsOnPrimary = await ContactGroup.findOne({ contactId: primary._id, groupId: dg.groupId });
+        if (!existsOnPrimary) {
+          await ContactGroup.create({
+            organizationId: dg.organizationId,
+            contactId: primary._id,
+            groupId: dg.groupId
+          });
+        }
+        await ContactGroup.deleteOne({ _id: dg._id });
+      }
+    }
+
+    // 6. Delete duplicate contacts
+    await Contact.deleteMany({ _id: { $in: filteredDuplicateIds }, userId: req.userId });
+
+    // 7. Audit Log
+    await AuditLog.log({
+      userId: req.userId,
+      action: 'MERGE_CONTACTS',
+      resource: 'Contact',
+      resourceId: primary._id,
+      details: {
+        mergedDuplicatesCount: filteredDuplicateIds.length,
+        duplicateIds: filteredDuplicateIds
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    const decryptedResult = decryptContact(primary, rawOek);
+    res.json({
+      success: true,
+      message: `Successfully merged ${filteredDuplicateIds.length} duplicate contacts into primary contact`,
+      data: { contact: decryptedResult }
+    });
+  } catch (error) {
+    console.error('Merge contacts error:', error);
+    res.status(500).json({ success: false, error: 'Failed to merge contacts', details: error.message });
   }
 });
 

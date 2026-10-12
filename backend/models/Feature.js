@@ -17,7 +17,6 @@ const featureSchema = new mongoose.Schema(
   { timestamps: true, strict: true }
 );
 
-featureSchema.index({ slug: 1 });
 featureSchema.index({ sort_order: 1 });
 
 module.exports = mongoose.model('Feature', featureSchema);

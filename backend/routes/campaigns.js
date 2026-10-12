@@ -6,7 +6,7 @@ const { verifyToken } = require('../middleware/auth');
 const { campaignValidation, validateObjectId } = require('../middleware/validator');
 const queueService = require('../services/queueService');
 const multer = require('multer');
-const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
+const upload = multer({ limits: { fileSize: 30 * 1024 * 1024 } }); // 30MB limit for image, video, and documents
 
 router.use(verifyToken);
 const checkFeatureAccess = require('../middleware/checkFeatureAccess');
@@ -65,8 +65,8 @@ router.post('/', campaignValidation, async (req, res) => {
   }
 });
 
-// POST /campaigns/upload-image — upload file to Meta
-router.post('/upload-image', upload.single('file'), async (req, res) => {
+// POST /campaigns/upload-image and /campaigns/upload-media — upload file (image/video/document) to Meta
+const handleMediaUpload = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No file uploaded', code: 'MISSING_FILE' });
@@ -91,7 +91,10 @@ router.post('/upload-image', upload.single('file'), async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message, code: 'UPLOAD_ERROR' });
   }
-});
+};
+
+router.post('/upload-image', upload.single('file'), handleMediaUpload);
+router.post('/upload-media', upload.single('file'), handleMediaUpload);
 
 // POST /campaigns/:id/start
 router.post('/:id/start', ...validateObjectId('id'), async (req, res) => {

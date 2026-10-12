@@ -3,25 +3,20 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import api from '../../../lib/api';
 
-const ContactTable = dynamic(() => import('../../../components/ContactTable'), {
-  loading: () => (
-    <div className="w-full h-96 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
-    </div>
-  ),
-  ssr: false,
-});
+import ContactTable from '../../../components/ContactTable';
 import { toast } from 'react-hot-toast';
 import { Tag as TagIcon, Users, Play, Plus, Trash2, X, Sparkles, Loader2, ToggleLeft, ToggleRight, Search, Edit2 } from 'lucide-react';
 import { useConfirmStore } from '../../../lib/store';
+import { getFastCache, setFastCache } from '../../../lib/usePageData';
 
 export default function ContactsPage() {
   const confirm = useConfirmStore((state) => state.confirm);
   const [activeTab, setActiveTab] = useState('contacts'); // 'contacts', 'tags', 'rules'
   
-  // Tags and Rules states
-  const [tags, setTags] = useState([]);
-  const [rules, setRules] = useState([]);
+  // Tags and Rules states (restored instantly from fast cache)
+  const cachedTagsRules = getFastCache('contact_tags_rules', { tags: [], rules: [] });
+  const [tags, setTags] = useState(cachedTagsRules?.tags || []);
+  const [rules, setRules] = useState(cachedTagsRules?.rules || []);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -45,12 +40,13 @@ export default function ContactsPage() {
   });
 
   const fetchTagsAndRules = async () => {
-    setLoading(true);
+    if (!tags.length) setLoading(true);
     try {
       const { data } = await api.get('/tags');
       if (data.success) {
-        setTags(data.data.tags);
-        setRules(data.data.rules);
+        setTags(data.data.tags || []);
+        setRules(data.data.rules || []);
+        setFastCache('contact_tags_rules', { tags: data.data.tags || [], rules: data.data.rules || [] });
       }
     } catch (err) {
       toast.error('Failed to load tags and rules');

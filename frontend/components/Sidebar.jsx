@@ -150,14 +150,40 @@ export default function Sidebar({ isOpen, onClose }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Instant hover prefetching to warm Next.js router & dev compiler before click
+  // Instant hover prefetching to warm Next.js router & dev compiler + API data preload before click
+  const preloadedRoutes = useRef(new Set());
   const handleItemHover = useCallback((href) => {
     setHoveredItem(href);
     if (href && !href.startsWith('#')) {
       const [path] = href.split('?');
       router.prefetch(path);
-      if (typeof window !== 'undefined') {
-        fetch(path, { priority: 'low' }).catch(() => {});
+
+      // Preload API data into SWR cache on hover (only once per session)
+      if (!preloadedRoutes.current.has(path)) {
+        preloadedRoutes.current.add(path);
+        import('../lib/usePageData').then(({ preloadPageData }) => {
+          const api = require('../lib/api').default;
+          const preloadMap = {
+            '/dashboard/contacts': ['contacts_page_1', () => api.get('/contacts', { params: { page: 1, limit: 10 } }).then(r => r.data.success ? { contacts: r.data.data.contacts, total: r.data.data.total, pages: r.data.data.pages } : null)],
+            '/dashboard/leads': ['leads_page_1', () => api.get('/leads', { params: { page: 1, limit: 10 } }).then(r => r.data.success ? { leads: r.data.data.leads || [], total: r.data.data.total || 0, pages: r.data.data.pages || 1 } : null)],
+            '/dashboard/catalog': ['catalog_browse_p1', () => api.get('/products', { params: { page: 1, limit: 8, isFeatured: 'false', sort: 'newest' } }).then(r => r.data.success ? { products: r.data.data.products, total: r.data.data.pagination?.total, pages: r.data.data.pagination?.pages } : null)],
+            '/dashboard/campaigns': ['campaigns', () => api.get('/campaigns').then(r => r.data.success ? r.data.data.campaigns : [])],
+            '/dashboard/templates': ['templates', () => api.get('/templates').then(r => r.data.success ? r.data.data.templates : [])],
+            '/dashboard/triggers': ['triggers_page_1', () => api.get('/triggers', { params: { page: 1, limit: 50 } }).then(r => r.data.success ? { triggers: r.data.data.triggers, total: r.data.data.total, pages: r.data.data.pages } : null)],
+            '/dashboard/tasks': ['tasks_my_p1', () => api.get('/tasks', { params: { page: 1, limit: 10, tab: 'my-tasks', sort: 'newest' } }).then(r => r.data.success ? { tasks: r.data.data.tasks, total: r.data.data.total, pages: r.data.data.pages } : null)],
+            '/dashboard/follow-ups': ['followups_p1', () => api.get('/follow-ups', { params: { page: 1, limit: 10, status: 'pending', sort: 'scheduledAt' } }).then(r => r.data.success ? { followUps: r.data.data.followUps, total: r.data.data.total, pages: r.data.data.pages } : null)],
+            '/dashboard/chat-logs': ['chat_logs_text_p1', () => api.get('/chat-logs', { params: { logType: 'text', page: 1, limit: 50 } }).then(r => r.data.success ? { logs: r.data.data.logs, total: r.data.data.total, pages: r.data.data.pages } : null)],
+            '/dashboard/notifications': ['notifications_p1', () => api.get('/notifications', { params: { page: 1, limit: 15 } }).then(r => r.data.success ? { notifications: r.data.data.notifications, total: r.data.data.total, pages: r.data.data.pages } : null)],
+            '/dashboard/team': ['team', () => api.get('/team').then(r => r.data.success ? r.data.data : null)],
+            '/dashboard/bot-builder': ['bot-flows', () => api.get('/flows').then(r => r.data.success ? r.data.data.flows : [])],
+            '/dashboard/unofficial-campaigns': ['unofficial-campaigns', () => api.get('/campaigns?isUnofficial=true').then(r => r.data.success ? r.data.data.campaigns : [])],
+            '/dashboard/call-logs': ['call_logs_analytics', () => api.get('/admin/analytics').then(r => r.data.success ? r.data.data : null)],
+          };
+          const match = preloadMap[path];
+          if (match) {
+            preloadPageData(match[0], match[1]);
+          }
+        }).catch(() => {});
       }
     }
   }, [router]);
@@ -178,12 +204,33 @@ export default function Sidebar({ isOpen, onClose }) {
         });
       });
 
-      // Warm up each route sequentially without clogging the network
+      // Warm up each route and its data sequentially without clogging the network
       visibleRoutes.forEach((route, idx) => {
         setTimeout(() => {
           router.prefetch(route);
           fetch(route, { priority: 'low' }).catch(() => {});
-        }, idx * 350);
+          if (!preloadedRoutes.current.has(route)) {
+            preloadedRoutes.current.add(route);
+            import('../lib/usePageData').then(({ preloadPageData }) => {
+              const api = require('../lib/api').default;
+              const preloadMap = {
+                '/dashboard/contacts': ['contacts_page_1', () => api.get('/contacts', { params: { page: 1, limit: 10 } }).then(r => r.data.success ? { contacts: r.data.data.contacts, total: r.data.data.total, pages: r.data.data.pages } : null)],
+                '/dashboard/leads': ['leads_page_1', () => api.get('/leads', { params: { page: 1, limit: 10 } }).then(r => r.data.success ? { leads: r.data.data.leads || [], total: r.data.data.total || 0, pages: r.data.data.pages || 1 } : null)],
+                '/dashboard/catalog': ['catalog_browse_p1', () => api.get('/products', { params: { page: 1, limit: 8, isFeatured: 'false', sort: 'newest' } }).then(r => r.data.success ? { products: r.data.data.products, total: r.data.data.pagination?.total, pages: r.data.data.pagination?.pages } : null)],
+                '/dashboard/campaigns': ['campaigns', () => api.get('/campaigns').then(r => r.data.success ? r.data.data.campaigns : [])],
+                '/dashboard/templates': ['templates', () => api.get('/templates').then(r => r.data.success ? r.data.data.templates : [])],
+                '/dashboard/team': ['team', () => api.get('/team').then(r => r.data.success ? r.data.data : null)],
+                '/dashboard/triggers': ['triggers_page_1', () => api.get('/triggers', { params: { page: 1, limit: 50 } }).then(r => r.data.success ? { triggers: r.data.data.triggers, total: r.data.data.total, pages: r.data.data.pages } : null)],
+                '/dashboard/tasks': ['tasks_my_p1', () => api.get('/tasks', { params: { page: 1, limit: 10, tab: 'my-tasks', sort: 'newest' } }).then(r => r.data.success ? { tasks: r.data.data.tasks, total: r.data.data.total, pages: r.data.data.pages } : null)],
+                '/dashboard/follow-ups': ['followups_p1', () => api.get('/follow-ups', { params: { page: 1, limit: 10, status: 'pending', sort: 'scheduledAt' } }).then(r => r.data.success ? { followUps: r.data.data.followUps, total: r.data.data.total, pages: r.data.data.pages } : null)],
+              };
+              const match = preloadMap[route];
+              if (match) {
+                preloadPageData(match[0], match[1]);
+              }
+            }).catch(() => {});
+          }
+        }, idx * 300);
       });
     }, 1200);
 

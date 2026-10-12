@@ -1,21 +1,16 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   Clock, Plus, Trash2, Edit3, X, Sparkles, Loader2, Play, Users, FileText, CheckCircle2, History, AlertCircle
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { useMultiPageData } from '../../../lib/usePageData';
 import { useConfirmStore } from '../../../lib/store';
 import { formatDate } from '../../../lib/utils';
 
 export default function SequencesPage() {
   const confirm = useConfirmStore((state) => state.confirm);
-  const [sequences, setSequences] = useState([]);
-  const [executions, setExecutions] = useState([]);
-  const [templates, setTemplates] = useState([]);
-  const [contacts, setContacts] = useState([]);
-  const [tags, setTags] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // New/Edit Sequence form state
@@ -34,42 +29,20 @@ export default function SequencesPage() {
   const [selectedSeqId, setSelectedSeqId] = useState('');
   const [selectedContactIds, setSelectedContactIds] = useState([]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const { data: seqData } = await api.get('/sequences');
-      if (seqData.success) {
-        setSequences(seqData.data.sequences);
-        setExecutions(seqData.data.executions);
-      }
+  const fetcherMap = useCallback(() => ({
+    seqData: () => api.get('/sequences').then(r => r.data.success ? r.data.data : { sequences: [], executions: [] }),
+    templates: () => api.get('/templates').then(r => r.data.success ? r.data.data.templates.filter(t => t.status === 'APPROVED') : []),
+    contacts: () => api.get('/contacts').then(r => r.data.success ? r.data.data.contacts : []),
+    tags: () => api.get('/tags').then(r => r.data.success ? r.data.data.tags : []),
+  }), []);
 
-      // Fetch WABA templates
-      const { data: tmplData } = await api.get('/templates');
-      if (tmplData.success) {
-        // filter approved templates
-        setTemplates(tmplData.data.templates.filter(t => t.status === 'APPROVED'));
-      }
+  const { data: allData, loading, refresh: fetchData } = useMultiPageData(fetcherMap());
 
-      // Fetch contacts
-      const { data: contactData } = await api.get('/contacts');
-      if (contactData.success) {
-        setContacts(contactData.data.contacts);
-      }
-
-      // Fetch tags list
-      const { data: tagData } = await api.get('/tags');
-      if (tagData.success) {
-        setTags(tagData.data.tags);
-      }
-
-    } catch (err) {
-      toast.error('Failed to load sequences dashboard');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  const sequences = allData.seqData?.sequences || [];
+  const executions = allData.seqData?.executions || [];
+  const templates = allData.templates || [];
+  const contacts = allData.contacts || [];
+  const tags = allData.tags || [];
 
   const handleAddStep = () => {
     setSeqForm(prev => ({
