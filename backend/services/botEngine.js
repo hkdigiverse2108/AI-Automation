@@ -256,6 +256,21 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
       timestamp: new Date(parseInt(messageData.timestamp) * 1000 || Date.now()),
     });
 
+    // Check for Meta Standard Compliance STOP / UNSUBSCRIBE / START keywords
+    const textBody = (content.text || '').trim().toLowerCase();
+    const isOptOutWord = ['stop', 'unsubscribe', 'cancel', 'end', 'quit', 'stop promotions'].includes(textBody);
+    const isOptInWord = ['start', 'unstop', 'subscribe'].includes(textBody);
+
+    if (isOptOutWord && !contact.optedOut) {
+      contact.optedOut = true;
+      contact.optedOutAt = new Date();
+      logger.info(`[COMPLIANCE] Contact ${contact.phone} opted out via inbound keyword: "${content.text}"`);
+    } else if (isOptInWord && contact.optedOut) {
+      contact.optedOut = false;
+      contact.optedOutAt = undefined;
+      logger.info(`[COMPLIANCE] Contact ${contact.phone} opted back in via inbound keyword: "${content.text}"`);
+    }
+
     // Update contact & conversation
     contact.lastMessageAt = new Date();
     contact.totalMessages = (contact.totalMessages || 0) + 1;

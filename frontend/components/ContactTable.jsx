@@ -5,12 +5,16 @@ import { toast } from 'react-hot-toast';
 import { 
   Search, Plus, Upload, Trash2, Filter, ChevronLeft, ChevronRight, 
   X, Mail, Phone, User, Tag, HelpCircle, Loader2, MessageSquare, Edit2, CheckSquare, Square,
-  Calendar, Eye, Copy, FileSpreadsheet, AlertCircle, Check, Sparkles
+  Calendar, Eye, Copy, FileSpreadsheet, AlertCircle, Check, Sparkles, FileDown, ChevronDown,
+  Kanban, LayoutGrid, List, GripVertical
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import api from '../lib/api';
 import { ScoreBadge } from './ContactScoreCard';
 import { useConfirmStore } from '../lib/store';
 import { getFastCache, setFastCache } from '../lib/usePageData';
+import { getSocket } from '../lib/socket';
 import dynamic from 'next/dynamic';
 import Portal from './Portal';
 
@@ -60,8 +64,14 @@ export default function ContactTable() {
   const [total, setTotal] = useState(cachedContacts?.total || 0);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(cachedContacts?.pages || 1);
-  const [limit] = useState(10);
+  const [limit, setLimit] = useState(10);
   const [loading, setLoading] = useState(!cachedContacts?.contacts?.length);
+
+  // View Mode: 'list' (table) vs 'kanban'
+  const [viewMode, setViewMode] = useState('list');
+  // Kanban Grouping: 'source' (default), 'segment', 'status'
+  const [kanbanGroupBy, setKanbanGroupBy] = useState('source');
+  const [draggedContactId, setDraggedContactId] = useState(null);
 
   // Advanced Filters State
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -118,9 +128,11 @@ export default function ContactTable() {
   const [selectedPrimaryMap, setSelectedPrimaryMap] = useState({});
   const [mergingGroupIndex, setMergingGroupIndex] = useState(null);
   
-  // Import (CSV / Excel) State
+  // Import (CSV / Excel) & Export (PDF) State
   const [csvFile, setCsvFile] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   // Bulk Message State
   const [isBulkMessageModalOpen, setIsBulkMessageModalOpen] = useState(false);
@@ -190,9 +202,10 @@ export default function ContactTable() {
       setLoading(true);
     }
     try {
+      const currentLimit = viewMode === 'kanban' ? 200 : limit;
       const params = {
-        page,
-        limit,
+        page: viewMode === 'kanban' ? 1 : page,
+        limit: currentLimit,
         search: debouncedSearch || undefined,
         tags: selectedTag || undefined,
         source: source || undefined,
@@ -211,7 +224,7 @@ export default function ContactTable() {
         setTotal(data.data.total);
         setPages(data.data.pages);
         // Cache default page 1 for instant return
-        if (page === 1 && !debouncedSearch && !selectedTag && !source && optedOut === '' && !segment && !assignedAgent) {
+        if (page === 1 && viewMode === 'list' && !debouncedSearch && !selectedTag && !source && optedOut === '' && !segment && !assignedAgent) {
           setFastCache('contacts_page_1', {
             contacts: data.data.contacts,
             total: data.data.total,
@@ -239,9 +252,31 @@ export default function ContactTable() {
   useEffect(() => {
     fetchContacts();
   }, [
-    page, selectedTag, source, optedOut, segment, debouncedSearch,
+    page, limit, viewMode, selectedTag, source, optedOut, segment, debouncedSearch,
     assignedAgent, startDate, endDate, lastActivityStart, lastActivityEnd
   ]);
+
+  // Live Real-Time Socket Listener: Update contact status dynamically on Meta events
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleRealtimeMessage = (data) => {
+      if (data?.contact) {
+        setContacts((prevContacts) =>
+          prevContacts.map((c) =>
+            c._id === data.contact._id ? { ...c, ...data.contact } : c
+          )
+        );
+      }
+    };
+
+    socket.on('new_message', handleRealtimeMessage);
+
+    return () => {
+      socket.off('new_message', handleRealtimeMessage);
+    };
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -396,6 +431,149 @@ export default function ContactTable() {
     }
   };
 
+  // Export Contacts to PDF Handler
+  const handleExportPDF = async () => {
+    setIsActionsDropdownOpen(false);
+    setExportingPdf(true);
+    const toastId = toast.loading('Preparing contacts PDF export...');
+
+    try {
+      let exportList = [];
+
+      // If user selected rows, export only selected
+      if (selectedIds.length > 0) {
+        exportList = contacts.filter(c => selectedIds.includes(c._id));
+      } else {
+        // Fetch contacts matching current active filters (up to 1000)
+        const params = {
+          page: 1,
+          limit: 1000,
+          search: debouncedSearch || undefined,
+          tags: selectedTag || undefined,
+          source: source || undefined,
+          optedOut: optedOut === '' ? undefined : optedOut,
+          segment: segment || undefined,
+          assignedAgent: assignedAgent || undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          lastActivityStart: lastActivityStart || undefined,
+          lastActivityEnd: lastActivityEnd || undefined,
+        };
+
+        const { data } = await api.get('/contacts', { params });
+        if (data.success && data.data?.contacts?.length) {
+          exportList = data.data.contacts;
+        } else {
+          exportList = contacts;
+        }
+      }
+
+      if (!exportList || exportList.length === 0) {
+        toast.error('No contacts available to export', { id: toastId });
+        setExportingPdf(false);
+        return;
+      }
+
+      // Generate PDF with jsPDF and autoTable
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'pt',
+        format: 'a4',
+      });
+
+      const primaryColor = [18, 140, 126]; // #128c7e WhatsApp green
+      const darkColor = [30, 41, 59];
+
+      // Header Banner
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.rect(0, 0, doc.internal.pageSize.getWidth(), 60, 'F');
+
+      // Title & Subtitle
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('HK DigiVerse - Contacts Report', 30, 36);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      const generatedDate = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+      doc.text(`Generated on: ${generatedDate} IST | Total Contacts: ${exportList.length}`, 30, 52);
+
+      // Prepare Table Data
+      const tableHeaders = ['No.', 'Name', 'Phone', 'Email', 'Source', 'Tags', 'Status'];
+      const tableRows = exportList.map((c, index) => [
+        index + 1,
+        c.name || 'Anonymous',
+        c.phone || '-',
+        c.email || '-',
+        c.source || 'manual',
+        Array.isArray(c.tags) && c.tags.length > 0 ? c.tags.join(', ') : '-',
+        c.optedOut ? 'Opted Out' : 'Active'
+      ]);
+
+      // Render autoTable
+      autoTable(doc, {
+        head: [tableHeaders],
+        body: tableRows,
+        startY: 75,
+        theme: 'striped',
+        headStyles: {
+          fillColor: primaryColor,
+          textColor: [255, 255, 255],
+          fontSize: 9,
+          fontStyle: 'bold',
+          halign: 'left',
+          cellPadding: 6,
+        },
+        bodyStyles: {
+          fontSize: 8.5,
+          textColor: darkColor,
+          cellPadding: 5,
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        columnStyles: {
+          0: { cellWidth: 30, halign: 'center' },
+          1: { cellWidth: 120 },
+          2: { cellWidth: 100, fontStyle: 'bold' },
+          3: { cellWidth: 140 },
+          4: { cellWidth: 60, halign: 'center' },
+          5: { cellWidth: 160 },
+          6: { cellWidth: 70, halign: 'center' },
+        },
+        margin: { top: 75, left: 30, right: 30, bottom: 40 },
+        didDrawPage: (data) => {
+          // Footer
+          const pageStr = `Page ${data.pageNumber}`;
+          doc.setFontSize(8);
+          doc.setTextColor(150);
+          doc.text(
+            pageStr,
+            doc.internal.pageSize.getWidth() - 60,
+            doc.internal.pageSize.getHeight() - 15
+          );
+          doc.text(
+            'HK DigiVerse AI Automation Platform | Confidential',
+            30,
+            doc.internal.pageSize.getHeight() - 15
+          );
+        },
+      });
+
+      // Save PDF file
+      const dateStr = new Date().toISOString().split('T')[0];
+      doc.save(`HK_Contacts_Export_${dateStr}.pdf`);
+
+      toast.success(`Exported ${exportList.length} contacts to PDF!`, { id: toastId });
+    } catch (err) {
+      console.error('Failed to export PDF:', err);
+      toast.error('Failed to export contacts PDF', { id: toastId });
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   // Duplicate Scanner Handlers
   const handleOpenDuplicateScanner = async () => {
     setIsDuplicateModalOpen(true);
@@ -451,6 +629,81 @@ export default function ContactTable() {
     }
   };
 
+  // Quick Toggle Opt-Out / Active Status Handler
+  const handleToggleOptOut = async (contact) => {
+    const newStatus = !contact.optedOut;
+    const actionText = newStatus ? 'Opt-Out' : 'Reactivate (Opt-In)';
+    const confirmPrompt = newStatus
+      ? `Are you sure you want to opt-out "${contact.name || contact.phone}"? They will be excluded from all automated campaigns.`
+      : `Reactivate "${contact.name || contact.phone}" as an Active Subscriber? They will be eligible to receive campaigns again.`;
+
+    if (!(await confirm(confirmPrompt, `${actionText} Contact`))) {
+      return;
+    }
+
+    try {
+      const { data } = await api.put(`/contacts/${contact._id}`, { optedOut: newStatus });
+      if (data.success) {
+        toast.success(`Contact marked as ${newStatus ? 'Opted Out' : 'Active'}`);
+        setContacts((prev) =>
+          prev.map((c) => (c._id === contact._id ? { ...c, optedOut: newStatus, optedOutAt: newStatus ? new Date() : undefined } : c))
+        );
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update contact status');
+    }
+  };
+
+  // Kanban Drag and Drop Handler
+  const handleDropContact = async (targetColumnKey) => {
+    if (!draggedContactId) return;
+    const contactToMove = contacts.find((c) => c._id === draggedContactId);
+    if (!contactToMove) {
+      setDraggedContactId(null);
+      return;
+    }
+
+    let payload = {};
+    let hasChanged = false;
+
+    if (kanbanGroupBy === 'source') {
+      if (contactToMove.source !== targetColumnKey) {
+        payload.source = targetColumnKey;
+        hasChanged = true;
+      }
+    } else if (kanbanGroupBy === 'segment') {
+      const currentSegment = contactToMove.segment || 'new';
+      if (currentSegment !== targetColumnKey) {
+        payload.segment = targetColumnKey;
+        hasChanged = true;
+      }
+    } else if (kanbanGroupBy === 'status') {
+      const targetOptedOut = targetColumnKey === 'optedOut';
+      if (contactToMove.optedOut !== targetOptedOut) {
+        payload.optedOut = targetOptedOut;
+        hasChanged = true;
+      }
+    }
+
+    setDraggedContactId(null);
+    if (!hasChanged) return;
+
+    // Optimistic UI Update
+    setContacts((prev) =>
+      prev.map((c) => (c._id === contactToMove._id ? { ...c, ...payload } : c))
+    );
+
+    try {
+      const { data } = await api.put(`/contacts/${contactToMove._id}`, payload);
+      if (data.success) {
+        toast.success(`Contact moved to "${targetColumnKey.toUpperCase()}"!`);
+      }
+    } catch (err) {
+      toast.error('Failed to update contact');
+      fetchContacts();
+    }
+  };
+
   // Row selection helpers
   const handleSelectRow = (id) => {
     if (selectedIds.includes(id)) {
@@ -468,14 +721,87 @@ export default function ContactTable() {
     }
   };
 
-  const sources = ['manual', 'import', 'api', 'webhook', 'campaign'];
+  // Standard known sources plus any dynamic sources present in contacts
+  const defaultSources = ['direct', 'manual', 'import', 'website', 'instagram', 'facebook', 'api', 'webhook', 'campaign'];
+  const sources = Array.from(
+    new Set([...defaultSources, ...contacts.map(c => c.source).filter(Boolean)])
+  );
+
+  // Kanban Columns configuration based on selected kanbanGroupBy
+  const getKanbanColumns = () => {
+    if (kanbanGroupBy === 'source') {
+      const baseSources = [
+        { key: 'direct', label: 'Direct', emoji: '💬', subtitle: 'Direct WhatsApp Chat', bgBadge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' },
+        { key: 'manual', label: 'Manual', emoji: '✍️', subtitle: 'Manually Added', bgBadge: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' },
+        { key: 'import', label: 'Import', emoji: '📁', subtitle: 'Spreadsheet Upload', bgBadge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
+        { key: 'website', label: 'Website', emoji: '🌐', subtitle: 'Web Lead Capture', bgBadge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
+        { key: 'instagram', label: 'Instagram', emoji: '📸', subtitle: 'Instagram DM / Ad', bgBadge: 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20' },
+        { key: 'facebook', label: 'Facebook', emoji: '👥', subtitle: 'Facebook Ad / Page', bgBadge: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' },
+        { key: 'api', label: 'API / Other', emoji: '⚡', subtitle: 'Webhook & Integrations', bgBadge: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20' },
+      ];
+      const existingKeys = new Set(baseSources.map(s => s.key));
+      contacts.forEach(c => {
+        if (c.source && !existingKeys.has(c.source.toLowerCase())) {
+          const srcKey = c.source.toLowerCase();
+          existingKeys.add(srcKey);
+          baseSources.push({
+            key: srcKey,
+            label: c.source.charAt(0).toUpperCase() + c.source.slice(1),
+            emoji: '🏷️',
+            subtitle: 'Custom Source',
+            bgBadge: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20'
+          });
+        }
+      });
+      return baseSources;
+    }
+
+    if (kanbanGroupBy === 'segment') {
+      return [
+        { key: 'hot', label: 'Hot 🔥', subtitle: 'High Engagement & Active', emoji: '🔥', bgBadge: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20' },
+        { key: 'warm', label: 'Warm 🌡️', subtitle: 'Moderate Activity', emoji: '🌡️', bgBadge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
+        { key: 'cold', label: 'Cold ❄️', subtitle: 'Low / Inactive Leads', emoji: '❄️', bgBadge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' },
+        { key: 'new', label: 'New ✨', subtitle: 'Recently Added Customers', emoji: '✨', bgBadge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
+      ];
+    }
+
+    if (kanbanGroupBy === 'status') {
+      return [
+        { key: 'active', label: 'Active Subscribers 🟢', subtitle: 'Eligible for Campaigns & Chats', emoji: '🟢', bgBadge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
+        { key: 'optedOut', label: 'Opted Out 🔴', subtitle: 'Unsubscribed / Excluded', emoji: '🔴', bgBadge: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20' },
+      ];
+    }
+
+    return [];
+  };
+
+  const getContactsForColumn = (colKey) => {
+    return contacts.filter((c) => {
+      if (kanbanGroupBy === 'source') {
+        const src = (c.source || 'manual').toLowerCase();
+        if (colKey === 'api') {
+          return src === 'api' || src === 'webhook';
+        }
+        return src === colKey;
+      }
+      if (kanbanGroupBy === 'segment') {
+        const seg = (c.segment || 'new').toLowerCase();
+        return seg === colKey;
+      }
+      if (kanbanGroupBy === 'status') {
+        if (colKey === 'optedOut') return c.optedOut === true;
+        return !c.optedOut;
+      }
+      return false;
+    });
+  };
 
   return (
     <div className="space-y-6">
       {/* Header Panel */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Contacts & Audience ({total})</h2>
+          <h2 className="text-xl font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Contacts({total})</h2>
           <p className="text-sm text-wa-text-secondary dark:text-wa-dark-text-secondary mt-0.5">Manage your subscribers, view tag analytics, and bulk import customers.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -487,13 +813,99 @@ export default function ContactTable() {
             <Copy className="w-4 h-4 text-amber-500" />
             <span>Duplicate Scanner</span>
           </button>
-          <button 
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-wa-border dark:border-wa-dark-border text-wa-text-primary dark:text-wa-dark-text-primary bg-white dark:bg-wa-dark-panel hover:bg-wa-bg dark:hover:bg-wa-dark-header rounded-xl text-sm font-semibold transition-all duration-200"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Import CSV / Excel</span>
-          </button>
+          {/* Import / Export Dropdown */}
+          <div className="relative">
+            <button 
+              type="button"
+              onClick={() => setIsActionsDropdownOpen(prev => !prev)}
+              className="flex items-center gap-2 px-3.5 py-2 border border-wa-border dark:border-wa-dark-border text-wa-text-primary dark:text-wa-dark-text-primary bg-white dark:bg-wa-dark-panel hover:bg-wa-bg dark:hover:bg-wa-dark-header rounded-xl text-sm font-semibold transition-all duration-200 shadow-sm"
+              aria-expanded={isActionsDropdownOpen}
+            >
+              <Upload className="w-4 h-4 text-wa-green" />
+              <span>Import / Export</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-wa-text-secondary transition-transform duration-200 ${isActionsDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isActionsDropdownOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setIsActionsDropdownOpen(false)} 
+                />
+                <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-150">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsActionsDropdownOpen(false);
+                      setIsImportModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-bg dark:hover:bg-wa-dark-header transition-colors text-left"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-wa-green/10 text-wa-green flex items-center justify-center shrink-0">
+                      <Upload className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <span className="block font-bold">Import CSV / Excel</span>
+                      <span className="block text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-normal">Bulk upload contacts from file</span>
+                    </div>
+                  </button>
+
+                  <div className="my-1 border-t border-wa-border/50 dark:border-wa-dark-border/50" />
+
+                  <button
+                    type="button"
+                    disabled={exportingPdf}
+                    onClick={handleExportPDF}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-bg dark:hover:bg-wa-dark-header transition-colors text-left disabled:opacity-50"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0">
+                      {exportingPdf ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <FileDown className="w-3.5 h-3.5" />
+                      )}
+                    </div>
+                    <div>
+                      <span className="block font-bold">Export to PDF</span>
+                      <span className="block text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-normal">
+                        {selectedIds.length > 0 ? `Export ${selectedIds.length} selected contacts` : 'Download contacts list PDF'}
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          {/* View Mode Switcher: List vs Kanban */}
+          <div className="flex items-center p-1 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl shadow-inner">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-wa-dark-panel text-wa-green shadow-sm'
+                  : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary'
+              }`}
+              title="Standard List View"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>List</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('kanban')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                viewMode === 'kanban'
+                  ? 'bg-white dark:bg-wa-dark-panel text-wa-green shadow-sm'
+                  : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary'
+              }`}
+              title="Kanban Board View (Drag & Drop)"
+            >
+              <Kanban className="w-3.5 h-3.5" />
+              <span>Kanban</span>
+            </button>
+          </div>
+
           <button 
             onClick={() => setIsAddModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 text-white bg-wa-green hover:bg-wa-green-hover rounded-xl text-sm font-semibold shadow-md shadow-wa-green/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
@@ -503,6 +915,60 @@ export default function ContactTable() {
           </button>
         </div>
       </div>
+
+      {/* Kanban Group-By Selector Bar (Sources [Default], Segment, Status) */}
+      {viewMode === 'kanban' && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-sm animate-fade-in">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider mr-1">
+              <LayoutGrid className="w-4 h-4 text-wa-green" />
+              <span>Group Kanban By:</span>
+            </div>
+            <div className="inline-flex p-1 bg-wa-bg dark:bg-wa-dark-header rounded-xl border border-wa-border dark:border-wa-dark-border shadow-inner">
+              <button
+                type="button"
+                onClick={() => setKanbanGroupBy('source')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                  kanbanGroupBy === 'source'
+                    ? 'bg-wa-green text-white shadow-md shadow-wa-green/25'
+                    : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary'
+                }`}
+              >
+                <span>Sources</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${kanbanGroupBy === 'source' ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>Default</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setKanbanGroupBy('segment')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                  kanbanGroupBy === 'segment'
+                    ? 'bg-wa-green text-white shadow-md shadow-wa-green/25'
+                    : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary'
+                }`}
+              >
+                <span>Segment</span>
+                <span className="text-[10px]">🔥 ❄️</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setKanbanGroupBy('status')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                  kanbanGroupBy === 'status'
+                    ? 'bg-wa-green text-white shadow-md shadow-wa-green/25'
+                    : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary'
+                }`}
+              >
+                <span>Status</span>
+                <span className="text-[10px]">🟢 🔴</span>
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary">
+            <span className="inline-block w-2 h-2 rounded-full bg-wa-green animate-pulse" />
+            <span>Drag card to any column to instantly update contact</span>
+          </div>
+        </div>
+      )}
 
       {/* Bulk Actions Panel */}
       {selectedIds.length > 0 && (
@@ -567,11 +1033,13 @@ export default function ContactTable() {
           <select
             value={source}
             onChange={(e) => { setSource(e.target.value); setPage(1); }}
-            className="px-3 py-2 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-2 focus:ring-wa-green/30"
+            className="px-3 py-2 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-2 focus:ring-wa-green/30 capitalize"
           >
             <option value="">All Sources</option>
             {sources.map(src => (
-              <option key={src} value={src}>{src}</option>
+              <option key={src} value={src}>
+                {src.charAt(0).toUpperCase() + src.slice(1)}
+              </option>
             ))}
           </select>
 
@@ -677,9 +1145,206 @@ export default function ContactTable() {
         </div>
       )}
 
-      {/* Table view */}
-      <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+      {/* View Content: Kanban Board vs Table View */}
+      {viewMode === 'kanban' ? (
+        <div className="space-y-4">
+          {loading && contacts.length === 0 ? (
+            <div className="p-16 text-center bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-sm">
+              <Loader2 className="w-8 h-8 animate-spin text-wa-green mx-auto mb-3" />
+              <span className="text-sm font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary">Loading contacts into Kanban board...</span>
+            </div>
+          ) : contacts.length === 0 ? (
+            <div className="p-16 text-center bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-sm text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium">
+              No contacts found matching your current filter criteria.
+            </div>
+          ) : (
+            <div className="flex gap-4 overflow-x-auto pb-6 pt-1 px-1 scrollbar-thin items-start min-h-[580px]">
+              {getKanbanColumns().map((col) => {
+                const colContacts = getContactsForColumn(col.key);
+
+                return (
+                  <div
+                    key={col.key}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDropContact(col.key);
+                    }}
+                    className="w-80 shrink-0 bg-slate-50/90 dark:bg-wa-dark-header/40 border border-slate-200/90 dark:border-wa-dark-border rounded-2xl flex flex-col max-h-[calc(100vh-220px)] shadow-sm hover:border-wa-green/40 transition-colors"
+                  >
+                    {/* Column Header */}
+                    <div className="p-3.5 border-b border-slate-200 dark:border-wa-dark-border bg-white/80 dark:bg-wa-dark-panel/80 rounded-t-2xl flex items-center justify-between sticky top-0 z-10 backdrop-blur-sm">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-lg select-none">{col.emoji}</span>
+                        <div>
+                          <h3 className="text-xs font-bold text-wa-text-primary dark:text-wa-dark-text-primary uppercase tracking-wider">
+                            {col.label}
+                          </h3>
+                          {col.subtitle && (
+                            <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary leading-tight mt-0.5">
+                              {col.subtitle}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${col.bgBadge || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                        {colContacts.length}
+                      </span>
+                    </div>
+
+                    {/* Column Body / Drop Zone */}
+                    <div className="p-3 space-y-3 overflow-y-auto flex-1 scrollbar-thin min-h-[220px]">
+                      {colContacts.length === 0 ? (
+                        <div className="h-44 border-2 border-dashed border-slate-200 dark:border-wa-dark-border/60 rounded-xl flex flex-col items-center justify-center text-center p-4 text-wa-text-secondary dark:text-wa-dark-text-secondary bg-white/40 dark:bg-wa-dark-panel/20">
+                          <span className="text-2xl mb-1 opacity-50">{col.emoji}</span>
+                          <span className="text-xs font-semibold">No contacts here</span>
+                          <span className="text-[10px] opacity-75 mt-0.5">Drag & drop any card here</span>
+                        </div>
+                      ) : (
+                        colContacts.map((contact) => {
+                          const avatarClass = getAvatarBg(contact.name);
+                          const initials = contact.name ? contact.name.substring(0, 2).toUpperCase() : 'C';
+                          const isBeingDragged = draggedContactId === contact._id;
+
+                          return (
+                            <div
+                              key={contact._id}
+                              draggable
+                              onDragStart={(e) => {
+                                setDraggedContactId(contact._id);
+                                e.dataTransfer.setData('text/plain', contact._id);
+                              }}
+                              onDragEnd={() => setDraggedContactId(null)}
+                              className={`group bg-white dark:bg-wa-dark-panel border rounded-xl p-3 shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing select-none ${
+                                isBeingDragged
+                                  ? 'opacity-30 border-dashed border-wa-green scale-95'
+                                  : 'border-slate-200 dark:border-wa-dark-border hover:border-wa-green/60'
+                              }`}
+                            >
+                              {/* Top Bar: Drag Grip, Avatar, Name, Status Dot */}
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <div className={`w-8 h-8 rounded-full ${avatarClass} flex items-center justify-center font-bold text-xs shrink-0 shadow-sm`}>
+                                    {initials}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <h4 
+                                      onClick={() => { setDetailsContactId(contact._id); setIsDetailsModalOpen(true); }}
+                                      className="text-xs font-bold text-wa-text-primary dark:text-wa-dark-text-primary truncate hover:text-wa-green cursor-pointer flex items-center gap-1 group/name"
+                                      title={contact.name}
+                                    >
+                                      <span className="truncate">{contact.name || 'Anonymous'}</span>
+                                      <Eye className="w-3 h-3 opacity-0 group-hover/name:opacity-100 transition-opacity text-wa-green shrink-0" />
+                                    </h4>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span className="text-[10px] font-mono text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                                        {contact.phone}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                                  {contact.optedOut ? (
+                                    <span className="w-2 h-2 rounded-full bg-red-500" title="Opted Out" />
+                                  ) : (
+                                    <span className="w-2 h-2 rounded-full bg-wa-green animate-pulse" title="Active" />
+                                  )}
+                                  <GripVertical className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400" />
+                                </div>
+                              </div>
+
+                              {/* Mid Info: Engagement & Source */}
+                              <div className="flex items-center justify-between text-[11px] py-1 border-t border-slate-100 dark:border-wa-dark-border/40 my-2">
+                                <ScoreBadge score={contact.engagementScore} segment={contact.segment} size="xs" />
+                                <span className="px-1.5 py-0.5 rounded bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border text-[10px] font-medium capitalize text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                                  {contact.source || 'manual'}
+                                </span>
+                              </div>
+
+                              {/* Tags */}
+                              {contact.tags && contact.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-2.5">
+                                  {contact.tags.slice(0, 3).map((t) => {
+                                    const tagStyles = getTagColorClass(t);
+                                    return (
+                                      <span
+                                        key={t}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${tagStyles.badge}`}
+                                      >
+                                        <span className={`w-1 h-1 rounded-full ${tagStyles.dot}`} />
+                                        <span className="truncate max-w-[85px]">{t}</span>
+                                      </span>
+                                    );
+                                  })}
+                                  {contact.tags.length > 3 && (
+                                    <span className="text-[9px] text-wa-text-secondary dark:text-wa-dark-text-secondary self-center">
+                                      +{contact.tags.length - 3}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Card Footer: Quick Actions */}
+                              <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 dark:border-wa-dark-border/40">
+                                <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500">
+                                  ID: {contact._id.substring(contact._id.length - 6)}
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMessageContact(contact._id);
+                                    }}
+                                    className="p-1 text-wa-green hover:bg-wa-green/10 rounded-lg transition-colors"
+                                    title="Start WhatsApp Chat"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDetailsContactId(contact._id);
+                                      setIsDetailsModalOpen(true);
+                                    }}
+                                    className="p-1 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+                                    title="View & Edit Details"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteContact(contact._id);
+                                    }}
+                                    className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                                    title="Delete Contact"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Table view */
+        <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
           <table className="hidden sm:table w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-wa-border dark:border-wa-dark-border text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary bg-wa-bg dark:bg-wa-dark-header/40">
@@ -796,17 +1461,24 @@ export default function ContactTable() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        {contact.optedOut ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-950">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                            Opted Out
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-wa-green/10 text-wa-green border border-wa-green/20">
-                            <span className="w-1.5 h-1.5 rounded-full bg-wa-green animate-pulse" />
-                            Active
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleOptOut(contact)}
+                          title={`Click to mark as ${contact.optedOut ? 'Active' : 'Opted Out'}`}
+                          className="group cursor-pointer focus:outline-none transition-transform active:scale-95"
+                        >
+                          {contact.optedOut ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-950 group-hover:bg-red-100 transition-colors">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                              Opted Out
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-wa-green/10 text-wa-green border border-wa-green/20 group-hover:bg-wa-green/20 transition-colors">
+                              <span className="w-1.5 h-1.5 rounded-full bg-wa-green animate-pulse" />
+                              Active
+                            </span>
+                          )}
+                        </button>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -1002,6 +1674,7 @@ export default function ContactTable() {
           </div>
         )}
       </div>
+      )}
 
       {/* MODAL: ADD CONTACT */}
       {isAddModalOpen && (
@@ -1059,6 +1732,23 @@ export default function ContactTable() {
                     className="w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Source</label>
+                <select
+                  value={newContact.source}
+                  onChange={(e) => setNewContact({...newContact, source: e.target.value})}
+                  className="w-full px-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary focus:outline-none focus:ring-2 focus:ring-wa-green/30 capitalize"
+                >
+                  <option value="manual">Manual</option>
+                  <option value="direct">Direct</option>
+                  <option value="website">Website</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="import">Import</option>
+                  <option value="api">API</option>
+                </select>
               </div>
 
               <div>
@@ -1306,7 +1996,7 @@ export default function ContactTable() {
             <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
               <div className="flex items-center gap-2">
                 <FileSpreadsheet className="w-5 h-5 text-wa-green" />
-                <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Import Audience (CSV & Excel)</h3>
+                <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Import Contacts (CSV & Excel)</h3>
               </div>
               <button onClick={() => setIsImportModalOpen(false)} className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors">
                 <X className="w-5 h-5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
@@ -1396,7 +2086,7 @@ export default function ContactTable() {
               {duplicateScanning ? (
                 <div className="py-12 flex flex-col items-center justify-center space-y-3">
                   <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
-                  <p className="text-sm font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary">Scanning audience for duplicates...</p>
+                  <p className="text-sm font-semibold text-wa-text-secondary dark:text-wa-dark-text-secondary">Scanning contacts for duplicates...</p>
                 </div>
               ) : duplicateGroups.length === 0 ? (
                 <div className="py-12 text-center space-y-2">

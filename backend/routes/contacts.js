@@ -590,7 +590,7 @@ router.post('/merge', async (req, res) => {
 // PUT /contacts/:id
 router.put('/:id', ...validateObjectId('id'), async (req, res) => {
   try {
-    const { name, email, tags, notes, customFields } = req.body;
+    const { name, email, tags, notes, customFields, source, segment } = req.body;
     const contact = await Contact.findOne({ _id: req.params.id, userId: req.userId, isDeleted: { $ne: true } });
     if (!contact) return res.status(404).json({ success: false, error: 'Contact not found', code: 'NOT_FOUND' });
 
@@ -598,6 +598,8 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
     if (email !== undefined) contact.email = email;
     if (tags !== undefined) contact.tags = tags;
     if (notes !== undefined) contact.notes = notes;
+    if (source !== undefined) contact.source = source;
+    if (segment !== undefined) contact.segment = segment;
     if (req.body.optedOut !== undefined) {
       contact.optedOut = req.body.optedOut;
       if (req.body.optedOut) contact.optedOutAt = new Date();
