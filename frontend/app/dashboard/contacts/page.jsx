@@ -1,18 +1,28 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import api from '../../../lib/api';
 
 import ContactTable from '../../../components/ContactTable';
+import ContactGroups from '../../../components/ContactGroups';
 import { toast } from 'react-hot-toast';
-import { Tag as TagIcon, Users, Play, Plus, Trash2, X, Sparkles, Loader2, ToggleLeft, ToggleRight, Search, Edit2 } from 'lucide-react';
+import { Tag as TagIcon, Users, Play, Plus, Trash2, X, Sparkles, Loader2, ToggleLeft, ToggleRight, Search, Edit2, FolderOpen } from 'lucide-react';
 import { useConfirmStore } from '../../../lib/store';
 import { getFastCache, setFastCache } from '../../../lib/usePageData';
 import Portal from '../../../components/Portal';
 
 export default function ContactsPage() {
   const confirm = useConfirmStore((state) => state.confirm);
-  const [activeTab, setActiveTab] = useState('contacts'); // 'contacts', 'tags', 'rules'
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState('contacts'); // 'contacts', 'groups', 'tags', 'rules'
+
+  useEffect(() => {
+    const tab = searchParams?.get('tab');
+    if (tab && ['contacts', 'groups', 'tags', 'rules'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
   
   // Tags and Rules states (restored instantly from fast cache)
   const cachedTagsRules = getFastCache('contact_tags_rules', { tags: [], rules: [] });
@@ -57,7 +67,7 @@ export default function ContactsPage() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'contacts') {
+    if (activeTab === 'tags' || activeTab === 'rules') {
       fetchTagsAndRules();
     }
   }, [activeTab]);
@@ -197,6 +207,17 @@ export default function ContactsPage() {
             Contacts List
           </button>
           <button
+            onClick={() => setActiveTab('groups')}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-2 ${
+              activeTab === 'groups'
+                ? 'bg-wa-green text-white shadow-sm'
+                : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary hover:bg-wa-hover'
+            }`}
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            Contact Groups
+          </button>
+          <button
             onClick={() => setActiveTab('tags')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-2 ${
               activeTab === 'tags'
@@ -225,6 +246,10 @@ export default function ContactsPage() {
       <div key={activeTab}>
         {activeTab === 'contacts' && (
           <ContactTable />
+        )}
+
+        {activeTab === 'groups' && (
+          <ContactGroups />
         )}
 
         {activeTab === 'tags' && (

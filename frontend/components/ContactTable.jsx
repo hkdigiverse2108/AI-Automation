@@ -112,6 +112,7 @@ export default function ContactTable() {
     tags: ''
   });
   const [addCustomFields, setAddCustomFields] = useState([]);
+  const [addFormErrors, setAddFormErrors] = useState({});
 
   // Edit Contact Form State
   const [editingContact, setEditingContact] = useState({
@@ -286,10 +287,29 @@ export default function ContactTable() {
 
   const handleAddContact = async (e) => {
     e.preventDefault();
-    if (!newContact.phone || !newContact.name) {
-      toast.error('Name and Phone number are required');
+    const errors = {};
+    const trimmedName = (newContact.name || '').trim();
+    const trimmedPhone = (newContact.phone || '').trim();
+    const trimmedEmail = (newContact.email || '').trim();
+
+    if (!trimmedName) {
+      errors.name = 'Full name is required';
+    }
+    if (!trimmedPhone) {
+      errors.phone = 'Phone number is required';
+    }
+    if (trimmedEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        errors.email = 'Please enter a valid email address';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setAddFormErrors(errors);
       return;
     }
+    setAddFormErrors({});
     
     try {
       const customFieldsObj = {};
@@ -298,20 +318,29 @@ export default function ContactTable() {
       });
 
       const payload = {
-        ...newContact,
+        name: trimmedName,
+        phone: trimmedPhone,
+        source: newContact.source || 'manual',
         tags: newContact.tags ? newContact.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         customFields: customFieldsObj
       };
+
+      if (trimmedEmail) {
+        payload.email = trimmedEmail;
+      }
+
       const { data } = await api.post('/contacts', payload);
       if (data.success) {
         toast.success('Contact added successfully');
         setIsAddModalOpen(false);
         setNewContact({ name: '', phone: '', email: '', source: 'manual', tags: '' });
         setAddCustomFields([]);
+        setAddFormErrors({});
         fetchContacts();
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to add contact');
+      const errorMsg = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Failed to add contact';
+      toast.error(errorMsg);
     }
   };
 
@@ -907,7 +936,10 @@ export default function ContactTable() {
           </div>
 
           <button 
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => {
+              setAddFormErrors({});
+              setIsAddModalOpen(true);
+            }}
             className="flex items-center gap-2 px-4 py-2 text-white bg-wa-green hover:bg-wa-green-hover rounded-xl text-sm font-semibold shadow-md shadow-wa-green/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
           >
             <Plus className="w-4 h-4" />
@@ -1683,55 +1715,102 @@ export default function ContactTable() {
           <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header shrink-0">
               <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Create New Contact</h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors">
+              <button 
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  setAddFormErrors({});
+                }} 
+                className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors"
+              >
                 <X className="w-5 h-5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
               </button>
             </div>
             
-            <form onSubmit={handleAddContact} className="p-6 space-y-4 overflow-y-auto flex-1">
+            <form onSubmit={handleAddContact} noValidate className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
-                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Full Name *</label>
+                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
-                  <User className="absolute left-3.5 top-3 w-4 h-4 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
+                  <User className={`absolute left-3.5 top-3 w-4 h-4 ${addFormErrors.name ? 'text-red-500' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary'}`} />
                   <input
                     type="text"
-                    required
                     placeholder="John Doe"
                     value={newContact.name}
-                    onChange={(e) => setNewContact({...newContact, name: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all"
+                    onChange={(e) => {
+                      setNewContact({...newContact, name: e.target.value});
+                      if (addFormErrors.name) setAddFormErrors(prev => ({ ...prev, name: '' }));
+                    }}
+                    className={`w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none transition-all ${
+                      addFormErrors.name
+                        ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
+                        : 'border-wa-border dark:border-wa-dark-border focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green'
+                    }`}
                   />
                 </div>
+                {addFormErrors.name && (
+                  <p className="text-xs text-red-500 mt-1 font-medium flex items-center gap-1">
+                    <span>{addFormErrors.name}</span>
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Phone Number *</label>
+                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">
+                  Phone Number <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
-                  <Phone className="absolute left-3.5 top-3 w-4 h-4 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
+                  <Phone className={`absolute left-3.5 top-3 w-4 h-4 ${addFormErrors.phone ? 'text-red-500' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary'}`} />
                   <input
                     type="tel"
-                    required
                     placeholder="+1234567890"
                     value={newContact.phone}
-                    onChange={(e) => setNewContact({...newContact, phone: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all font-mono"
+                    onChange={(e) => {
+                      setNewContact({...newContact, phone: e.target.value});
+                      if (addFormErrors.phone) setAddFormErrors(prev => ({ ...prev, phone: '' }));
+                    }}
+                    className={`w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none transition-all font-mono ${
+                      addFormErrors.phone
+                        ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
+                        : 'border-wa-border dark:border-wa-dark-border focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green'
+                    }`}
                   />
                 </div>
-                <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">Must include country code without symbols (e.g. +14155552671)</p>
+                {addFormErrors.phone ? (
+                  <p className="text-xs text-red-500 mt-1 font-medium flex items-center gap-1">
+                    <span>{addFormErrors.phone}</span>
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">Must include country code without symbols (e.g. +14155552671)</p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Email Address</label>
+                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">
+                  Email Address <span className="text-[10px] lowercase font-normal text-wa-text-secondary dark:text-wa-dark-text-secondary">(optional)</span>
+                </label>
                 <div className="relative">
-                  <Mail className="absolute left-3.5 top-3 w-4 h-4 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
+                  <Mail className={`absolute left-3.5 top-3 w-4 h-4 ${addFormErrors.email ? 'text-red-500' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary'}`} />
                   <input
                     type="email"
                     placeholder="john@example.com"
                     value={newContact.email}
-                    onChange={(e) => setNewContact({...newContact, email: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all"
+                    onChange={(e) => {
+                      setNewContact({...newContact, email: e.target.value});
+                      if (addFormErrors.email) setAddFormErrors(prev => ({ ...prev, email: '' }));
+                    }}
+                    className={`w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none transition-all ${
+                      addFormErrors.email
+                        ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
+                        : 'border-wa-border dark:border-wa-dark-border focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green'
+                    }`}
                   />
                 </div>
+                {addFormErrors.email && (
+                  <p className="text-xs text-red-500 mt-1 font-medium flex items-center gap-1">
+                    <span>{addFormErrors.email}</span>
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1838,7 +1917,10 @@ export default function ContactTable() {
               <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
                 <button 
                   type="button" 
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={() => {
+                    setIsAddModalOpen(false);
+                    setAddFormErrors({});
+                  }}
                   className="px-4 py-2 text-sm font-semibold border border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel hover:bg-wa-bg rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary transition-all duration-200"
                 >
                   Cancel

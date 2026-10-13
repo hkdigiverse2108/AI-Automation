@@ -16,8 +16,9 @@ const ChatWindow = dynamic(() => import('../../../components/ChatWindow'), {
 import toast from 'react-hot-toast';
 import {
   Search, MessageSquare, Bot as BotIcon, User, Sparkles, Plus, X, Loader2,
-  Filter, MoreVertical, Archive, Clock, Pin, Star
+  Filter, MoreVertical, Archive, Clock, Pin, Star, ArrowLeft, UserPlus, Phone, Mail, Tag
 } from 'lucide-react';
+import Portal from '../../../components/Portal';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 
 const STATUS_BADGES = {
@@ -118,6 +119,10 @@ export default function InboxPage() {
   const [contacts, setContacts] = useState([]);
   const [contactSearch, setContactSearch] = useState('');
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [isCreatingContact, setIsCreatingContact] = useState(false);
+  const [newContactForm, setNewContactForm] = useState({ name: '', phone: '', email: '', tags: '' });
+  const [contactFormErrors, setContactFormErrors] = useState({});
+  const [creatingContactLoading, setCreatingContactLoading] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -321,12 +326,68 @@ export default function InboxPage() {
       const { data } = await api.post('/messages/conversations', { contactId });
       if (data.success) {
         setIsNewChatOpen(false);
+        setIsCreatingContact(false);
         setContactSearch('');
+        setContactFormErrors({});
         await fetchConversations({ search, status: filter || undefined });
         selectConversation(data.data.conversation);
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to start chat');
+    }
+  };
+
+  const handleCreateContactAndStartChat = async (e) => {
+    e.preventDefault();
+    const errors = {};
+    const trimmedName = (newContactForm.name || '').trim();
+    const trimmedPhone = (newContactForm.phone || '').trim();
+    const trimmedEmail = (newContactForm.email || '').trim();
+
+    if (!trimmedName) {
+      errors.name = 'Full name is required';
+    }
+    if (!trimmedPhone) {
+      errors.phone = 'Phone number is required';
+    }
+    if (trimmedEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        errors.email = 'Please enter a valid email address';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setContactFormErrors(errors);
+      return;
+    }
+    setContactFormErrors({});
+
+    try {
+      setCreatingContactLoading(true);
+      const payload = {
+        name: trimmedName,
+        phone: trimmedPhone,
+        source: 'direct',
+        tags: newContactForm.tags ? newContactForm.tags.split(',').map((t) => t.trim()).filter(Boolean) : []
+      };
+
+      if (trimmedEmail) {
+        payload.email = trimmedEmail;
+      }
+
+      const { data } = await api.post('/contacts', payload);
+      if (data.success && data.data?.contact) {
+        toast.success('Contact created successfully');
+        setNewContactForm({ name: '', phone: '', email: '', tags: '' });
+        setIsCreatingContact(false);
+        await handleStartChat(data.data.contact._id);
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Failed to create contact';
+      toast.error(errorMsg);
+    } finally {
+      setCreatingContactLoading(false);
     }
   };
 
@@ -363,7 +424,13 @@ export default function InboxPage() {
           <div className="flex items-center gap-1">
             {!isAgent && (
               <button
-                onClick={() => setIsNewChatOpen(true)}
+                onClick={() => {
+                  setIsNewChatOpen(true);
+                  setIsCreatingContact(false);
+                  setContactSearch('');
+                  setContactFormErrors({});
+                  setNewContactForm({ name: '', phone: '', email: '', tags: '' });
+                }}
                 className="w-10 h-10 rounded-full flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
                 title="New Chat"
               >
@@ -685,71 +752,329 @@ export default function InboxPage() {
         )}
       </div>
 
-      {/* New Chat Modal */}
+      {/* New Chat Modal with Full-Screen Blur Backdrop */}
       {isNewChatOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden animate-slide-up flex flex-col max-h-[80vh] shadow-wa-lg">
-            <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
-              <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-wa-green" /> New Chat
-              </h3>
-              <button
-                onClick={() => { setIsNewChatOpen(false); setContactSearch(''); }}
-                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
-              >
-                <X className="w-5 h-5 text-wa-text-secondary" />
-              </button>
-            </div>
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden animate-slide-up flex flex-col max-h-[85vh] shadow-2xl">
+              
+              {!isCreatingContact ? (
+                <>
+                  {/* Header: Contacts List */}
+                  <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4 bg-wa-bg dark:bg-wa-dark-header shrink-0">
+                    <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2 text-base">
+                      <MessageSquare className="w-5 h-5 text-wa-green" /> New Chat
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setIsNewChatOpen(false);
+                        setContactSearch('');
+                        setIsCreatingContact(false);
+                        setContactFormErrors({});
+                      }}
+                      className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors text-wa-text-secondary"
+                      title="Close"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
 
-            <div className="p-3 border-b border-wa-border dark:border-wa-dark-border">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-wa-text-light" />
-                <input
-                  type="text"
-                  placeholder="Search contacts..."
-                  value={contactSearch}
-                  onChange={(e) => setContactSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-wa-search dark:bg-wa-dark-search rounded-lg text-sm text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-light focus:outline-none"
-                  autoFocus
-                />
-              </div>
-            </div>
+                  {/* Search Bar */}
+                  <div className="p-3 border-b border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel shrink-0">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-wa-text-light" />
+                      <input
+                        type="text"
+                        placeholder="Search name or phone..."
+                        value={contactSearch}
+                        onChange={(e) => setContactSearch(e.target.value)}
+                        className="w-full pl-10 pr-8 py-2 bg-wa-search dark:bg-wa-dark-search rounded-xl text-sm text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-light focus:outline-none focus:ring-1 focus:ring-wa-green/50 border border-wa-border/50 dark:border-wa-dark-border/40"
+                        autoFocus
+                      />
+                      {contactSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setContactSearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-wa-text-light hover:text-wa-text-primary p-0.5 rounded-full"
+                          title="Clear"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-            <div className="flex-1 overflow-y-auto min-h-[250px]">
-              {loadingContacts ? (
-                <div className="flex justify-center items-center py-16 gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin text-wa-green" />
-                  <span className="text-sm text-wa-text-secondary">Loading...</span>
-                </div>
-              ) : contacts.length === 0 ? (
-                <div className="text-center py-16 text-wa-text-light">
-                  <User className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">No contacts found</p>
-                </div>
-              ) : (
-                contacts.map((contact) => (
+                  {/* New Contact Action Bar */}
                   <button
-                    key={contact._id}
-                    onClick={() => handleStartChat(contact._id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors text-left border-b border-wa-border/30 dark:border-wa-dark-border/30"
+                    type="button"
+                    onClick={() => {
+                      const query = contactSearch.trim();
+                      const isPhoneLike = /^\+?[0-9\s-]{4,}$/.test(query);
+                      setNewContactForm({
+                        name: !isPhoneLike ? query : '',
+                        phone: isPhoneLike ? query : '',
+                        email: '',
+                        tags: '',
+                      });
+                      setContactFormErrors({});
+                      setIsCreatingContact(true);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors text-left border-b border-wa-border dark:border-wa-dark-border text-wa-green font-medium text-sm group bg-wa-green/5 dark:bg-wa-green/10 shrink-0"
                   >
-                    <div className="wa-avatar wa-avatar-lg">
-                      {contact.name?.[0]?.toUpperCase() || '#'}
+                    <div className="w-9 h-9 rounded-full bg-wa-green/15 text-wa-green flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                      <UserPlus className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-wa-text-primary dark:text-wa-dark-text-primary truncate">
-                        {contact.name || 'Unknown'}
+                      <p className="font-semibold text-sm text-wa-green flex items-center gap-1.5">
+                        New Contact
                       </p>
                       <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary truncate">
-                        {contact.phone}
+                        Create contact and start conversation
                       </p>
                     </div>
+                    <Plus className="w-4 h-4 text-wa-green opacity-70 group-hover:opacity-100" />
                   </button>
-                ))
+
+                  {/* Contacts List / Empty State */}
+                  <div className="flex-1 overflow-y-auto min-h-[250px]">
+                    {loadingContacts ? (
+                      <div className="flex flex-col justify-center items-center py-16 gap-2">
+                        <Loader2 className="w-6 h-6 animate-spin text-wa-green" />
+                        <span className="text-xs text-wa-text-secondary">Searching contacts...</span>
+                      </div>
+                    ) : contacts.length === 0 ? (
+                      <div className="text-center py-12 px-4 text-wa-text-light flex flex-col items-center">
+                        <div className="w-12 h-12 rounded-full bg-wa-bg dark:bg-wa-dark-header flex items-center justify-center mb-3">
+                          <User className="w-6 h-6 text-wa-text-secondary/60" />
+                        </div>
+                        <p className="text-sm font-semibold text-wa-text-primary dark:text-wa-dark-text-primary mb-1">
+                          {contactSearch ? `No contacts matching "${contactSearch}"` : 'No contacts found'}
+                        </p>
+                        <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary mb-4 max-w-xs">
+                          Create this contact now to start messaging immediately.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const query = contactSearch.trim();
+                            const isPhoneLike = /^\+?[0-9\s-]{4,}$/.test(query);
+                            setNewContactForm({
+                              name: !isPhoneLike ? query : '',
+                              phone: isPhoneLike ? query : '',
+                              email: '',
+                              tags: '',
+                            });
+                            setContactFormErrors({});
+                            setIsCreatingContact(true);
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-wa-green hover:bg-wa-green-hover text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          Create New Contact
+                        </button>
+                      </div>
+                    ) : (
+                      contacts.map((contact) => (
+                        <button
+                          key={contact._id}
+                          onClick={() => handleStartChat(contact._id)}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors text-left border-b border-wa-border/30 dark:border-wa-dark-border/30"
+                        >
+                          <div className="wa-avatar wa-avatar-lg shrink-0">
+                            {contact.name?.[0]?.toUpperCase() || '#'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-wa-text-primary dark:text-wa-dark-text-primary truncate">
+                              {contact.name || 'Unknown'}
+                            </p>
+                            <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary truncate font-mono">
+                              {contact.phone}
+                            </p>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Header: Create Contact */}
+                  <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4 bg-wa-bg dark:bg-wa-dark-header shrink-0">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingContact(false);
+                          setContactFormErrors({});
+                        }}
+                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors text-wa-text-secondary hover:text-wa-text-primary"
+                        title="Back"
+                      >
+                        <ArrowLeft className="w-5 h-5" />
+                      </button>
+                      <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2 text-base">
+                        <UserPlus className="w-5 h-5 text-wa-green" /> Create New Contact
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsNewChatOpen(false);
+                        setIsCreatingContact(false);
+                        setContactSearch('');
+                        setContactFormErrors({});
+                      }}
+                      className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors text-wa-text-secondary"
+                      title="Close"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Form: Create Contact */}
+                  <form onSubmit={handleCreateContactAndStartChat} className="p-5 space-y-4 overflow-y-auto flex-1">
+                    {/* Full Name */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <User className={`absolute left-3.5 top-3 w-4 h-4 ${contactFormErrors.name ? 'text-red-500' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary'}`} />
+                        <input
+                          type="text"
+                          placeholder="John Doe"
+                          value={newContactForm.name}
+                          onChange={(e) => {
+                            setNewContactForm({ ...newContactForm, name: e.target.value });
+                            if (contactFormErrors.name) setContactFormErrors((prev) => ({ ...prev, name: '' }));
+                          }}
+                          className={`w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none transition-all ${
+                            contactFormErrors.name
+                              ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
+                              : 'border-wa-border dark:border-wa-dark-border focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green'
+                          }`}
+                          autoFocus
+                        />
+                      </div>
+                      {contactFormErrors.name && (
+                        <p className="text-xs text-red-500 mt-1 font-medium">{contactFormErrors.name}</p>
+                      )}
+                    </div>
+
+                    {/* Phone Number */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">
+                        Phone Number <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Phone className={`absolute left-3.5 top-3 w-4 h-4 ${contactFormErrors.phone ? 'text-red-500' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary'}`} />
+                        <input
+                          type="tel"
+                          placeholder="+1234567890"
+                          value={newContactForm.phone}
+                          onChange={(e) => {
+                            setNewContactForm({ ...newContactForm, phone: e.target.value });
+                            if (contactFormErrors.phone) setContactFormErrors((prev) => ({ ...prev, phone: '' }));
+                          }}
+                          className={`w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none transition-all font-mono ${
+                            contactFormErrors.phone
+                              ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
+                              : 'border-wa-border dark:border-wa-dark-border focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green'
+                          }`}
+                        />
+                      </div>
+                      {contactFormErrors.phone ? (
+                        <p className="text-xs text-red-500 mt-1 font-medium">{contactFormErrors.phone}</p>
+                      ) : (
+                        <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">
+                          Must include country code (e.g. +919876543210)
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Email Address */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">
+                        Email Address <span className="text-[10px] lowercase font-normal text-wa-text-secondary dark:text-wa-dark-text-secondary">(optional)</span>
+                      </label>
+                      <div className="relative">
+                        <Mail className={`absolute left-3.5 top-3 w-4 h-4 ${contactFormErrors.email ? 'text-red-500' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary'}`} />
+                        <input
+                          type="email"
+                          placeholder="john@example.com"
+                          value={newContactForm.email}
+                          onChange={(e) => {
+                            setNewContactForm({ ...newContactForm, email: e.target.value });
+                            if (contactFormErrors.email) setContactFormErrors((prev) => ({ ...prev, email: '' }));
+                          }}
+                          className={`w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none transition-all ${
+                            contactFormErrors.email
+                              ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
+                              : 'border-wa-border dark:border-wa-dark-border focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green'
+                          }`}
+                        />
+                      </div>
+                      {contactFormErrors.email && (
+                        <p className="text-xs text-red-500 mt-1 font-medium">{contactFormErrors.email}</p>
+                      )}
+                    </div>
+
+                    {/* Tags */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">
+                        Tags <span className="text-[10px] lowercase font-normal text-wa-text-secondary dark:text-wa-dark-text-secondary">(optional)</span>
+                      </label>
+                      <div className="relative">
+                        <Tag className="absolute left-3.5 top-3 w-4 h-4 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
+                        <input
+                          type="text"
+                          placeholder="leads, vip, customer"
+                          value={newContactForm.tags}
+                          onChange={(e) => setNewContactForm({ ...newContactForm, tags: e.target.value })}
+                          className="w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all"
+                        />
+                      </div>
+                      <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">Comma-separated tags</p>
+                    </div>
+
+                    {/* Footer buttons */}
+                    <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingContact(false);
+                          setContactFormErrors({});
+                        }}
+                        disabled={creatingContactLoading}
+                        className="px-4 py-2 text-sm font-semibold border border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel hover:bg-wa-bg dark:hover:bg-wa-dark-header rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary transition-all disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={creatingContactLoading}
+                        className="px-5 py-2 text-sm font-semibold text-white bg-wa-green hover:bg-wa-green-hover rounded-xl shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {creatingContactLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-4 h-4" />
+                            <span>Save & Start Chat</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </>
               )}
+
             </div>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

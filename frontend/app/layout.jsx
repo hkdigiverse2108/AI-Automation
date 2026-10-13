@@ -35,7 +35,18 @@ export default function RootLayout({ children }) {
           shadow="0 0 10px #00a884,0 0 5px #00a884"
           zIndex={99999}
         />
-        <Toaster position="top-right" toastOptions={{ duration: 4000, style: { borderRadius: '12px', background: '#1e293b', color: '#f1f5f9' } }} />
+        <Toaster
+          position="top-right"
+          containerStyle={{ zIndex: 999999 }}
+          toastOptions={{
+            duration: 4000,
+            style: {
+              borderRadius: '12px',
+              background: '#1e293b',
+              color: '#f1f5f9',
+            }
+          }}
+        />
         {children}
       </body>
     </html>

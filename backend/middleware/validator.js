@@ -5,11 +5,12 @@ const mongoose = require('mongoose');
 function handleValidation(req, res, next) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    const errorList = errors.array().map((e) => ({ field: e.path, message: e.msg }));
     return res.status(400).json({
       success: false,
-      error: 'Validation failed',
+      error: errorList[0]?.message || 'Validation failed',
       code: 'VALIDATION_ERROR',
-      details: errors.array().map((e) => ({ field: e.path, message: e.msg })),
+      details: errorList,
     });
   }
   next();
@@ -60,10 +61,11 @@ const contactValidation = [
   body('phone')
     .notEmpty()
     .withMessage('Phone number is required')
+    .customSanitizer(val => typeof val === 'string' ? val.replace(/[\s\-\(\)]/g, '') : val)
     .matches(/^\+?[1-9]\d{6,14}$/)
     .withMessage('Invalid phone number format'),
-  body('name').optional().trim().isLength({ max: 100 }),
-  body('email').optional().isEmail().withMessage('Invalid email'),
+  body('name').optional({ values: 'falsy' }).trim().isLength({ max: 100 }),
+  body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email'),
   handleValidation,
 ];
 
