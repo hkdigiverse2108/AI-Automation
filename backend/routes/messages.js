@@ -92,39 +92,51 @@ router.get('/conversations', async (req, res) => {
     }
 
     if (req.user.role === 'agent') {
-      if (assignedAgent) {
-        if (assignedAgent === 'unassigned' || assignedAgent === 'null') {
-          query.$or = [
-            { assignedAgent: { $exists: false } },
-            { assignedAgent: null }
-          ];
-        } else if (assignedAgent.toString() === req.user._id.toString()) {
-          query.assignedAgent = req.user._id;
-        } else {
-          // Block access to other agent's conversations by forcing the query to match self
-          query.assignedAgent = req.user._id;
-        }
+      const agentId = req.user._id;
+      const agentSelfMatch = {
+        $or: [
+          { assignedAgent: agentId },
+          { assigned_agent_id: agentId }
+        ]
+      };
+
+      if (assignedAgent === 'unassigned' || assignedAgent === 'null') {
+        query.$and = (query.$and || []).concat([
+          {
+            $and: [
+              { $or: [{ assignedAgent: { $exists: false } }, { assignedAgent: null }] },
+              { $or: [{ assigned_agent_id: { $exists: false } }, { assigned_agent_id: null }] }
+            ]
+          }
+        ]);
       } else {
-        // Show only their own conversations + unassigned ones
-        query.$or = [
-          { assignedAgent: req.user._id },
-          { assignedAgent: { $exists: false } },
-          { assignedAgent: null }
-        ];
+        // Strictly show ONLY conversations assigned to this specific agent
+        query.$and = (query.$and || []).concat([agentSelfMatch]);
       }
     } else {
       // Admin/Owner can view anything
       if (assignedAgent) {
         if (assignedAgent === 'unassigned' || assignedAgent === 'null') {
-          query.$or = [
-            { assignedAgent: { $exists: false } },
-            { assignedAgent: null }
-          ];
+          query.$and = (query.$and || []).concat([
+            {
+              $and: [
+                { $or: [{ assignedAgent: { $exists: false } }, { assignedAgent: null }] },
+                { $or: [{ assigned_agent_id: { $exists: false } }, { assigned_agent_id: null }] }
+              ]
+            }
+          ]);
         } else {
           if (!mongoose.Types.ObjectId.isValid(assignedAgent)) {
             return res.status(400).json({ success: false, error: 'Invalid agent ID', code: 'INVALID_ID' });
           }
-          query.assignedAgent = assignedAgent;
+          query.$and = (query.$and || []).concat([
+            {
+              $or: [
+                { assignedAgent: assignedAgent },
+                { assigned_agent_id: assignedAgent }
+              ]
+            }
+          ]);
         }
       }
     }
@@ -238,6 +250,7 @@ router.get('/conversations', async (req, res) => {
       .limit(parseInt(limit))
       .populate('contactId', 'name phone profilePic source tags')
       .populate('assignedAgent', 'name email')
+      .populate('assigned_agent_id', 'name email')
       .lean();
 
     // Attach last message for each conversation
@@ -286,14 +299,15 @@ router.get('/conversations/:id', ...validateObjectId('id'), async (req, res) => 
   try {
     const conversation = await Conversation.findOne({ _id: req.params.id, userId: req.userId })
       .populate('contactId')
-      .populate('assignedAgent', 'name email');
+      .populate('assignedAgent', 'name email')
+      .populate('assigned_agent_id', 'name email');
 
     if (!conversation) {
       return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
     }
 
     if (req.user.role === 'agent') {
-      const assignedId = conversation.assigned_agent_id || (conversation.assignedAgent?._id || conversation.assignedAgent);
+      const assignedId = conversation.assigned_agent_id?._id || conversation.assigned_agent_id || conversation.assignedAgent?._id || conversation.assignedAgent;
       if (assignedId && assignedId.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, error: 'Access denied: Conversation is assigned to another agent', code: 'FORBIDDEN' });
       }
@@ -535,10 +549,14 @@ router.post('/conversations', async (req, res) => {
           conversation.status = 'human';
           await conversation.save();
 
+          const { recordAgentActivity } = require('../services/roundRobinService');
+          await recordAgentActivity(req.user._id);
+
           // Re-populate
           conversation = await Conversation.findById(conversation._id)
             .populate('contactId', 'name phone profilePic source tags')
-            .populate('assignedAgent', 'name email');
+            .populate('assignedAgent', 'name email')
+            .populate('assigned_agent_id', 'name email');
         }
       }
     } else {
@@ -555,7 +573,10 @@ router.post('/conversations', async (req, res) => {
         }
       }
 
-      // Create conversation with auto-assignment if the creator is an agent
+      const isCallerAgent = req.user.role === 'agent';
+      const initialAgentId = isCallerAgent ? req.user._id : null;
+
+      // Create conversation
       conversation = await Conversation.create({
         userId,
         contactId: contact._id,
@@ -563,16 +584,33 @@ router.post('/conversations', async (req, res) => {
         source: contact.source || 'direct',
         lastMessageAt: new Date(),
         organization_id: adminUser ? adminUser.organizationId : null,
-        assignedAgent: req.user.role === 'agent' ? req.user._id : null,
-        assigned_agent_id: req.user.role === 'agent' ? req.user._id : null,
-        assigned_at: req.user.role === 'agent' ? new Date() : null,
-        lock_status: req.user.role === 'agent' ? true : false,
-        takeover_status: req.user.role === 'agent' ? 'human' : 'ai',
+        assignedAgent: initialAgentId,
+        assigned_agent_id: initialAgentId,
+        assigned_at: isCallerAgent ? new Date() : null,
+        lock_status: isCallerAgent ? true : false,
+        takeover_status: isCallerAgent ? 'human' : 'ai',
       });
+
+      if (isCallerAgent) {
+        const { recordAgentActivity } = require('../services/roundRobinService');
+        await recordAgentActivity(req.user._id);
+      } else {
+        // If created by Admin/Owner, automatically distribute to next agent via Round-Robin!
+        const { assignConversationRoundRobin } = require('../services/roundRobinService');
+        const io = req.app.get('io');
+        await assignConversationRoundRobin({
+          conversation,
+          organizationId: adminUser ? adminUser.organizationId : null,
+          ownerId: userId,
+          io,
+          contactName: contact.name || contact.phone
+        });
+      }
 
       conversation = await Conversation.findById(conversation._id)
         .populate('contactId', 'name phone profilePic source tags')
-        .populate('assignedAgent', 'name email');
+        .populate('assignedAgent', 'name email')
+        .populate('assigned_agent_id', 'name email');
     }
 
     const { getOekForUser, decryptContact } = require('../services/oekService');
@@ -998,11 +1036,42 @@ router.post('/bulk', async (req, res) => {
   }
 });
 
+// POST /messages/conversations/auto-assign-all — Distribute all unassigned conversations via Round Robin
+router.post('/conversations/auto-assign-all', async (req, res) => {
+  try {
+    const { distributeUnassignedConversations } = require('../services/roundRobinService');
+    const io = req.app.get('io');
+    const result = await distributeUnassignedConversations(req.userId, req.user.organizationId, io);
+    res.json({ success: true, message: `Successfully assigned ${result.assignedCount} conversations via Round-Robin.`, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to auto-assign conversations', details: error.message });
+  }
+});
+
 // POST /messages/conversations/:id/assign
 router.post('/conversations/:id/assign', ...validateObjectId('id'), async (req, res) => {
   try {
     const { agentId } = req.body;
     const User = require('../models/User');
+
+    // Support explicit auto/round-robin assignment request
+    if (agentId === 'auto' || agentId === 'round-robin') {
+      const convToAssign = await Conversation.findOne({ _id: req.params.id, userId: req.userId }).populate('contactId');
+      if (!convToAssign) {
+        return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
+      }
+      const { assignConversationRoundRobin } = require('../services/roundRobinService');
+      const io = req.app.get('io');
+      const contactName = convToAssign.contactId ? (convToAssign.contactId.name || convToAssign.contactId.phone) : 'Contact';
+      const result = await assignConversationRoundRobin({
+        conversation: convToAssign,
+        organizationId: req.user.organizationId,
+        ownerId: req.userId,
+        io,
+        contactName
+      });
+      return res.json({ success: true, data: { conversation: result.conversation } });
+    }
 
     // 1. Determine target agent.
     // Agents can only take over for themselves. Admins can assign to anyone.
@@ -1052,19 +1121,21 @@ router.post('/conversations/:id/assign', ...validateObjectId('id'), async (req, 
         }
       },
       { new: true }
-    ).populate('contactId').populate('assignedAgent', 'name email');
+    ).populate('contactId').populate('assignedAgent', 'name email').populate('assigned_agent_id', 'name email');
 
     // 5. Handle atomic lock collision / failure
     if (!conversation) {
       return res.status(400).json({ success: false, error: 'Conversation already assigned to another agent', code: 'ALREADY_ASSIGNED' });
     }
 
+    // Record activity for round-robin balancing
+    const { recordAgentActivity } = require('../services/roundRobinService');
+    await recordAgentActivity(targetAgentId);
+
     // 6. Real-time updates via Socket.io
     const io = req.app.get('io');
     if (io) {
-      // Emit to tenant room if user is an agent, otherwise to their personal room
-      const roomId = req.user.ownerId ? `user_${req.user.ownerId}` : `user_${req.userId}`;
-      io.to(roomId).emit('conversation_assigned', {
+      const payload = {
         conversationId: conversation._id,
         assignedAgent: conversation.assignedAgent ? {
           _id: conversation.assignedAgent._id,
@@ -1075,11 +1146,19 @@ router.post('/conversations/:id/assign', ...validateObjectId('id'), async (req, 
         lock_status: conversation.lock_status,
         takeover_status: conversation.takeover_status,
         status: conversation.status
-      });
+      };
+
+      // Emit to target agent's personal room
+      io.to(`user_${targetAgentId}`).emit('conversation_assigned', payload);
+
+      // Emit to tenant room if caller is an agent, otherwise to personal room
+      const roomId = req.user.ownerId ? `user_${req.user.ownerId}` : `user_${req.userId}`;
+      io.to(roomId).emit('conversation_assigned', payload);
     }
 
     // 7. Audit log tracking
-    const isReassign = oldConv.assignedAgent && oldConv.assignedAgent._id.toString() !== targetAgentId.toString();
+    const oldAgentId = oldConv.assignedAgent?._id?.toString() || oldConv.assignedAgent?.toString() || null;
+    const isReassign = Boolean(oldAgentId && oldAgentId !== targetAgentId.toString());
     await AuditLog.log({
       userId: req.userId,
       actorId: req.user._id,
@@ -1087,7 +1166,7 @@ router.post('/conversations/:id/assign', ...validateObjectId('id'), async (req, 
       action: isReassign ? 'REASSIGN_CONVERSATION' : 'ASSIGN_CONVERSATION',
       resource: 'Conversation',
       resourceId: conversation._id.toString(),
-      oldValue: oldConv.assignedAgent ? { agentId: oldConv.assignedAgent._id, agentName: oldConv.assignedAgent.name } : null,
+      oldValue: oldAgentId ? { agentId: oldAgentId, agentName: oldConv.assignedAgent?.name || 'Agent' } : null,
       newValue: { agentId: targetAgentId, agentName: agentUser.name },
       ip: req.ip,
       userAgent: req.headers['user-agent']

@@ -47,6 +47,7 @@ const userSchema = new mongoose.Schema(
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     lastSeenAt: { type: Date, default: Date.now },
+    lastAssignedAt: { type: Date, default: null },
   },
   { timestamps: true, strict: true }
 );
@@ -54,6 +55,8 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ apiKeyHash: 1 }, { sparse: true });
 userSchema.index({ ownerId: 1 });
 userSchema.index({ organizationId: 1 });
+userSchema.index({ organizationId: 1, role: 1, lastAssignedAt: 1 });
+userSchema.index({ ownerId: 1, role: 1, lastAssignedAt: 1 });
 
 userSchema.methods.isLocked = function () {
   return this.lockUntil && this.lockUntil > Date.now();

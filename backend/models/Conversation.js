@@ -62,6 +62,8 @@ conversationSchema.index({ organization_id: 1, lastMessageAt: -1 });
 conversationSchema.index({ userId: 1, status: 1, lastMessageAt: -1 });
 conversationSchema.index({ userId: 1, contactId: 1 }, { unique: true });
 conversationSchema.index({ userId: 1, assignedAgent: 1 });
+conversationSchema.index({ userId: 1, assigned_agent_id: 1 });
+conversationSchema.index({ organization_id: 1, assigned_agent_id: 1 });
 conversationSchema.index({ userId: 1, isRead: 1 });
 conversationSchema.index({ userId: 1, isPinned: -1, lastMessageAt: -1 });
 conversationSchema.index({ userId: 1, isStarred: 1 });

@@ -162,8 +162,11 @@ export const useConversationStore = create((set, get) => ({
         updatedConversations.sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
         return { messages: msgs, conversations: updatedConversations };
       } else {
-        // If it's a completely new conversation not in our list, trigger fetch
-        setTimeout(() => get().fetchConversations(), 0);
+        // If it's a completely new conversation not in our list, trigger fetch for non-agents
+        const currentUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('auth_user') || 'null') : null;
+        if (!currentUser || currentUser.role !== 'agent') {
+          setTimeout(() => get().fetchConversations(), 0);
+        }
         return { messages: msgs };
       }
     });

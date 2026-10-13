@@ -664,7 +664,9 @@ export default function ChatWindow({ conversation, messages, onBack }) {
       // Just refresh the current message thread, don't refetch all conversations
       // The socket event 'conversation_assigned' will handle updating the conversation list
       await fetchMessages(conversation._id);
-    } catch { toast.error('Failed to assign'); }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to assign');
+    }
   };
 
   const handleResolve = async () => {

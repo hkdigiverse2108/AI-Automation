@@ -73,6 +73,17 @@ export default function InboxPage() {
 
   // Real WhatsApp style instant fuzzy/partial filter for loaded conversations
   const displayConversations = sortedConversations.filter((conv) => {
+    // Strict agent isolation: An agent only ever sees conversations assigned to themselves
+    if (user?.role === 'agent') {
+      const assigned = conv.assignedAgent || conv.assigned_agent_id;
+      const assignedId = assigned?._id?.toString() || assigned?.toString();
+      if (filter === 'unassigned') {
+        if (assignedId) return false;
+      } else {
+        if (!assignedId || assignedId !== user?._id?.toString()) return false;
+      }
+    }
+
     if (filter === 'starred' && !conv.isStarred) return false;
     if (filter === 'pinned' && !conv.isPinned) return false;
 
@@ -114,6 +125,17 @@ export default function InboxPage() {
     }
   }, [user]);
 
+  // Safety: If current conversation is assigned to another agent, close it immediately
+  useEffect(() => {
+    if (user?.role === 'agent' && currentConversation) {
+      const assigned = currentConversation.assignedAgent || currentConversation.assigned_agent_id;
+      const assignedId = assigned?._id?.toString() || assigned?.toString();
+      if (assignedId && assignedId !== user?._id?.toString()) {
+        useConversationStore.setState({ currentConversation: null, messages: [] });
+      }
+    }
+  }, [currentConversation, user]);
+
   // New Chat Modal States
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [contacts, setContacts] = useState([]);
@@ -153,6 +175,12 @@ export default function InboxPage() {
     if (!socket) return;
 
     socket.on('new_message', (data) => {
+      // If user is an agent, only process messages for chats that belong to them
+      if (user?.role === 'agent') {
+        const myConv = useConversationStore.getState().conversations.find(c => c._id?.toString() === data.conversationId?.toString());
+        if (!myConv) return;
+      }
+
       addMessage(data.message);
       if (data.message && data.message.direction === 'inbound' && useConversationStore.getState().currentConversation?._id?.toString() === data.message.conversationId?.toString()) {
         api.post(`/messages/conversations/${data.message.conversationId}/read`).catch(() => { });
@@ -582,22 +610,12 @@ export default function InboxPage() {
                       </span>
                       {conv.status && (
                         conv.status === 'human' ? (
-                          conv.lock_status ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-blue-50 text-blue-705 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
-                              <span className="w-1 h-1 rounded-full bg-blue-500 shrink-0" />
-                              <span>{`Handled by ${conv.assignedAgent?.name || 'Agent'}`}</span>
-                            </span>
-                          ) : conv.assignedAgent ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-indigo-50 text-indigo-705 border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30 animate-pulse">
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                              <span>Assigned to Human</span>
-                            </span>
-                          ) : (
+                          (!conv.lock_status && !conv.assignedAgent) ? (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse">
                               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                               <span>Needs Human Reply</span>
                             </span>
-                          )
+                          ) : null
                         ) : (
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
                             conv.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :

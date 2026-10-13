@@ -9,6 +9,7 @@ import api from '../../../lib/api';
 import { usePageData } from '../../../lib/usePageData';
 import { useConfirmStore } from '../../../lib/store';
 import { formatDateOnly } from '../../../lib/utils';
+import Portal from '../../../components/Portal';
 
 export default function TemplatesPage() {
   const confirm = useConfirmStore(state => state.confirm);
@@ -648,8 +649,9 @@ export default function TemplatesPage() {
       )}
       {/* DESIGN TEMPLATE MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-4xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] shadow-wa-lg">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+            <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-4xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] shadow-2xl">
             <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4 shrink-0">
               <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-wa-green" /> {editingTemplateId ? 'Edit' : 'Create'} Template Designer
@@ -1090,6 +1092,7 @@ export default function TemplatesPage() {
             </div>
           </div>
         </div>
+      </Portal>
       )}
     </div>
   );

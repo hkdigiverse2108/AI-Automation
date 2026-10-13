@@ -62,6 +62,264 @@ router.get('/overview', verifyToken, checkFeatureAccess('analytics'), async (req
   }
 });
 
+// GET /api/analytics/reports — Comprehensive reporting endpoint for Daily, Weekly, Monthly
+router.get('/reports', verifyToken, checkFeatureAccess('analytics'), async (req, res) => {
+  try {
+    const userId = req.userId;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const period = req.query.period || 'weekly'; // 'daily', 'weekly', 'monthly'
+
+    const now = new Date();
+    let since, prevSince, prevUntil, bucketType;
+
+    if (period === 'daily') {
+      since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      prevSince = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+      prevUntil = since;
+      bucketType = 'hour';
+    } else if (period === 'monthly') {
+      since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      prevSince = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+      prevUntil = since;
+      bucketType = 'day';
+    } else {
+      // 'weekly' default
+      since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      prevSince = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      prevUntil = since;
+      bucketType = 'day';
+    }
+
+    // Parallel fetch current & previous period counts
+    const [
+      sentCount,
+      deliveredOnlyCount,
+      readCount,
+      failedCount,
+      inboundCount,
+      activeContactIds,
+      prevSentCount,
+      prevDeliveredOnlyCount,
+      prevReadCount,
+      prevFailedCount,
+      prevInboundCount,
+      prevActiveContactIds,
+    ] = await Promise.all([
+      // Current period
+      Message.countDocuments({ userId: userObjectId, direction: 'outbound', createdAt: { $gte: since } }),
+      Message.countDocuments({ userId: userObjectId, direction: 'outbound', status: 'delivered', createdAt: { $gte: since } }),
+      Message.countDocuments({ userId: userObjectId, direction: 'outbound', status: 'read', createdAt: { $gte: since } }),
+      Message.countDocuments({ userId: userObjectId, direction: 'outbound', status: 'failed', createdAt: { $gte: since } }),
+      Message.countDocuments({ userId: userObjectId, direction: 'inbound', createdAt: { $gte: since } }),
+      Message.distinct('contactId', { userId: userObjectId, createdAt: { $gte: since } }),
+      // Previous period for comparison
+      Message.countDocuments({ userId: userObjectId, direction: 'outbound', createdAt: { $gte: prevSince, $lt: prevUntil } }),
+      Message.countDocuments({ userId: userObjectId, direction: 'outbound', status: 'delivered', createdAt: { $gte: prevSince, $lt: prevUntil } }),
+      Message.countDocuments({ userId: userObjectId, direction: 'outbound', status: 'read', createdAt: { $gte: prevSince, $lt: prevUntil } }),
+      Message.countDocuments({ userId: userObjectId, direction: 'outbound', status: 'failed', createdAt: { $gte: prevSince, $lt: prevUntil } }),
+      Message.countDocuments({ userId: userObjectId, direction: 'inbound', createdAt: { $gte: prevSince, $lt: prevUntil } }),
+      Message.distinct('contactId', { userId: userObjectId, createdAt: { $gte: prevSince, $lt: prevUntil } }),
+    ]);
+
+    // Total delivered = delivered + read
+    const deliveredCount = deliveredOnlyCount + readCount;
+    const prevDeliveredCount = prevDeliveredOnlyCount + prevReadCount;
+
+    // Rates
+    const deliveryRate = sentCount > 0 ? Math.round((deliveredCount / sentCount) * 100) : 0;
+    const readRate = deliveredCount > 0 ? Math.round((readCount / deliveredCount) * 100) : (sentCount > 0 ? Math.round((readCount / sentCount) * 100) : 0);
+    const replyRate = sentCount > 0 ? Math.min(100, Math.round((inboundCount / sentCount) * 100)) : 0;
+    const activeUsers = activeContactIds.length;
+
+    const prevReplyRate = prevSentCount > 0 ? Math.min(100, Math.round((prevInboundCount / prevSentCount) * 100)) : 0;
+    const prevActiveUsers = prevActiveContactIds.length;
+
+    // Calculate Response Time (average duration between customer message and agent/bot response)
+    const messagesForResp = await Message.find({
+      userId: userObjectId,
+      createdAt: { $gte: since }
+    })
+      .select('conversationId direction createdAt')
+      .sort({ conversationId: 1, createdAt: 1 })
+      .limit(1000)
+      .lean();
+
+    let totalResponseTimeSec = 0;
+    let responseCount = 0;
+    const lastInboundTimeByConv = {};
+
+    for (const msg of messagesForResp) {
+      const convId = msg.conversationId?.toString();
+      if (!convId) continue;
+      const msgTime = new Date(msg.createdAt).getTime();
+
+      if (msg.direction === 'inbound') {
+        lastInboundTimeByConv[convId] = msgTime;
+      } else if (msg.direction === 'outbound' && lastInboundTimeByConv[convId]) {
+        const diffSec = (msgTime - lastInboundTimeByConv[convId]) / 1000;
+        if (diffSec >= 0 && diffSec <= 86400) {
+          totalResponseTimeSec += diffSec;
+          responseCount++;
+        }
+        delete lastInboundTimeByConv[convId];
+      }
+    }
+
+    const avgResponseTimeSec = responseCount > 0 ? Math.round(totalResponseTimeSec / responseCount) : 0;
+    const formatDuration = (sec) => {
+      if (!sec || sec <= 0) return responseCount === 0 ? 'N/A' : '< 1m';
+      if (sec < 60) return `${sec}s`;
+      const mins = Math.floor(sec / 60);
+      const remSec = sec % 60;
+      if (mins < 60) return remSec > 0 ? `${mins}m ${remSec}s` : `${mins}m`;
+      const hrs = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      return `${hrs}h ${remMins}m`;
+    };
+
+    const formattedResponseTime = formatDuration(avgResponseTimeSec);
+
+    // Timeline series generation
+    let timeline = [];
+    if (bucketType === 'hour') {
+      const hourlyAgg = await Message.aggregate([
+        { $match: { userId: userObjectId, createdAt: { $gte: since } } },
+        {
+          $group: {
+            _id: {
+              hour: { $dateToString: { format: '%Y-%m-%dT%H', date: '$createdAt' } },
+              direction: '$direction',
+              status: '$status'
+            },
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+
+      const hourMap = {};
+      for (let i = 23; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 60 * 60 * 1000);
+        const isoKey = d.toISOString().slice(0, 13);
+        const label = `${String(d.getHours()).padStart(2, '0')}:00`;
+        hourMap[isoKey] = {
+          label,
+          fullDate: `${d.toLocaleDateString()} ${label}`,
+          sent: 0,
+          delivered: 0,
+          read: 0,
+          failed: 0,
+          inbound: 0
+        };
+      }
+
+      hourlyAgg.forEach(item => {
+        const hKey = item._id.hour;
+        if (hourMap[hKey]) {
+          if (item._id.direction === 'outbound') {
+            hourMap[hKey].sent += item.count;
+            if (item._id.status === 'delivered') hourMap[hKey].delivered += item.count;
+            if (item._id.status === 'read') {
+              hourMap[hKey].delivered += item.count;
+              hourMap[hKey].read += item.count;
+            }
+            if (item._id.status === 'failed') hourMap[hKey].failed += item.count;
+          } else if (item._id.direction === 'inbound') {
+            hourMap[hKey].inbound += item.count;
+          }
+        }
+      });
+      timeline = Object.values(hourMap);
+    } else {
+      const daysCount = period === 'monthly' ? 30 : 7;
+      const dailyAgg = await Message.aggregate([
+        { $match: { userId: userObjectId, createdAt: { $gte: since } } },
+        {
+          $group: {
+            _id: {
+              date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+              direction: '$direction',
+              status: '$status'
+            },
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+
+      const dayMap = {};
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      for (let i = daysCount - 1; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const key = d.toISOString().slice(0, 10);
+        const label = period === 'monthly' ? key.slice(5) : `${dayNames[d.getDay()]} ${d.getDate()}`;
+        dayMap[key] = {
+          label,
+          fullDate: key,
+          sent: 0,
+          delivered: 0,
+          read: 0,
+          failed: 0,
+          inbound: 0
+        };
+      }
+
+      dailyAgg.forEach(item => {
+        const dKey = item._id.date;
+        if (dayMap[dKey]) {
+          if (item._id.direction === 'outbound') {
+            dayMap[dKey].sent += item.count;
+            if (item._id.status === 'delivered') dayMap[dKey].delivered += item.count;
+            if (item._id.status === 'read') {
+              dayMap[dKey].delivered += item.count;
+              dayMap[dKey].read += item.count;
+            }
+            if (item._id.status === 'failed') dayMap[dKey].failed += item.count;
+          } else if (item._id.direction === 'inbound') {
+            dayMap[dKey].inbound += item.count;
+          }
+        }
+      });
+      timeline = Object.values(dayMap);
+    }
+
+    const calcChange = (curr, prev) => {
+      if (prev === 0) return curr > 0 ? '+100%' : '0%';
+      const pct = Math.round(((curr - prev) / prev) * 100);
+      return pct >= 0 ? `+${pct}%` : `${pct}%`;
+    };
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        metrics: {
+          sent: sentCount,
+          delivered: deliveredCount,
+          read: readCount,
+          failed: failedCount,
+          replyRate: replyRate,
+          inbound: inboundCount,
+          responseTime: formattedResponseTime,
+          responseTimeSeconds: avgResponseTimeSec,
+          activeUsers: activeUsers,
+          deliveryRate: deliveryRate,
+          readRate: readRate,
+        },
+        comparisons: {
+          sentChange: calcChange(sentCount, prevSentCount),
+          deliveredChange: calcChange(deliveredCount, prevDeliveredCount),
+          readChange: calcChange(readCount, prevReadCount),
+          failedChange: calcChange(failedCount, prevFailedCount),
+          replyRateChange: calcChange(replyRate, prevReplyRate),
+          activeUsersChange: calcChange(activeUsers, prevActiveUsers),
+        },
+        timeline,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/analytics/message-trends — Time-series message data
 router.get('/message-trends', verifyToken, checkFeatureAccess('analytics'), async (req, res) => {
   try {

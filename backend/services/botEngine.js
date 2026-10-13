@@ -212,6 +212,80 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
 
     // 4. Extract content from message
     const content = extractContent(messageData, msgType);
+    const textContent = (content.text || '').toLowerCase().trim();
+
+    // Auto Team Assignment: Check explicit rules, fallback to Round Robin
+    if (!conversation.assignedAgent && !conversation.assigned_agent_id) {
+      let assigned = false;
+      const AssignmentRule = require('../models/AssignmentRule');
+      const assignRules = await AssignmentRule.find({ userId, isActive: true }).sort('createdAt').lean();
+
+      for (const rule of assignRules) {
+        let match = false;
+        if (rule.triggerType === 'all') {
+          match = true;
+        } else if (rule.triggerType === 'keyword' && textContent.includes(rule.triggerValue.toLowerCase())) {
+          match = true;
+        } else if (rule.triggerType === 'source' && contact.source === rule.triggerValue) {
+          match = true;
+        }
+
+        if (match) {
+          conversation.assignedAgent = rule.agentId;
+          conversation.assigned_agent_id = rule.agentId;
+          conversation.assigned_at = new Date();
+          conversation.lock_status = true;
+          conversation.takeover_status = 'human';
+          conversation.status = 'human';
+          await conversation.save();
+
+          const { recordAgentActivity } = require('./roundRobinService');
+          await recordAgentActivity(rule.agentId);
+
+          if (io) {
+            const assignPayload = {
+              conversationId: conversation._id,
+              assignedAgent: { _id: rule.agentId },
+              assigned_agent_id: rule.agentId,
+              lock_status: true,
+              takeover_status: 'human',
+              status: 'human'
+            };
+            io.to(`user_${rule.agentId}`).emit('conversation_assigned', assignPayload);
+            io.to(`user_${userId}`).emit('conversation_assigned', assignPayload);
+          }
+
+          const { createNotification } = require('./notificationService');
+          createNotification({
+            userId: rule.agentId.toString(),
+            organizationId: conversation.organization_id || (adminUser ? adminUser.organizationId : null),
+            type: 'team',
+            title: `New Chat Assigned: ${contact.name || contact.phone}`,
+            message: `Auto-assigned via active routing rules.`,
+            link: '/dashboard/inbox'
+          }).catch(() => {});
+
+          assigned = true;
+          logger.info(`Auto-assigned conversation ${conversation._id} to agent ${rule.agentId} via AssignmentRule`);
+          break;
+        }
+      }
+
+      // If no explicit rule matched, auto-assign via Round-Robin!
+      if (!assigned) {
+        const { assignConversationRoundRobin } = require('./roundRobinService');
+        const rrResult = await assignConversationRoundRobin({
+          conversation,
+          organizationId: conversation.organization_id || (adminUser ? adminUser.organizationId : null),
+          ownerId: userId,
+          io,
+          contactName: contact.name || contact.phone
+        });
+        if (rrResult.agent) {
+          logger.info(`Auto-assigned conversation ${conversation._id} to agent ${rrResult.agent._id} (${rrResult.agent.name}) via Round-Robin`);
+        }
+      }
+    }
 
     // Dynamic Media Downloader for Inbound Media assets
     if (content.mediaId) {
