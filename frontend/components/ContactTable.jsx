@@ -12,6 +12,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import api from '../lib/api';
 import { ScoreBadge } from './ContactScoreCard';
+import { LOGO_BASE64 } from '../lib/logoBase64';
 import { useConfirmStore } from '../lib/store';
 import { getFastCache, setFastCache } from '../lib/usePageData';
 import { getSocket } from '../lib/socket';
@@ -512,21 +513,7 @@ export default function ContactTable() {
 
       const primaryColor = [18, 140, 126]; // #128c7e WhatsApp green
       const darkColor = [30, 41, 59];
-
-      // Header Banner
-      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-      doc.rect(0, 0, doc.internal.pageSize.getWidth(), 60, 'F');
-
-      // Title & Subtitle
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(18);
-      doc.text('HK DigiVerse - Contacts Report', 30, 36);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
       const generatedDate = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-      doc.text(`Generated on: ${generatedDate} IST | Total Contacts: ${exportList.length}`, 30, 52);
 
       // Prepare Table Data
       const tableHeaders = ['No.', 'Name', 'Phone', 'Email', 'Source', 'Tags', 'Status'];
@@ -544,7 +531,7 @@ export default function ContactTable() {
       autoTable(doc, {
         head: [tableHeaders],
         body: tableRows,
-        startY: 75,
+        startY: 68,
         theme: 'striped',
         headStyles: {
           fillColor: primaryColor,
@@ -564,28 +551,70 @@ export default function ContactTable() {
         },
         columnStyles: {
           0: { cellWidth: 30, halign: 'center' },
-          1: { cellWidth: 120 },
-          2: { cellWidth: 100, fontStyle: 'bold' },
-          3: { cellWidth: 140 },
-          4: { cellWidth: 60, halign: 'center' },
-          5: { cellWidth: 160 },
+          1: { cellWidth: 125, fontStyle: 'bold' },
+          2: { cellWidth: 105, fontStyle: 'bold' },
+          3: { cellWidth: 145 },
+          4: { cellWidth: 65, halign: 'center' },
+          5: { cellWidth: 155 },
           6: { cellWidth: 70, halign: 'center' },
         },
-        margin: { top: 75, left: 30, right: 30, bottom: 40 },
+        margin: { top: 68, left: 30, right: 30, bottom: 35 },
         didDrawPage: (data) => {
-          // Footer
-          const pageStr = `Page ${data.pageNumber}`;
+          const pageWidth = doc.internal.pageSize.getWidth();
+          const pageHeight = doc.internal.pageSize.getHeight();
+
+          // 1. Top green brand accent stripe
+          doc.setFillColor(18, 140, 126);
+          doc.rect(0, 0, pageWidth, 4, 'F');
+
+          // 2. Company Brand Logo (HariKrushn DigiVerse LLP)
+          try {
+            if (LOGO_BASE64) {
+              // 342x97 ratio 3.525 -> w: 134pt, h: 38pt
+              doc.addImage(LOGO_BASE64, 'PNG', 30, 12, 134, 38);
+            }
+          } catch (imgErr) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.setTextColor(18, 140, 126);
+            doc.text('HariKrushn DigiVerse LLP', 30, 36);
+          }
+
+          // 3. Right Header Info
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(14);
+          doc.setTextColor(15, 23, 42); // slate-900
+          doc.text('Contacts Directory Report', pageWidth - 30, 26, { align: 'right' });
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8.5);
+          doc.setTextColor(100, 116, 139); // slate-500
+          doc.text(`Generated: ${generatedDate} IST`, pageWidth - 30, 39, { align: 'right' });
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.setTextColor(18, 140, 126); // emerald green
+          doc.text(`Total Records: ${exportList.length} Contacts`, pageWidth - 30, 50, { align: 'right' });
+
+          // 4. Subtle separator line below header
+          doc.setDrawColor(226, 232, 240); // slate-200
+          doc.setLineWidth(0.75);
+          doc.line(30, 58, pageWidth - 30, 58);
+
+          // 5. Footer
+          doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);
-          doc.setTextColor(150);
+          doc.setTextColor(148, 163, 184); // slate-400
           doc.text(
-            pageStr,
-            doc.internal.pageSize.getWidth() - 60,
-            doc.internal.pageSize.getHeight() - 15
+            'HariKrushn DigiVerse LLP • WhatsApp Marketing Platform | Confidential',
+            30,
+            pageHeight - 14
           );
           doc.text(
-            'HK DigiVerse AI Automation Platform | Confidential',
-            30,
-            doc.internal.pageSize.getHeight() - 15
+            `Page ${data.pageNumber}`,
+            pageWidth - 30,
+            pageHeight - 14,
+            { align: 'right' }
           );
         },
       });
