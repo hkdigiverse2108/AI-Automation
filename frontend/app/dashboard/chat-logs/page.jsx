@@ -9,6 +9,7 @@ import Link from 'next/link';
 import api from '../../../lib/api';
 import { formatDate } from '../../../lib/utils';
 import { getFastCache, setFastCache } from '../../../lib/usePageData';
+import Portal from '../../../components/Portal';
 
 export default function ChatLogsPage() {
   const [activeTab, setActiveTab] = useState('text'); // 'text', 'button', 'api'
@@ -358,58 +359,60 @@ export default function ChatLogsPage() {
 
       {/* JSON PAYLOAD INSPECTOR MODAL */}
       {selectedPayload && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-3xl overflow-hidden animate-slide-up flex flex-col max-h-[85vh] shadow-wa-lg">
-            <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
-              <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary truncate max-w-lg">
-                {selectedPayload.title}
-              </h3>
-              <button onClick={() => setSelectedPayload(null)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors">
-                <X className="w-5 h-5 text-wa-text-secondary" />
-              </button>
-            </div>
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-3xl overflow-hidden animate-slide-up flex flex-col max-h-[85vh] shadow-wa-lg">
+              <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
+                <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary truncate max-w-lg">
+                  {selectedPayload.title}
+                </h3>
+                <button onClick={() => setSelectedPayload(null)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors">
+                  <X className="w-5 h-5 text-wa-text-secondary" />
+                </button>
+              </div>
 
-            <div className="p-5 overflow-y-auto space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Request Payload */}
-                <div className="space-y-2">
-                  <span className="block text-xs font-bold text-wa-text-secondary uppercase">Request Body / Payload</span>
-                  <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs overflow-auto max-h-[40vh] font-mono border border-slate-800 scrollbar-thin">
-                    {selectedPayload.request
-                      ? JSON.stringify(selectedPayload.request, null, 2)
-                      : '// No request body payload logged'}
-                  </pre>
+              <div className="p-5 overflow-y-auto space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Request Payload */}
+                  <div className="space-y-2">
+                    <span className="block text-xs font-bold text-wa-text-secondary uppercase">Request Body / Payload</span>
+                    <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs overflow-auto max-h-[40vh] font-mono border border-slate-800 scrollbar-thin">
+                      {selectedPayload.request
+                        ? JSON.stringify(selectedPayload.request, null, 2)
+                        : '// No request body payload logged'}
+                    </pre>
+                  </div>
+
+                  {/* Response Payload */}
+                  <div className="space-y-2">
+                    <span className="block text-xs font-bold text-wa-text-secondary uppercase">Response Body / Payload</span>
+                    <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs overflow-auto max-h-[40vh] font-mono border border-slate-800 scrollbar-thin">
+                      {selectedPayload.response
+                        ? JSON.stringify(selectedPayload.response, null, 2)
+                        : '// No response body payload logged'}
+                    </pre>
+                  </div>
                 </div>
 
-                {/* Response Payload */}
-                <div className="space-y-2">
-                  <span className="block text-xs font-bold text-wa-text-secondary uppercase">Response Body / Payload</span>
-                  <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs overflow-auto max-h-[40vh] font-mono border border-slate-800 scrollbar-thin">
-                    {selectedPayload.response
-                      ? JSON.stringify(selectedPayload.response, null, 2)
-                      : '// No response body payload logged'}
-                  </pre>
+                {/* Extra Metadata */}
+                <div className="p-3 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-secondary">
+                  <p>Status: <span className="font-bold font-mono text-wa-green">{selectedPayload.details.statusCode}</span></p>
+                  <p className="mt-1">Timestamp: <span className="font-mono">{formatDate(selectedPayload.details.timestamp)}</span></p>
                 </div>
               </div>
 
-              {/* Extra Metadata */}
-              <div className="p-3 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs text-wa-text-secondary">
-                <p>Status: <span className="font-bold font-mono text-wa-green">{selectedPayload.details.statusCode}</span></p>
-                <p className="mt-1">Timestamp: <span className="font-mono">{formatDate(selectedPayload.details.timestamp)}</span></p>
+              <div className="px-5 py-4 border-t border-wa-border dark:border-wa-dark-border flex justify-end bg-wa-panel-header dark:bg-wa-dark-panel-header">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPayload(null)}
+                  className="btn-primary py-2 px-5 text-xs font-semibold"
+                >
+                  Close Inspector
+                </button>
               </div>
-            </div>
-
-            <div className="px-5 py-4 border-t border-wa-border dark:border-wa-dark-border flex justify-end bg-wa-panel-header dark:bg-wa-dark-panel-header">
-              <button
-                type="button"
-                onClick={() => setSelectedPayload(null)}
-                className="btn-primary py-2 px-5 text-xs font-semibold"
-              >
-                Close Inspector
-              </button>
             </div>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

@@ -15,6 +15,7 @@ const LeadDetailsModal = dynamic(() => import('../../../components/LeadDetailsMo
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { useConfirmStore } from '../../../lib/store';
 import { getFastCache, setFastCache } from '../../../lib/usePageData';
+import Portal from '../../../components/Portal';
 
 export default function LeadsPage() {
   const confirm = useConfirmStore((state) => state.confirm);
@@ -454,180 +455,182 @@ export default function LeadsPage() {
 
       {/* Edit Lead Modal Overlay */}
       {editingLead && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden shadow-wa-lg animate-fade-in flex flex-col max-h-[90vh]">
-            
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-panel-header dark:bg-wa-dark-panel-header shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-blue-500/10 text-blue-500 rounded-xl">
-                  <Edit2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-wa-text-primary dark:text-white text-sm leading-tight">
-                    Edit Lead Database Records
-                  </h3>
-                  <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-0.5">
-                    Modifying CRM fields and inquiry attributes for: {editingLead.name || editingLead.phone}
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setEditingLead(null)} 
-                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white"
-              >
-                <X className="w-4.5 h-4.5" />
-              </button>
-            </div>
-
-            {/* Modal Form Content */}
-            <form onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden shadow-wa-lg animate-fade-in flex flex-col max-h-[90vh]">
               
-              <div className="grid grid-cols-2 gap-4">
-                {/* Name */}
-                <div>
-                  <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Client Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    className="input-field py-2 text-xs"
-                    placeholder="Enter name"
-                  />
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-panel-header dark:bg-wa-dark-panel-header shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-blue-500/10 text-blue-500 rounded-xl">
+                    <Edit2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-wa-text-primary dark:text-white text-sm leading-tight">
+                      Edit Lead Database Records
+                    </h3>
+                    <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-0.5">
+                      Modifying CRM fields and inquiry attributes for: {editingLead.name || editingLead.phone}
+                    </p>
+                  </div>
                 </div>
+                <button 
+                  onClick={() => setEditingLead(null)} 
+                  className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white"
+                >
+                  <X className="w-4.5 h-4.5" />
+                </button>
+              </div>
+
+              {/* Modal Form Content */}
+              <form onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
                 
-                {/* Phone */}
-                <div>
-                  <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Phone Number</label>
-                  <input
-                    type="text"
-                    required
-                    value={editForm.phone}
-                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    className="input-field py-2 text-xs"
-                    placeholder="Enter phone number"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Name */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Client Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      className="input-field py-2 text-xs"
+                      placeholder="Enter name"
+                    />
+                  </div>
+                  
+                  {/* Phone */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Phone Number</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                      className="input-field py-2 text-xs"
+                      placeholder="Enter phone number"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                {/* Email */}
-                <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Email Address</label>
-                <input
-                  type="email"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                  className="input-field py-2 text-xs"
-                  placeholder="Enter email"
-                />
-              </div>
-
-              <div className="h-px bg-wa-border dark:bg-wa-dark-border opacity-50 my-2" />
-              
-              <div className="flex items-center gap-1.5 text-wa-green font-bold text-xs">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Bot Inquiry Variables</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {/* Service Required */}
                 <div>
-                  <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Inquired Service</label>
+                  {/* Email */}
+                  <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Email Address</label>
                   <input
-                    type="text"
-                    value={editForm.serviceRequired}
-                    onChange={(e) => setEditForm({ ...editForm, serviceRequired: e.target.value })}
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                     className="input-field py-2 text-xs"
-                    placeholder="e.g. Renovation, Water park"
+                    placeholder="Enter email"
                   />
                 </div>
 
-                {/* Budget */}
-                <div>
-                  <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Budget</label>
-                  <input
-                    type="text"
-                    value={editForm.budget}
-                    onChange={(e) => setEditForm({ ...editForm, budget: e.target.value })}
-                    className="input-field py-2 text-xs"
-                    placeholder="e.g. 50k-2L"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {/* Timeline */}
-                <div>
-                  <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Timeline</label>
-                  <input
-                    type="text"
-                    value={editForm.timeline}
-                    onChange={(e) => setEditForm({ ...editForm, timeline: e.target.value })}
-                    className="input-field py-2 text-xs"
-                    placeholder="e.g. Immediately"
-                  />
+                <div className="h-px bg-wa-border dark:bg-wa-dark-border opacity-50 my-2" />
+                
+                <div className="flex items-center gap-1.5 text-wa-green font-bold text-xs">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Bot Inquiry Variables</span>
                 </div>
 
-                {/* City */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Service Required */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Inquired Service</label>
+                    <input
+                      type="text"
+                      value={editForm.serviceRequired}
+                      onChange={(e) => setEditForm({ ...editForm, serviceRequired: e.target.value })}
+                      className="input-field py-2 text-xs"
+                      placeholder="e.g. Renovation, Water park"
+                    />
+                  </div>
+
+                  {/* Budget */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Budget</label>
+                    <input
+                      type="text"
+                      value={editForm.budget}
+                      onChange={(e) => setEditForm({ ...editForm, budget: e.target.value })}
+                      className="input-field py-2 text-xs"
+                      placeholder="e.g. 50k-2L"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Timeline */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Timeline</label>
+                    <input
+                      type="text"
+                      value={editForm.timeline}
+                      onChange={(e) => setEditForm({ ...editForm, timeline: e.target.value })}
+                      className="input-field py-2 text-xs"
+                      placeholder="e.g. Immediately"
+                    />
+                  </div>
+
+                  {/* City */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">City</label>
+                    <input
+                      type="text"
+                      value={editForm.city}
+                      onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                      className="input-field py-2 text-xs"
+                      placeholder="e.g. Surat"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">City</label>
+                  {/* Special Requirements */}
+                  <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Company Size / Special Requirements</label>
                   <input
                     type="text"
-                    value={editForm.city}
-                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                    value={editForm.specialRequirements}
+                    onChange={(e) => setEditForm({ ...editForm, specialRequirements: e.target.value })}
                     className="input-field py-2 text-xs"
-                    placeholder="e.g. Surat"
+                    placeholder="e.g. 10-50 employees"
                   />
                 </div>
-              </div>
 
-              <div>
-                {/* Special Requirements */}
-                <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Company Size / Special Requirements</label>
-                <input
-                  type="text"
-                  value={editForm.specialRequirements}
-                  onChange={(e) => setEditForm({ ...editForm, specialRequirements: e.target.value })}
-                  className="input-field py-2 text-xs"
-                  placeholder="e.g. 10-50 employees"
-                />
-              </div>
+                <div>
+                  {/* Notes */}
+                  <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Internal Client Notes</label>
+                  <textarea
+                    rows="3"
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    className="input-field py-2 text-xs"
+                    placeholder="Enter manual annotations..."
+                  />
+                </div>
 
-              <div>
-                {/* Notes */}
-                <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Internal Client Notes</label>
-                <textarea
-                  rows="3"
-                  value={editForm.notes}
-                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                  className="input-field py-2 text-xs"
-                  placeholder="Enter manual annotations..."
-                />
-              </div>
+                {/* Actions Footer */}
+                <div className="pt-4 border-t border-wa-border dark:border-wa-dark-border flex justify-end gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setEditingLead(null)}
+                    className="px-4 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl text-xs font-semibold text-wa-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingLead}
+                    className="px-4 py-2 bg-wa-green hover:bg-wa-green-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md shadow-wa-green/15"
+                  >
+                    {savingLead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    Save Lead Data
+                  </button>
+                </div>
 
-              {/* Actions Footer */}
-              <div className="pt-4 border-t border-wa-border dark:border-wa-dark-border flex justify-end gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setEditingLead(null)}
-                  className="px-4 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl text-xs font-semibold text-wa-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingLead}
-                  className="px-4 py-2 bg-wa-green hover:bg-wa-green-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md shadow-wa-green/15"
-                >
-                  {savingLead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  Save Lead Data
-                </button>
-              </div>
-
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
 
     </div>

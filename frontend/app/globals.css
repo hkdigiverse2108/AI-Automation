@@ -162,14 +162,21 @@
 
   /* ========== UNIVERSAL FULL-SCREEN MODAL OVERLAYS ========== */
   .modal-overlay,
-  div[class*="fixed inset-0"][class*="z-50"],
-  div[class*="fixed inset-0"][class*="z-[50]"],
-  div[class*="fixed inset-0"][class*="z-[100]"],
-  div[class*="fixed inset-0"][class*="z-[9999]"],
-  div[class*="fixed inset-0"][class*="z-[99999]"] {
+  div[class*="fixed"][class*="inset-0"][class*="z-[99999]"],
+  div[class*="fixed"][class*="inset-0"][class*="items-center"][class*="justify-center"],
+  div[class*="fixed inset-0"][class*="z-[99999]"],
+  div[class*="fixed inset-0"][class*="items-center"][class*="justify-center"] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
     z-index: 99999 !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
     background-color: rgba(0, 0, 0, 0.65) !important;
   }
 }

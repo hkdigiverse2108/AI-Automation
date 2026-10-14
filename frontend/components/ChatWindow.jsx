@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
+import Portal from './Portal';
 
 function formatMessageDate(date) {
   if (isToday(date)) return 'TODAY';
@@ -1785,108 +1786,112 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
       {/* MODAL: SEND CONTACT CARD */}
       {isContactModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-fade-in">
-            <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
-              <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Send Contact Card</h3>
-              <button onClick={() => setIsContactModalOpen(false)} className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors">
-                <X className="w-5 h-5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
-              </button>
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-fade-in">
+              <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
+                <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Send Contact Card</h3>
+                <button onClick={() => setIsContactModalOpen(false)} className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors">
+                  <X className="w-5 h-5 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSendContactCard} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Contact Name *</label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-3 w-4 h-4 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Name of contact"
+                      value={contactCardName}
+                      onChange={(e) => setContactCardName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Phone Number *</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3.5 top-3 w-4 h-4 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
+                    <input
+                      type="tel"
+                      required
+                      placeholder="+1234567890"
+                      value={contactCardPhone}
+                      onChange={(e) => setContactCardPhone(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
+                  <button
+                    type="button"
+                    onClick={() => setIsContactModalOpen(false)}
+                    className="px-4 py-2 text-sm font-semibold border border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel hover:bg-wa-bg rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary transition-all duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 text-sm font-semibold text-white bg-wa-green hover:bg-wa-green-hover rounded-xl shadow-md transition-all duration-200"
+                  >
+                    Send Card
+                  </button>
+                </div>
+              </form>
             </div>
-
-            <form onSubmit={handleSendContactCard} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Contact Name *</label>
-                <div className="relative">
-                  <User className="absolute left-3.5 top-3 w-4 h-4 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Name of contact"
-                    value={contactCardName}
-                    onChange={(e) => setContactCardName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary mb-1.5">Phone Number *</label>
-                <div className="relative">
-                  <Phone className="absolute left-3.5 top-3 w-4 h-4 text-wa-text-secondary dark:text-wa-dark-text-secondary" />
-                  <input
-                    type="tel"
-                    required
-                    placeholder="+1234567890"
-                    value={contactCardPhone}
-                    onChange={(e) => setContactCardPhone(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary placeholder-wa-text-secondary dark:placeholder-wa-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-wa-green/30 focus:border-wa-green transition-all font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
-                <button
-                  type="button"
-                  onClick={() => setIsContactModalOpen(false)}
-                  className="px-4 py-2 text-sm font-semibold border border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel hover:bg-wa-bg rounded-xl text-wa-text-primary dark:text-wa-dark-text-primary transition-all duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-sm font-semibold text-white bg-wa-green hover:bg-wa-green-hover rounded-xl shadow-md transition-all duration-200"
-                >
-                  Send Card
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
+        </Portal>
       )}
 
       {/* MODAL: PDF PREVIEW */}
       {previewPdfUrl && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-5xl h-[85vh] overflow-hidden shadow-2xl flex flex-col">
-            <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
-              <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary truncate mr-4">
-                  {previewPdfName || "PDF Document"}
-                </h3>
+        <Portal>
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-5xl h-[85vh] overflow-hidden shadow-2xl flex flex-col">
+              <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold text-wa-text-primary dark:text-wa-dark-text-primary truncate mr-4">
+                    {previewPdfName || "PDF Document"}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={previewPdfUrl}
+                    download={previewPdfName || "document.pdf"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-wa-green/10 text-wa-green border border-wa-green/20 hover:bg-wa-green hover:text-white rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download</span>
+                  </a>
+                  <button
+                    onClick={() => {
+                      setPreviewPdfUrl(null);
+                      setPreviewPdfName('');
+                    }}
+                    className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors text-wa-text-secondary dark:text-wa-dark-text-secondary"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <a
-                  href={previewPdfUrl}
-                  download={previewPdfName || "document.pdf"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-wa-green/10 text-wa-green border border-wa-green/20 hover:bg-wa-green hover:text-white rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download</span>
-                </a>
-                <button
-                  onClick={() => {
-                    setPreviewPdfUrl(null);
-                    setPreviewPdfName('');
-                  }}
-                  className="p-1.5 rounded-xl hover:bg-wa-border dark:hover:bg-wa-dark-border transition-colors text-wa-text-secondary dark:text-wa-dark-text-secondary"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
 
-            <div className="flex-1 bg-wa-bg/15 dark:bg-wa-dark-bg/10 relative p-4 flex justify-center items-center">
-              <iframe
-                src={previewPdfUrl}
-                className="w-full h-full border-none rounded-xl bg-white shadow-inner"
-                title={previewPdfName || "PDF Preview"}
-              />
+              <div className="flex-1 bg-wa-bg/15 dark:bg-wa-dark-bg/10 relative p-4 flex justify-center items-center">
+                <iframe
+                  src={previewPdfUrl}
+                  className="w-full h-full border-none rounded-xl bg-white shadow-inner"
+                  title={previewPdfName || "PDF Preview"}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        </Portal>
       )}
 
     </div>

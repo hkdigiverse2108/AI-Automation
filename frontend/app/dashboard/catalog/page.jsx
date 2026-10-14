@@ -10,6 +10,7 @@ import {
 import api from '../../../lib/api';
 import { useAuthStore } from '../../../lib/store';
 import { getFastCache, setFastCache } from '../../../lib/usePageData';
+import Portal from '../../../components/Portal';
 
 export default function CatalogDashboard() {
   const { user } = useAuthStore();
@@ -1681,57 +1682,60 @@ export default function CatalogDashboard() {
 
       {/* Category CRUD Modal */}
       {showCategoryModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleSaveCategory} className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden shadow-wa-lg animate-fade-in flex flex-col">
-            <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-panel-header dark:bg-wa-dark-panel-header">
-              <h3 className="font-bold text-sm text-wa-text-primary dark:text-white">
-                {editingCategory ? 'Edit Category' : 'Create Category'}
-              </h3>
-              <button type="button" onClick={() => setShowCategoryModal(false)} className="text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white">
-                <X className="w-4.5 h-4.5" />
-              </button>
-            </div>
-            
-            <div className="p-5 space-y-4 text-xs">
-              <div className="space-y-1">
-                <label className="block font-bold text-wa-text-secondary uppercase">Category Name</label>
-                <input
-                  type="text"
-                  required
-                  value={catName}
-                  onChange={(e) => setCatName(e.target.value)}
-                  className="w-full px-3 py-2 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white"
-                  placeholder="Electronics, Apparel, etc."
-                />
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <form onSubmit={handleSaveCategory} className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden shadow-wa-lg animate-fade-in flex flex-col">
+              <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-panel-header dark:bg-wa-dark-panel-header">
+                <h3 className="font-bold text-sm text-wa-text-primary dark:text-white">
+                  {editingCategory ? 'Edit Category' : 'Create Category'}
+                </h3>
+                <button type="button" onClick={() => setShowCategoryModal(false)} className="text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white">
+                  <X className="w-4.5 h-4.5" />
+                </button>
+              </div>
+              
+              <div className="p-5 space-y-4 text-xs">
+                <div className="space-y-1">
+                  <label className="block font-bold text-wa-text-secondary uppercase">Category Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={catName}
+                    onChange={(e) => setCatName(e.target.value)}
+                    className="w-full px-3 py-2 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white"
+                    placeholder="Electronics, Apparel, etc."
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block font-bold text-wa-text-secondary uppercase">Description</label>
+                  <textarea
+                    rows="3"
+                    value={catDesc}
+                    onChange={(e) => setCatDesc(e.target.value)}
+                    className="w-full px-3 py-2 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white resize-none"
+                    placeholder="Short description of this group..."
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="block font-bold text-wa-text-secondary uppercase">Description</label>
-                <textarea
-                  rows="3"
-                  value={catDesc}
-                  onChange={(e) => setCatDesc(e.target.value)}
-                  className="w-full px-3 py-2 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white resize-none"
-                  placeholder="Short description of this group..."
-                />
+              <div className="px-5 py-3 border-t border-wa-border dark:border-wa-dark-border flex justify-end gap-2 shrink-0">
+                <button type="button" onClick={() => setShowCategoryModal(false)} className="px-4 py-2 border rounded-xl font-bold text-wa-text-secondary">Cancel</button>
+                <button type="submit" disabled={catSaving} className="px-4 py-2 bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 text-white font-bold rounded-xl flex items-center gap-1">
+                  {catSaving && <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span>Save Category</span>
+                </button>
               </div>
-            </div>
-
-            <div className="px-5 py-3 border-t border-wa-border dark:border-wa-dark-border flex justify-end gap-2 shrink-0">
-              <button type="button" onClick={() => setShowCategoryModal(false)} className="px-4 py-2 border rounded-xl font-bold text-wa-text-secondary">Cancel</button>
-              <button type="submit" disabled={catSaving} className="px-4 py-2 bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 text-white font-bold rounded-xl flex items-center gap-1">
-                {catSaving && <Loader2 className="w-3 h-3 animate-spin" />}
-                <span>Save Category</span>
-              </button>
-            </div>
-          </form>
-        </div>
+            </form>
+          </div>
+        </Portal>
       )}
 
       {/* Product CRUD Modal */}
       {showProductModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-3xl overflow-hidden shadow-wa-lg my-8 flex flex-col max-h-[85vh]">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-3xl overflow-hidden shadow-wa-lg my-8 flex flex-col max-h-[85vh]">
             
             {/* Header */}
             <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-panel-header dark:bg-wa-dark-panel-header shrink-0">
@@ -1939,11 +1943,13 @@ export default function CatalogDashboard() {
             </div>
           </div>
         </div>
+      </Portal>
       )}
 
       {/* Product Details & Image Viewer Modal */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-4xl overflow-hidden shadow-wa-lg animate-fade-in flex flex-col md:flex-row h-[75vh]">
             
             {/* Left: Image gallery */}
@@ -2067,82 +2073,85 @@ export default function CatalogDashboard() {
             </div>
           </div>
         </div>
+      </Portal>
       )}
 
       {/* Customer Commerce History Modal */}
       {showHistoryModal && customerStats && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-2xl overflow-hidden shadow-wa-lg animate-fade-in flex flex-col max-h-[80vh]">
-            <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-panel-header dark:bg-wa-dark-panel-header">
-              <h3 className="font-bold text-sm text-wa-text-primary dark:text-white flex items-center gap-1.5">
-                <History className="w-4 h-4 text-wa-green" />
-                <span>Client Commerce Profile</span>
-              </h3>
-              <button onClick={() => setShowHistoryModal(false)} className="text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white">
-                <X className="w-4.5 h-4.5" />
-              </button>
-            </div>
-
-            <div className="p-5 overflow-y-auto space-y-6 text-xs">
-              {/* Summary Stats Grid */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-wa-search/20 dark:bg-wa-dark-header/20 p-3 rounded-xl border text-center space-y-1">
-                  <span className="block text-[9px] uppercase tracking-wider font-extrabold text-wa-text-secondary">Total Orders</span>
-                  <span className="block text-lg font-extrabold text-wa-text-primary dark:text-white">{customerStats.totalOrders}</span>
-                </div>
-                <div className="bg-wa-search/20 dark:bg-wa-dark-header/20 p-3 rounded-xl border text-center space-y-1">
-                  <span className="block text-[9px] uppercase tracking-wider font-extrabold text-wa-text-secondary">Lifetime Value</span>
-                  <span className="block text-lg font-extrabold text-wa-green">₹{customerStats.lifetimeValue}</span>
-                </div>
-                <div className="bg-wa-search/20 dark:bg-wa-dark-header/20 p-3 rounded-xl border text-center space-y-1">
-                  <span className="block text-[9px] uppercase tracking-wider font-extrabold text-wa-text-secondary">Last Active Order</span>
-                  <span className="block text-[11px] font-extrabold text-wa-text-primary dark:text-white truncate mt-1 flex items-center justify-center">
-                    {customerStats.lastOrder ? `#${customerStats.lastOrder.orderNumber}` : 'None'}
-                  </span>
-                </div>
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-2xl overflow-hidden shadow-wa-lg animate-fade-in flex flex-col max-h-[80vh]">
+              <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-panel-header dark:bg-wa-dark-panel-header">
+                <h3 className="font-bold text-sm text-wa-text-primary dark:text-white flex items-center gap-1.5">
+                  <History className="w-4 h-4 text-wa-green" />
+                  <span>Client Commerce Profile</span>
+                </h3>
+                <button onClick={() => setShowHistoryModal(false)} className="text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white">
+                  <X className="w-4.5 h-4.5" />
+                </button>
               </div>
 
-              {/* Purchase History log */}
-              <div className="space-y-3">
-                <h4 className="font-extrabold text-xs text-wa-text-secondary uppercase tracking-wider">Complete Order History</h4>
-                {customerStats.history && customerStats.history.length > 0 ? (
-                  <div className="border border-wa-border dark:border-wa-dark-border rounded-xl overflow-hidden divide-y divide-wa-border dark:divide-wa-dark-border">
-                    {customerStats.history.map(item => (
-                      <div key={item._id} className="p-3 flex justify-between items-center hover:bg-wa-hover/10 dark:hover:bg-wa-dark-hover/10">
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-wa-text-primary dark:text-white font-mono">Order #{item.orderNumber}</span>
-                          <span className="block text-[10px] text-wa-text-secondary">{new Date(item.createdAt).toLocaleString()}</span>
-                        </div>
-                        <div className="text-right space-y-1">
-                          <span className="font-bold text-wa-text-primary dark:text-white block">₹{item.totalAmount}</span>
-                          <span className={`inline-block px-2 py-0.2 rounded-full text-[8px] font-extrabold uppercase ${
-                            item.status === 'Delivered' || item.status === 'Payment Verified'
-                              ? 'bg-wa-green/10 text-wa-green'
-                              : item.status === 'Pending Payment'
-                              ? 'bg-amber-500/10 text-amber-500'
-                              : item.status === 'Cancelled'
-                              ? 'bg-red-500/10 text-red-500'
-                              : 'bg-blue-500/10 text-blue-500'
-                          }`}>
-                            {item.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+              <div className="p-5 overflow-y-auto space-y-6 text-xs">
+                {/* Summary Stats Grid */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-wa-search/20 dark:bg-wa-dark-header/20 p-3 rounded-xl border text-center space-y-1">
+                    <span className="block text-[9px] uppercase tracking-wider font-extrabold text-wa-text-secondary">Total Orders</span>
+                    <span className="block text-lg font-extrabold text-wa-text-primary dark:text-white">{customerStats.totalOrders}</span>
                   </div>
-                ) : (
-                  <div className="text-center py-6 text-wa-text-secondary italic">No purchase history logged.</div>
-                )}
-              </div>
-            </div>
+                  <div className="bg-wa-search/20 dark:bg-wa-dark-header/20 p-3 rounded-xl border text-center space-y-1">
+                    <span className="block text-[9px] uppercase tracking-wider font-extrabold text-wa-text-secondary">Lifetime Value</span>
+                    <span className="block text-lg font-extrabold text-wa-green">₹{customerStats.lifetimeValue}</span>
+                  </div>
+                  <div className="bg-wa-search/20 dark:bg-wa-dark-header/20 p-3 rounded-xl border text-center space-y-1">
+                    <span className="block text-[9px] uppercase tracking-wider font-extrabold text-wa-text-secondary">Last Active Order</span>
+                    <span className="block text-[11px] font-extrabold text-wa-text-primary dark:text-white truncate mt-1 flex items-center justify-center">
+                      {customerStats.lastOrder ? `#${customerStats.lastOrder.orderNumber}` : 'None'}
+                    </span>
+                  </div>
+                </div>
 
-            <div className="px-5 py-3 border-t border-wa-border dark:border-wa-dark-border flex justify-end shrink-0">
-              <button onClick={() => setShowHistoryModal(false)} className="px-4 py-2 bg-wa-green hover:bg-wa-green-hover text-white font-bold rounded-xl text-xs shadow">
-                Close
-              </button>
+                {/* Purchase History log */}
+                <div className="space-y-3">
+                  <h4 className="font-extrabold text-xs text-wa-text-secondary uppercase tracking-wider">Complete Order History</h4>
+                  {customerStats.history && customerStats.history.length > 0 ? (
+                    <div className="border border-wa-border dark:border-wa-dark-border rounded-xl overflow-hidden divide-y divide-wa-border dark:divide-wa-dark-border">
+                      {customerStats.history.map(item => (
+                        <div key={item._id} className="p-3 flex justify-between items-center hover:bg-wa-hover/10 dark:hover:bg-wa-dark-hover/10">
+                          <div className="space-y-0.5">
+                            <span className="font-bold text-wa-text-primary dark:text-white font-mono">Order #{item.orderNumber}</span>
+                            <span className="block text-[10px] text-wa-text-secondary">{new Date(item.createdAt).toLocaleString()}</span>
+                          </div>
+                          <div className="text-right space-y-1">
+                            <span className="font-bold text-wa-text-primary dark:text-white block">₹{item.totalAmount}</span>
+                            <span className={`inline-block px-2 py-0.2 rounded-full text-[8px] font-extrabold uppercase ${
+                              item.status === 'Delivered' || item.status === 'Payment Verified'
+                                ? 'bg-wa-green/10 text-wa-green'
+                                : item.status === 'Pending Payment'
+                                ? 'bg-amber-500/10 text-amber-500'
+                                : item.status === 'Cancelled'
+                                ? 'bg-red-500/10 text-red-500'
+                                : 'bg-blue-500/10 text-blue-500'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-wa-text-secondary italic">No purchase history logged.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-5 py-3 border-t border-wa-border dark:border-wa-dark-border flex justify-end shrink-0">
+                <button onClick={() => setShowHistoryModal(false)} className="px-4 py-2 bg-wa-green hover:bg-wa-green-hover text-white font-bold rounded-xl text-xs shadow">
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </Portal>
       )}
 
     </div>

@@ -12,6 +12,7 @@ import {
   Copy, CornerUpLeft
 } from 'lucide-react';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
+import Portal from '../../../components/Portal';
 
 // Subtle incoming notification beep sound
 const PLAY_NOTIFICATION_SOUND = () => {
@@ -1432,236 +1433,242 @@ export default function TeamChatPage() {
 
       {/* --- NEW CONVERSATION DIRECTORY MODAL --- */}
       {isNewChatModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl max-w-md w-full shadow-wa-lg overflow-hidden animate-slide-up flex flex-col max-h-[85vh]">
-            <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-wa-dark-header/10">
-              <h4 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-1.5">
-                <User className="w-4.5 h-4.5 text-wa-green" /> Team User Directory
-              </h4>
-              <button onClick={() => setIsNewChatModalOpen(false)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg">
-                <X className="w-4 h-4 text-wa-text-secondary" />
-              </button>
-            </div>
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl max-w-md w-full shadow-wa-lg overflow-hidden animate-slide-up flex flex-col max-h-[85vh]">
+              <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-wa-dark-header/10">
+                <h4 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-1.5">
+                  <User className="w-4.5 h-4.5 text-wa-green" /> Team User Directory
+                </h4>
+                <button onClick={() => setIsNewChatModalOpen(false)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg">
+                  <X className="w-4 h-4 text-wa-text-secondary" />
+                </button>
+              </div>
 
-            <div className="p-4 shrink-0 flex gap-2">
-              <button
-                onClick={() => {
-                  setIsNewChatModalOpen(false);
-                  setIsGroupModalOpen(true);
-                }}
-                className="w-full py-2.5 bg-wa-green/10 text-wa-green hover:bg-wa-green/20 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
-              >
-                <Users className="w-4 h-4" />
-                <span>Create Group Chat</span>
-              </button>
-            </div>
+              <div className="p-4 shrink-0 flex gap-2">
+                <button
+                  onClick={() => {
+                    setIsNewChatModalOpen(false);
+                    setIsGroupModalOpen(true);
+                  }}
+                  className="w-full py-2.5 bg-wa-green/10 text-wa-green hover:bg-wa-green/20 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Create Group Chat</span>
+                </button>
+              </div>
 
-            <div className="overflow-y-auto flex-1 divide-y divide-wa-border/40 dark:divide-wa-dark-border/40 p-4 pt-0 scrollbar-thin">
-              {loadingUsers ? (
-                <div className="flex items-center justify-center py-12 gap-2 text-xs text-wa-text-secondary">
-                  <Loader2 className="w-4 h-4 animate-spin text-wa-green" />
-                  <span>Loading team directory...</span>
-                </div>
-              ) : users.length === 0 ? (
-                <div className="py-8 text-center text-xs text-wa-text-secondary">No other active members found.</div>
-              ) : (
-                users.map(u => (
-                  <div
-                    key={u._id}
-                    onClick={() => handleStartPrivateChat(u._id)}
-                    className="flex items-center gap-3 py-3 cursor-pointer hover:bg-wa-hover dark:hover:bg-wa-dark-hover px-2.5 rounded-xl transition-colors"
-                  >
-                    <div className="relative">
-                      <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold uppercase text-xs shadow-sm"
-                        style={{ backgroundColor: u.chatColor }}
-                      >
-                        {u.name[0]?.toUpperCase()}
-                      </div>
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white dark:border-wa-dark-panel ${
-                        u.isOnline ? 'bg-wa-green' : 'bg-slate-300'
-                      }`} />
-                    </div>
-
-                    <div className="flex-1 min-w-0 text-left">
-                      <span className="block text-xs font-bold text-wa-text-primary dark:text-white truncate">
-                        {u.name}
-                      </span>
-                      <p className="text-[10px] text-wa-text-secondary truncate mt-0.5 leading-none">
-                        {u.designation || u.role} • {u.department || 'General'}
-                      </p>
-                    </div>
+              <div className="overflow-y-auto flex-1 divide-y divide-wa-border/40 dark:divide-wa-dark-border/40 p-4 pt-0 scrollbar-thin">
+                {loadingUsers ? (
+                  <div className="flex items-center justify-center py-12 gap-2 text-xs text-wa-text-secondary">
+                    <Loader2 className="w-4 h-4 animate-spin text-wa-green" />
+                    <span>Loading team directory...</span>
                   </div>
-                ))
-              )}
+                ) : users.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-wa-text-secondary">No other active members found.</div>
+                ) : (
+                  users.map(u => (
+                    <div
+                      key={u._id}
+                      onClick={() => handleStartPrivateChat(u._id)}
+                      className="flex items-center gap-3 py-3 cursor-pointer hover:bg-wa-hover dark:hover:bg-wa-dark-hover px-2.5 rounded-xl transition-colors"
+                    >
+                      <div className="relative">
+                        <div
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold uppercase text-xs shadow-sm"
+                          style={{ backgroundColor: u.chatColor }}
+                        >
+                          {u.name[0]?.toUpperCase()}
+                        </div>
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white dark:border-wa-dark-panel ${
+                          u.isOnline ? 'bg-wa-green' : 'bg-slate-300'
+                        }`} />
+                      </div>
+
+                      <div className="flex-1 min-w-0 text-left">
+                        <span className="block text-xs font-bold text-wa-text-primary dark:text-white truncate">
+                          {u.name}
+                        </span>
+                        <p className="text-[10px] text-wa-text-secondary truncate mt-0.5 leading-none">
+                          {u.designation || u.role} • {u.department || 'General'}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </Portal>
       )}
 
       {/* --- CREATE GROUP MODAL --- */}
       {isGroupModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form
-            onSubmit={handleCreateGroupChat}
-            className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl max-w-md w-full shadow-wa-lg overflow-hidden animate-slide-up flex flex-col max-h-[85vh]"
-          >
-            <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-wa-dark-header/10">
-              <h4 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-1.5">
-                <Users className="w-4.5 h-4.5 text-wa-green" /> Create Group Channel
-              </h4>
-              <button type="button" onClick={() => setIsGroupModalOpen(false)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg">
-                <X className="w-4 h-4 text-wa-text-secondary" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-wa-text-secondary">Group Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Sales Department"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  className="w-full px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
-                />
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <form
+              onSubmit={handleCreateGroupChat}
+              className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl max-w-md w-full shadow-wa-lg overflow-hidden animate-slide-up flex flex-col max-h-[85vh]"
+            >
+              <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-wa-dark-header/10">
+                <h4 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-1.5">
+                  <Users className="w-4.5 h-4.5 text-wa-green" /> Create Group Channel
+                </h4>
+                <button type="button" onClick={() => setIsGroupModalOpen(false)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg">
+                  <X className="w-4 h-4 text-wa-text-secondary" />
+                </button>
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase text-wa-text-secondary">Select Initial Members</label>
-                <div className="border border-wa-border dark:border-wa-dark-border rounded-xl divide-y divide-wa-border/50 dark:divide-wa-dark-border/50 max-h-48 overflow-y-auto p-2 space-y-1 bg-wa-bg/30 dark:bg-wa-dark-header/10 scrollbar-thin">
-                  {users.map(u => {
-                    const isSelected = selectedGroupMembers.includes(u._id.toString());
-                    return (
-                      <div
-                        key={u._id}
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedGroupMembers(prev => prev.filter(id => id !== u._id.toString()));
-                          } else {
-                            setSelectedGroupMembers(prev => [...prev, u._id.toString()]);
-                          }
-                        }}
-                        className={`flex items-center gap-3 p-2 cursor-pointer rounded-xl transition-all ${
-                          isSelected ? 'bg-wa-green/10 text-wa-green font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800/40 text-wa-text-secondary'
-                        }`}
-                      >
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary">Group Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Sales Department"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    className="w-full px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold uppercase text-wa-text-secondary">Select Initial Members</label>
+                  <div className="border border-wa-border dark:border-wa-border/50 rounded-xl divide-y divide-wa-border/50 dark:divide-wa-dark-border/50 max-h-48 overflow-y-auto p-2 space-y-1 bg-wa-bg/30 dark:bg-wa-dark-header/10 scrollbar-thin">
+                    {users.map(u => {
+                      const isSelected = selectedGroupMembers.includes(u._id.toString());
+                      return (
                         <div
-                          className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold uppercase text-[10px] shrink-0"
-                          style={{ backgroundColor: u.chatColor }}
+                          key={u._id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedGroupMembers(prev => prev.filter(id => id !== u._id.toString()));
+                            } else {
+                              setSelectedGroupMembers(prev => [...prev, u._id.toString()]);
+                            }
+                          }}
+                          className={`flex items-center gap-3 p-2 cursor-pointer rounded-xl transition-all ${
+                            isSelected ? 'bg-wa-green/10 text-wa-green font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800/40 text-wa-text-secondary'
+                          }`}
                         >
-                          {u.name[0]?.toUpperCase()}
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold uppercase text-[10px] shrink-0"
+                            style={{ backgroundColor: u.chatColor }}
+                          >
+                            {u.name[0]?.toUpperCase()}
+                          </div>
+                          <div className="flex-1 text-left min-w-0 text-xs">
+                            <span className="block truncate font-medium">{u.name}</span>
+                            <span className="block text-[9px] opacity-70 truncate leading-none mt-0.5">{u.department || 'General'}</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            readOnly
+                            className="w-3.5 h-3.5 accent-wa-green rounded"
+                          />
                         </div>
-                        <div className="flex-1 text-left min-w-0 text-xs">
-                          <span className="block truncate font-medium">{u.name}</span>
-                          <span className="block text-[9px] opacity-70 truncate leading-none mt-0.5">{u.department || 'General'}</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          readOnly
-                          className="w-3.5 h-3.5 accent-wa-green rounded"
-                        />
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="p-4 border-t border-wa-border dark:border-wa-dark-border bg-slate-50/50 dark:bg-wa-dark-header/15 shrink-0 flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setIsGroupModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg rounded-xl text-wa-text-secondary bg-white dark:bg-wa-dark-panel"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 text-xs font-semibold text-white bg-wa-green hover:bg-wa-green-hover rounded-xl shadow-md"
-              >
-                Create Channel
-              </button>
-            </div>
-          </form>
-        </div>
+              <div className="p-4 border-t border-wa-border dark:border-wa-dark-border bg-slate-50/50 dark:bg-wa-dark-header/15 shrink-0 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsGroupModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg rounded-xl text-wa-text-secondary bg-white dark:bg-wa-dark-panel"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-semibold text-white bg-wa-green hover:bg-wa-green-hover rounded-xl shadow-md"
+                >
+                  Create Channel
+                </button>
+              </div>
+            </form>
+          </div>
+        </Portal>
       )}
 
       {/* --- ADD MEMBERS TO ACTIVE GROUP MODAL --- */}
       {isMembersModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl max-w-md w-full shadow-wa-lg overflow-hidden animate-slide-up flex flex-col max-h-[85vh]">
-            <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-wa-dark-header/10">
-              <h4 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-1.5">
-                <Users className="w-4.5 h-4.5 text-wa-green" /> Add Members to "{activeChat?.title}"
-              </h4>
-              <button onClick={() => setIsMembersModalOpen(false)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg">
-                <X className="w-4 h-4 text-wa-text-secondary" />
-              </button>
-            </div>
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl max-w-md w-full shadow-wa-lg overflow-hidden animate-slide-up flex flex-col max-h-[85vh]">
+              <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-wa-dark-header/10">
+                <h4 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-1.5">
+                  <Users className="w-4.5 h-4.5 text-wa-green" /> Add Members to "{activeChat?.title}"
+                </h4>
+                <button onClick={() => setIsMembersModalOpen(false)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg">
+                  <X className="w-4 h-4 text-wa-text-secondary" />
+                </button>
+              </div>
 
-            <div className="p-5 space-y-3 overflow-y-auto flex-1 scrollbar-thin">
-              <div className="border border-wa-border dark:border-wa-dark-border rounded-xl divide-y divide-wa-border/50 dark:divide-wa-dark-border/50 max-h-60 overflow-y-auto p-2 space-y-1 bg-wa-bg/30 dark:bg-wa-dark-header/10 scrollbar-thin">
-                {users
-                  .filter(u => !activeChat?.participants?.some(p => p._id.toString() === u._id.toString()))
-                  .map(u => {
-                    const isSelected = membersToAdd.includes(u._id.toString());
-                    return (
-                      <div
-                        key={u._id}
-                        onClick={() => {
-                          if (isSelected) {
-                            setMembersToAdd(prev => prev.filter(id => id !== u._id.toString()));
-                          } else {
-                            setMembersToAdd(prev => [...prev, u._id.toString()]);
-                          }
-                        }}
-                        className={`flex items-center gap-3 p-2 cursor-pointer rounded-xl transition-all ${
-                          isSelected ? 'bg-wa-green/10 text-wa-green font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800/40 text-wa-text-secondary'
-                        }`}
-                      >
+              <div className="p-5 space-y-3 overflow-y-auto flex-1 scrollbar-thin">
+                <div className="border border-wa-border dark:border-wa-dark-border rounded-xl divide-y divide-wa-border/50 dark:divide-wa-dark-border/50 max-h-60 overflow-y-auto p-2 space-y-1 bg-wa-bg/30 dark:bg-wa-dark-header/10 scrollbar-thin">
+                  {users
+                    .filter(u => !activeChat?.participants?.some(p => p._id.toString() === u._id.toString()))
+                    .map(u => {
+                      const isSelected = membersToAdd.includes(u._id.toString());
+                      return (
                         <div
-                          className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold uppercase text-[10px] shrink-0"
-                          style={{ backgroundColor: u.chatColor }}
+                          key={u._id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setMembersToAdd(prev => prev.filter(id => id !== u._id.toString()));
+                            } else {
+                              setMembersToAdd(prev => [...prev, u._id.toString()]);
+                            }
+                          }}
+                          className={`flex items-center gap-3 p-2 cursor-pointer rounded-xl transition-all ${
+                            isSelected ? 'bg-wa-green/10 text-wa-green font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800/40 text-wa-text-secondary'
+                          }`}
                         >
-                          {u.name[0]?.toUpperCase()}
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold uppercase text-[10px] shrink-0"
+                            style={{ backgroundColor: u.chatColor }}
+                          >
+                            {u.name[0]?.toUpperCase()}
+                          </div>
+                          <div className="flex-1 text-left min-w-0 text-xs">
+                            <span className="block truncate font-medium">{u.name}</span>
+                            <span className="block text-[9px] opacity-70 truncate leading-none mt-0.5">{u.department || 'General'}</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            readOnly
+                            className="w-3.5 h-3.5 accent-wa-green rounded"
+                          />
                         </div>
-                        <div className="flex-1 text-left min-w-0 text-xs">
-                          <span className="block truncate font-medium">{u.name}</span>
-                          <span className="block text-[9px] opacity-70 truncate leading-none mt-0.5">{u.department || 'General'}</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          readOnly
-                          className="w-3.5 h-3.5 accent-wa-green rounded"
-                        />
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-wa-border dark:border-wa-dark-border bg-slate-50/50 dark:bg-wa-dark-header/15 shrink-0 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsMembersModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg rounded-xl text-wa-text-secondary bg-white dark:bg-wa-dark-panel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddMembersToGroup}
+                  disabled={membersToAdd.length === 0}
+                  className="px-5 py-2 text-xs font-semibold text-white bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 rounded-xl shadow-md"
+                >
+                  Add Member(s)
+                </button>
               </div>
             </div>
-
-            <div className="p-4 border-t border-wa-border dark:border-wa-dark-border bg-slate-50/50 dark:bg-wa-dark-header/15 shrink-0 flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setIsMembersModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg rounded-xl text-wa-text-secondary bg-white dark:bg-wa-dark-panel"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddMembersToGroup}
-                disabled={membersToAdd.length === 0}
-                className="px-5 py-2 text-xs font-semibold text-white bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 rounded-xl shadow-md"
-              >
-                Add Member(s)
-              </button>
-            </div>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

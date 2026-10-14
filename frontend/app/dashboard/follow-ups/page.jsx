@@ -8,6 +8,7 @@ import {
 import api from '../../../lib/api';
 import { useConfirmStore } from '../../../lib/store';
 import { getFastCache, setFastCache } from '../../../lib/usePageData';
+import Portal from '../../../components/Portal';
 
 const TYPE_CONFIG = {
   whatsapp: { label: 'WhatsApp', icon: MessageSquare, color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800' },
@@ -753,7 +754,8 @@ export default function FollowUpsPage() {
 
       {/* MODAL: SCHEDULE FOLLOW-UP */}
       {isScheduleModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in flex flex-col max-h-[85vh]">
             <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header shrink-0">
               <h3 className="font-bold text-wa-text-primary dark:text-white text-base">Schedule Follow-Up Task</h3>
@@ -881,11 +883,13 @@ export default function FollowUpsPage() {
             </form>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* MODAL: EDIT FOLLOW-UP */}
       {isEditModalOpen && activeFollowUp && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in flex flex-col max-h-[85vh]">
             <div className="px-6 py-4 border-b border-wa-border dark:border-wa-dark-border flex justify-between items-center bg-wa-bg dark:bg-wa-dark-header shrink-0">
               <h3 className="font-bold text-wa-text-primary dark:text-white text-base">Edit Follow-Up Task</h3>
@@ -992,6 +996,7 @@ export default function FollowUpsPage() {
             </form>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

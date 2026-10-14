@@ -5,6 +5,7 @@ import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 import { formatDateOnly } from '../../../lib/utils';
 import FeaturePermissionsTab from '../../../components/FeaturePermissionsTab';
+import Portal from '../../../components/Portal';
 import {
   Shield, Activity, Database, Cpu, Layers, UserX, UserCheck,
   RefreshCw, Play, Pause, Trash2, Search, Users, CheckCircle2,
@@ -1105,7 +1106,8 @@ export default function AdminPanel() {
 
       {/* CREATE/EDIT ORG MODAL */}
       {isOrgModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-dark-900 border border-dark-200 dark:border-dark-800 rounded-2xl w-full max-w-2xl overflow-hidden animate-slide-up flex flex-col shadow-2xl max-h-[90vh]">
             <div className="flex items-center justify-between border-b border-dark-200 dark:border-dark-800 px-6 py-4">
               <h3 className="font-bold text-base text-dark-800 dark:text-white flex items-center gap-2">
@@ -1368,47 +1370,50 @@ export default function AdminPanel() {
             </form>
           </div>
         </div>
+      </Portal>
       )}
 
       {/* RESET ADMIN PASSWORD MODAL */}
       {isPasswordModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-dark-900 border border-dark-200 dark:border-dark-800 rounded-2xl w-full max-w-sm overflow-hidden animate-slide-up shadow-2xl">
-            <div className="flex items-center justify-between border-b border-dark-200 dark:border-dark-800 px-5 py-4">
-              <h3 className="font-bold text-sm text-dark-800 dark:text-white flex items-center gap-1.5">
-                <Lock className="w-4.5 h-4.5 text-amber-500" />
-                <span>Reset Admin Password</span>
-              </h3>
-              <button onClick={() => setIsPasswordModalOpen(false)} className="p-1 rounded-lg hover:bg-dark-100 dark:hover:bg-dark-800 text-dark-500">
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleResetPasswordSubmit} className="p-5 space-y-4 text-xs">
-              <p className="text-dark-500 leading-normal">
-                You are resetting the password for organization admin: <strong className="dark:text-white font-semibold">{resetEmail}</strong>.
-              </p>
-              <div>
-                <label className="block font-bold text-dark-500 mb-1">New Password *</label>
-                <input
-                  type="password" required
-                  placeholder="Minimum 8 characters"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-xl bg-transparent dark:text-white dark:border-dark-700"
-                />
-              </div>
-
-              <div className="flex gap-3 justify-end pt-3 border-t border-dark-200 dark:border-dark-800">
-                <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="btn-secondary py-2 px-4" disabled={actionLoading}>Cancel</button>
-                <button type="submit" disabled={actionLoading} className="btn-primary py-2 px-4 flex items-center gap-1.5">
-                  {actionLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Save Password</span>
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-dark-900 border border-dark-200 dark:border-dark-800 rounded-2xl w-full max-w-sm overflow-hidden animate-slide-up shadow-2xl">
+              <div className="flex items-center justify-between border-b border-dark-200 dark:border-dark-800 px-5 py-4">
+                <h3 className="font-bold text-sm text-dark-800 dark:text-white flex items-center gap-1.5">
+                  <Lock className="w-4.5 h-4.5 text-amber-500" />
+                  <span>Reset Admin Password</span>
+                </h3>
+                <button onClick={() => setIsPasswordModalOpen(false)} className="p-1 rounded-lg hover:bg-dark-100 dark:hover:bg-dark-800 text-dark-500">
+                  <XCircle className="w-5 h-5" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleResetPasswordSubmit} className="p-5 space-y-4 text-xs">
+                <p className="text-dark-500 leading-normal">
+                  You are resetting the password for organization admin: <strong className="dark:text-white font-semibold">{resetEmail}</strong>.
+                </p>
+                <div>
+                  <label className="block font-bold text-dark-500 mb-1">New Password *</label>
+                  <input
+                    type="password" required
+                    placeholder="Minimum 8 characters"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-xl bg-transparent dark:text-white dark:border-dark-700"
+                  />
+                </div>
+
+                <div className="flex gap-3 justify-end pt-3 border-t border-dark-200 dark:border-dark-800">
+                  <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="btn-secondary py-2 px-4" disabled={actionLoading}>Cancel</button>
+                  <button type="submit" disabled={actionLoading} className="btn-primary py-2 px-4 flex items-center gap-1.5">
+                    {actionLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                    <span>Save Password</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

@@ -9,6 +9,7 @@ import api from '../../../lib/api';
 import dynamic from 'next/dynamic';
 import { useAuthStore } from '../../../lib/store';
 import { getFastCache, setFastCache } from '../../../lib/usePageData';
+import Portal from '../../../components/Portal';
 
 const TaskDetailModal = dynamic(() => import('../../../components/TaskDetailModal'), {
   ssr: false,
@@ -856,130 +857,132 @@ export default function TasksPage() {
 
       {/* CREATE TASK MODAL */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border w-full max-w-lg rounded-2xl flex flex-col shadow-wa-lg overflow-hidden animate-scale-up">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-wa-border dark:border-wa-dark-border shrink-0 bg-wa-hover dark:bg-wa-dark-panel-header">
-              <h2 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-1.5">
-                <ClipboardList className="w-5 h-5 text-wa-green" /> Create & Assign Task
-              </h2>
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateTask} className="p-6 space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
-                  Task Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={createForm.title}
-                  onChange={e => setCreateForm({ ...createForm, title: e.target.value })}
-                  className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green"
-                  placeholder="e.g. Follow up on proposal"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
-                  Description
-                </label>
-                <textarea
-                  value={createForm.description}
-                  onChange={e => setCreateForm({ ...createForm, description: e.target.value })}
-                  rows={3}
-                  className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green resize-none"
-                  placeholder="Details, objectives, links..."
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
-                    Assign To *
-                  </label>
-                  <select
-                    required
-                    value={createForm.assignedTo}
-                    onChange={e => setCreateForm({ ...createForm, assignedTo: e.target.value })}
-                    className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green"
-                  >
-                    <option value="">Select Assignee</option>
-                    {users.map(u => (
-                      <option key={u._id} value={u._id}>
-                        {u.name} ({u.role}{u.department ? ` - ${u.department}` : ''})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
-                    Priority
-                  </label>
-                  <select
-                    value={createForm.priority}
-                    onChange={e => setCreateForm({ ...createForm, priority: e.target.value })}
-                    className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green"
-                  >
-                    <option value="low">Green - Low</option>
-                    <option value="medium">Blue - Medium</option>
-                    <option value="high">Orange - High</option>
-                    <option value="urgent">Red - Urgent</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
-                    Due Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={createForm.dueDate}
-                    onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })}
-                    className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
-                    Due Time
-                  </label>
-                  <input
-                    type="time"
-                    value={createForm.dueTime}
-                    onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })}
-                    className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-wa-border dark:border-wa-dark-border">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border w-full max-w-lg rounded-2xl flex flex-col shadow-wa-lg overflow-hidden animate-scale-up">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-wa-border dark:border-wa-dark-border shrink-0 bg-wa-hover dark:bg-wa-dark-panel-header">
+                <h2 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-1.5">
+                  <ClipboardList className="w-5 h-5 text-wa-green" /> Create & Assign Task
+                </h2>
                 <button
-                  type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="btn btn-secondary py-2 px-4 text-xs font-semibold"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="btn btn-primary bg-wa-green hover:bg-wa-green-dark text-white text-xs py-2 px-4 font-bold rounded-xl flex items-center gap-2"
-                >
-                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Assign Task
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleCreateTask} className="p-6 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                    Task Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={createForm.title}
+                    onChange={e => setCreateForm({ ...createForm, title: e.target.value })}
+                    className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green"
+                    placeholder="e.g. Follow up on proposal"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                    Description
+                  </label>
+                  <textarea
+                    value={createForm.description}
+                    onChange={e => setCreateForm({ ...createForm, description: e.target.value })}
+                    rows={3}
+                    className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green resize-none"
+                    placeholder="Details, objectives, links..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                      Assign To *
+                    </label>
+                    <select
+                      required
+                      value={createForm.assignedTo}
+                      onChange={e => setCreateForm({ ...createForm, assignedTo: e.target.value })}
+                      className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green"
+                    >
+                      <option value="">Select Assignee</option>
+                      {users.map(u => (
+                        <option key={u._id} value={u._id}>
+                          {u.name} ({u.role}{u.department ? ` - ${u.department}` : ''})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                      Priority
+                    </label>
+                    <select
+                      value={createForm.priority}
+                      onChange={e => setCreateForm({ ...createForm, priority: e.target.value })}
+                      className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green"
+                    >
+                      <option value="low">Green - Low</option>
+                      <option value="medium">Blue - Medium</option>
+                      <option value="high">Orange - High</option>
+                      <option value="urgent">Red - Urgent</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                      Due Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={createForm.dueDate}
+                      onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })}
+                      className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-wider text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                      Due Time
+                    </label>
+                    <input
+                      type="time"
+                      value={createForm.dueTime}
+                      onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })}
+                      className="w-full bg-wa-hover dark:bg-wa-dark-hover border border-wa-border dark:border-wa-dark-border rounded-xl px-4 py-2.5 text-xs text-wa-text-primary dark:text-white focus:outline-none focus:border-wa-green"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-wa-border dark:border-wa-dark-border">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="btn btn-secondary py-2 px-4 text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="btn btn-primary bg-wa-green hover:bg-wa-green-dark text-white text-xs py-2 px-4 font-bold rounded-xl flex items-center gap-2"
+                  >
+                    {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Assign Task
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
 
       {/* TASK DETAIL MODAL */}

@@ -8,6 +8,7 @@ import api from '../../../lib/api';
 import { useMultiPageData } from '../../../lib/usePageData';
 import { useConfirmStore } from '../../../lib/store';
 import { formatDate } from '../../../lib/utils';
+import Portal from '../../../components/Portal';
 
 export default function SequencesPage() {
   const confirm = useConfirmStore((state) => state.confirm);
@@ -295,196 +296,200 @@ export default function SequencesPage() {
 
       {/* NEW/EDIT SEQUENCE MODAL */}
       {isSeqModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] shadow-wa-lg">
-            <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
-              <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-wa-green" /> {editingSeqId ? 'Edit Drip Sequence' : 'Create Drip Sequence'}
-              </h3>
-              <button onClick={() => setIsSeqModalOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors">
-                <X className="w-5 h-5 text-wa-text-secondary" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSeqSubmit} className="p-5 space-y-4 flex-1 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Sequence Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. 7-Day Customer Onboarding"
-                    value={seqForm.name}
-                    onChange={(e) => setSeqForm({ ...seqForm, name: e.target.value })}
-                    className="input-field py-2 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Trigger Tag (Optional)</label>
-                  <select
-                    value={seqForm.triggerTag}
-                    onChange={(e) => setSeqForm({ ...seqForm, triggerTag: e.target.value })}
-                    className="input-field py-2 text-xs"
-                  >
-                    <option value="">No tag trigger linked</option>
-                    {tags.map(t => (
-                      <option key={t._id} value={t.name}>{t.name.toUpperCase()}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Drip steps builder */}
-              <div className="space-y-4 pt-4 border-t border-wa-border dark:border-wa-dark-border">
-                <div className="flex items-center justify-between">
-                  <span className="block text-xs font-bold text-wa-text-secondary uppercase">Drip Message Steps ({seqForm.messages.length})</span>
-                  <button
-                    type="button"
-                    onClick={handleAddStep}
-                    className="text-xs text-wa-green hover:underline flex items-center gap-1 font-bold"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Step
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {seqForm.messages.map((step, idx) => (
-                    <div key={idx} className="bg-wa-bg/35 dark:bg-wa-dark-header/40 p-4 rounded-xl border border-wa-border dark:border-wa-dark-border relative space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveStep(idx)}
-                        className="absolute right-3 top-3 text-wa-text-light hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-
-                      <span className="block text-xs font-bold text-wa-text-primary dark:text-white">Step #{idx + 1}</span>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Delay Duration *</label>
-                          <input
-                            type="number"
-                            required
-                            min="1"
-                            value={step.delayValue}
-                            onChange={(e) => handleStepFieldChange(idx, 'delayValue', parseInt(e.target.value) || 1)}
-                            className="input-field py-1 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Delay Unit *</label>
-                          <select
-                            value={step.delayUnit}
-                            onChange={(e) => handleStepFieldChange(idx, 'delayUnit', e.target.value)}
-                            className="input-field py-1 text-xs"
-                          >
-                            <option value="minutes">Minutes</option>
-                            <option value="hours">Hours</option>
-                            <option value="days">Days</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Select Template *</label>
-                          <select
-                            value={step.templateId}
-                            onChange={(e) => handleStepFieldChange(idx, 'templateId', e.target.value)}
-                            required
-                            className="input-field py-1 text-xs"
-                          >
-                            <option value="">Choose template...</option>
-                            {templates.map(t => (
-                              <option key={t._id} value={t._id}>{t.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
-                <button type="button" onClick={() => setIsSeqModalOpen(false)} className="btn-secondary py-2 text-xs px-4" disabled={submitting}>Cancel</button>
-                <button type="submit" disabled={submitting} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
-                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Save Sequence
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] shadow-wa-lg">
+              <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
+                <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-wa-green" /> {editingSeqId ? 'Edit Drip Sequence' : 'Create Drip Sequence'}
+                </h3>
+                <button onClick={() => setIsSeqModalOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors">
+                  <X className="w-5 h-5 text-wa-text-secondary" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleSeqSubmit} className="p-5 space-y-4 flex-1 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Sequence Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 7-Day Customer Onboarding"
+                      value={seqForm.name}
+                      onChange={(e) => setSeqForm({ ...seqForm, name: e.target.value })}
+                      className="input-field py-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Trigger Tag (Optional)</label>
+                    <select
+                      value={seqForm.triggerTag}
+                      onChange={(e) => setSeqForm({ ...seqForm, triggerTag: e.target.value })}
+                      className="input-field py-2 text-xs"
+                    >
+                      <option value="">No tag trigger linked</option>
+                      {tags.map(t => (
+                        <option key={t._id} value={t.name}>{t.name.toUpperCase()}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Drip steps builder */}
+                <div className="space-y-4 pt-4 border-t border-wa-border dark:border-wa-dark-border">
+                  <div className="flex items-center justify-between">
+                    <span className="block text-xs font-bold text-wa-text-secondary uppercase">Drip Message Steps ({seqForm.messages.length})</span>
+                    <button
+                      type="button"
+                      onClick={handleAddStep}
+                      className="text-xs text-wa-green hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Step
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {seqForm.messages.map((step, idx) => (
+                      <div key={idx} className="bg-wa-bg/35 dark:bg-wa-dark-header/40 p-4 rounded-xl border border-wa-border dark:border-wa-dark-border relative space-y-3">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveStep(idx)}
+                          className="absolute right-3 top-3 text-wa-text-light hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+
+                        <span className="block text-xs font-bold text-wa-text-primary dark:text-white">Step #{idx + 1}</span>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Delay Duration *</label>
+                            <input
+                              type="number"
+                              required
+                              min="1"
+                              value={step.delayValue}
+                              onChange={(e) => handleStepFieldChange(idx, 'delayValue', parseInt(e.target.value) || 1)}
+                              className="input-field py-1 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Delay Unit *</label>
+                            <select
+                              value={step.delayUnit}
+                              onChange={(e) => handleStepFieldChange(idx, 'delayUnit', e.target.value)}
+                              className="input-field py-1 text-xs"
+                            >
+                              <option value="minutes">Minutes</option>
+                              <option value="hours">Hours</option>
+                              <option value="days">Days</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-wa-text-secondary mb-1 uppercase">Select Template *</label>
+                            <select
+                              value={step.templateId}
+                              onChange={(e) => handleStepFieldChange(idx, 'templateId', e.target.value)}
+                              required
+                              className="input-field py-1 text-xs"
+                            >
+                              <option value="">Choose template...</option>
+                              {templates.map(t => (
+                                <option key={t._id} value={t._id}>{t.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
+                  <button type="button" onClick={() => setIsSeqModalOpen(false)} className="btn-secondary py-2 text-xs px-4" disabled={submitting}>Cancel</button>
+                  <button type="submit" disabled={submitting} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
+                    {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Save Sequence
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
 
       {/* MANUAL ASSIGN MODAL */}
       {isAssignModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden animate-slide-up flex flex-col max-h-[85vh] shadow-wa-lg">
-            <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
-              <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
-                <Users className="w-5 h-5 text-wa-green" /> Assign Drip Sequence
-              </h3>
-              <button onClick={() => setIsAssignModalOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors">
-                <X className="w-5 h-5 text-wa-text-secondary" />
-              </button>
-            </div>
-
-            <form onSubmit={handleManualAssign} className="p-5 space-y-4 flex-1 overflow-y-auto">
-              <div>
-                <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Select Sequence *</label>
-                <select
-                  value={selectedSeqId}
-                  onChange={(e) => setSelectedSeqId(e.target.value)}
-                  required
-                  className="input-field py-2 text-xs"
-                >
-                  <option value="">Choose sequence...</option>
-                  {sequences.map(s => (
-                    <option key={s._id} value={s._id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Select Contacts *</label>
-                {contacts.length === 0 ? (
-                  <p className="text-xs text-wa-text-secondary italic">No contacts found in database.</p>
-                ) : (
-                  <div className="border border-wa-border dark:border-wa-dark-border rounded-xl max-h-[250px] overflow-y-auto divide-y divide-wa-border/50 dark:divide-wa-dark-border/50 p-2 space-y-1 bg-wa-bg/20 dark:bg-slate-900/10 scrollbar-thin">
-                    {contacts.map(c => {
-                      const isSelected = selectedContactIds.includes(c._id);
-                      return (
-                        <div
-                          key={c._id}
-                          onClick={() => handleSelectContactToggle(c._id)}
-                          className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors text-xs ${
-                            isSelected ? 'bg-wa-green/10 text-wa-green font-semibold' : 'hover:bg-wa-hover text-wa-text-primary dark:text-white'
-                          }`}
-                        >
-                          <div>
-                            <p className="font-bold">{c.name || 'Unknown'}</p>
-                            <p className="text-[10px] text-wa-text-light font-mono mt-0.5">{c.phone}</p>
-                          </div>
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'border-wa-green bg-wa-green text-white' : 'border-wa-border'}`}>
-                            {isSelected && <span className="text-[10px]">✓</span>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
-                <button type="button" onClick={() => setIsAssignModalOpen(false)} className="btn-secondary py-2 text-xs px-4" disabled={submitting}>Cancel</button>
-                <button type="submit" disabled={submitting} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
-                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Assign Sequence
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-lg overflow-hidden animate-slide-up flex flex-col max-h-[85vh] shadow-wa-lg">
+              <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
+                <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
+                  <Users className="w-5 h-5 text-wa-green" /> Assign Drip Sequence
+                </h3>
+                <button onClick={() => setIsAssignModalOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors">
+                  <X className="w-5 h-5 text-wa-text-secondary" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleManualAssign} className="p-5 space-y-4 flex-1 overflow-y-auto">
+                <div>
+                  <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Select Sequence *</label>
+                  <select
+                    value={selectedSeqId}
+                    onChange={(e) => setSelectedSeqId(e.target.value)}
+                    required
+                    className="input-field py-2 text-xs"
+                  >
+                    <option value="">Choose sequence...</option>
+                    {sequences.map(s => (
+                      <option key={s._id} value={s._id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Select Contacts *</label>
+                  {contacts.length === 0 ? (
+                    <p className="text-xs text-wa-text-secondary italic">No contacts found in database.</p>
+                  ) : (
+                    <div className="border border-wa-border dark:border-wa-dark-border rounded-xl max-h-[250px] overflow-y-auto divide-y divide-wa-border/50 dark:divide-wa-dark-border/50 p-2 space-y-1 bg-wa-bg/20 dark:bg-slate-900/10 scrollbar-thin">
+                      {contacts.map(c => {
+                        const isSelected = selectedContactIds.includes(c._id);
+                        return (
+                          <div
+                            key={c._id}
+                            onClick={() => handleSelectContactToggle(c._id)}
+                            className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors text-xs ${
+                              isSelected ? 'bg-wa-green/10 text-wa-green font-semibold' : 'hover:bg-wa-hover text-wa-text-primary dark:text-white'
+                            }`}
+                          >
+                            <div>
+                              <p className="font-bold">{c.name || 'Unknown'}</p>
+                              <p className="text-[10px] text-wa-text-light font-mono mt-0.5">{c.phone}</p>
+                            </div>
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'border-wa-green bg-wa-green text-white' : 'border-wa-border'}`}>
+                              {isSelected && <span className="text-[10px]">✓</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
+                  <button type="button" onClick={() => setIsAssignModalOpen(false)} className="btn-secondary py-2 text-xs px-4" disabled={submitting}>Cancel</button>
+                  <button type="submit" disabled={submitting} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
+                    {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Assign Sequence
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

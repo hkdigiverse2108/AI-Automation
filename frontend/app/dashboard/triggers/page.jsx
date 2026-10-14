@@ -9,6 +9,7 @@ import api from '../../../lib/api';
 import { useConfirmStore } from '../../../lib/store';
 import { formatDateOnly } from '../../../lib/utils';
 import { getFastCache, setFastCache } from '../../../lib/usePageData';
+import Portal from '../../../components/Portal';
 
 export default function TriggersPage() {
   const confirm = useConfirmStore(state => state.confirm);
@@ -383,128 +384,130 @@ export default function TriggersPage() {
 
       {/* CREATE / EDIT RESPONDER MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] shadow-wa-lg">
-            <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
-              <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-wa-green animate-pulse" />
-                {editingTriggerId ? 'Edit Auto-Responder' : 'Add Auto-Responder'}
-              </h3>
-              <button onClick={() => setIsModalOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors">
-                <X className="w-5 h-5 text-wa-text-secondary" />
-              </button>
-            </div>
-
-            <form onSubmit={handleFormSubmit} className="p-5 space-y-4 flex-1 overflow-y-auto">
-              {/* Type Switcher */}
-              <div className="flex gap-4 p-1 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setTriggerForm(prev => ({ ...prev, isFallback: false }))}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-                    !triggerForm.isFallback
-                      ? 'bg-white dark:bg-wa-dark-panel text-wa-green shadow-sm border border-wa-border dark:border-wa-dark-border'
-                      : 'text-wa-text-secondary hover:text-wa-text-primary'
-                  }`}
-                >
-                  Keyword Trigger
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTriggerForm(prev => ({ ...prev, isFallback: true, triggerText: '' }))}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-                    triggerForm.isFallback
-                      ? 'bg-white dark:bg-wa-dark-panel text-wa-green shadow-sm border border-wa-border dark:border-wa-dark-border'
-                      : 'text-wa-text-secondary hover:text-wa-text-primary'
-                  }`}
-                >
-                  Fallback Responder
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+            <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh] shadow-wa-lg">
+              <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
+                <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-wa-green animate-pulse" />
+                  {editingTriggerId ? 'Edit Auto-Responder' : 'Add Auto-Responder'}
+                </h3>
+                <button onClick={() => setIsModalOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors">
+                  <X className="w-5 h-5 text-wa-text-secondary" />
                 </button>
               </div>
 
-              {/* Keyword text box */}
-              {!triggerForm.isFallback && (
-                <div>
-                  <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Keyword Trigger *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. price, menu, support, hours"
-                    value={triggerForm.triggerText}
-                    onChange={(e) => setTriggerForm({ ...triggerForm, triggerText: e.target.value })}
-                    className="input-field py-2 text-xs font-semibold"
-                  />
-                  <p className="text-[10px] text-wa-text-light mt-1">Incoming messages matching this exact keyword (case-insensitive) will trigger this response.</p>
+              <form onSubmit={handleFormSubmit} className="p-5 space-y-4 flex-1 overflow-y-auto">
+                {/* Type Switcher */}
+                <div className="flex gap-4 p-1 bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setTriggerForm(prev => ({ ...prev, isFallback: false }))}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                      !triggerForm.isFallback
+                        ? 'bg-white dark:bg-wa-dark-panel text-wa-green shadow-sm border border-wa-border dark:border-wa-dark-border'
+                        : 'text-wa-text-secondary hover:text-wa-text-primary'
+                    }`}
+                  >
+                    Keyword Trigger
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTriggerForm(prev => ({ ...prev, isFallback: true, triggerText: '' }))}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                      triggerForm.isFallback
+                        ? 'bg-white dark:bg-wa-dark-panel text-wa-green shadow-sm border border-wa-border dark:border-wa-dark-border'
+                        : 'text-wa-text-secondary hover:text-wa-text-primary'
+                    }`}
+                  >
+                    Fallback Responder
+                  </button>
                 </div>
-              )}
 
-              {triggerForm.isFallback && (
-                <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30 text-amber-800 dark:text-amber-400 rounded-xl text-xs flex gap-2">
-                  <AlertCircle className="w-5 h-5 shrink-0" />
-                  <span>
-                    <strong>Note:</strong> Enabling this fallback responder will automatically deactivate any other existing active fallback responders. It fires when no keywords match.
-                  </span>
-                </div>
-              )}
-
-              {/* Simple Text Auto-Reply option */}
-              <div>
-                <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Direct Text Reply (Optional)</label>
-                <textarea
-                  placeholder="Type a simple plain text auto-reply..."
-                  value={triggerForm.replyText}
-                  onChange={(e) => setTriggerForm({ ...triggerForm, replyText: e.target.value })}
-                  rows="3"
-                  className="input-field py-2 text-xs"
-                />
-              </div>
-
-              {/* WABA Template Multi-Select */}
-              <div>
-                <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Linked WhatsApp Templates</label>
-                {templates.length === 0 ? (
-                  <p className="text-xs text-wa-text-secondary italic">No approved WhatsApp templates sync'd to use for auto replies.</p>
-                ) : (
-                  <div className="border border-wa-border dark:border-wa-dark-border rounded-xl max-h-[180px] overflow-y-auto divide-y divide-wa-border/50 dark:divide-wa-dark-border/50 p-2 space-y-1 bg-wa-bg/15 dark:bg-slate-900/10 scrollbar-thin">
-                    {templates.map(tmpl => {
-                      const isSelected = triggerForm.templateIds.includes(tmpl._id);
-                      return (
-                        <div
-                          key={tmpl._id}
-                          onClick={() => handleToggleTemplate(tmpl._id)}
-                          className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors text-xs ${
-                            isSelected ? 'bg-wa-green/10 text-wa-green font-bold' : 'hover:bg-wa-hover text-wa-text-primary dark:text-white'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-wa-green" />
-                            <div>
-                              <p className="font-bold">{tmpl.name}</p>
-                              <p className="text-[9px] text-wa-text-light uppercase tracking-wider">{tmpl.category} · {tmpl.language || 'en'}</p>
-                            </div>
-                          </div>
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'border-wa-green bg-wa-green text-white' : 'border-wa-border'}`}>
-                            {isSelected && <span className="text-[10px]">✓</span>}
-                          </div>
-                        </div>
-                      );
-                    })}
+                {/* Keyword text box */}
+                {!triggerForm.isFallback && (
+                  <div>
+                    <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Keyword Trigger *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. price, menu, support, hours"
+                      value={triggerForm.triggerText}
+                      onChange={(e) => setTriggerForm({ ...triggerForm, triggerText: e.target.value })}
+                      className="input-field py-2 text-xs font-semibold"
+                    />
+                    <p className="text-[10px] text-wa-text-light mt-1">Incoming messages matching this exact keyword (case-insensitive) will trigger this response.</p>
                   </div>
                 )}
-                <p className="text-[10px] text-wa-text-light mt-1">If templates are selected, they will be sent automatically. Multiple templates will be sent in order.</p>
-              </div>
 
-              {/* Submit Buttons */}
-              <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary py-2 text-xs px-4" disabled={submitting}>Cancel</button>
-                <button type="submit" disabled={submitting} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
-                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Save Responder
-                </button>
-              </div>
-            </form>
+                {triggerForm.isFallback && (
+                  <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30 text-amber-800 dark:text-amber-400 rounded-xl text-xs flex gap-2">
+                    <AlertCircle className="w-5 h-5 shrink-0" />
+                    <span>
+                      <strong>Note:</strong> Enabling this fallback responder will automatically deactivate any other existing active fallback responders. It fires when no keywords match.
+                    </span>
+                  </div>
+                )}
+
+                {/* Simple Text Auto-Reply option */}
+                <div>
+                  <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Direct Text Reply (Optional)</label>
+                  <textarea
+                    placeholder="Type a simple plain text auto-reply..."
+                    value={triggerForm.replyText}
+                    onChange={(e) => setTriggerForm({ ...triggerForm, replyText: e.target.value })}
+                    rows="3"
+                    className="input-field py-2 text-xs"
+                  />
+                </div>
+
+                {/* WABA Template Multi-Select */}
+                <div>
+                  <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Linked WhatsApp Templates</label>
+                  {templates.length === 0 ? (
+                    <p className="text-xs text-wa-text-secondary italic">No approved WhatsApp templates sync'd to use for auto replies.</p>
+                  ) : (
+                    <div className="border border-wa-border dark:border-wa-dark-border rounded-xl max-h-[180px] overflow-y-auto divide-y divide-wa-border/50 dark:divide-wa-dark-border/50 p-2 space-y-1 bg-wa-bg/15 dark:bg-slate-900/10 scrollbar-thin">
+                      {templates.map(tmpl => {
+                        const isSelected = triggerForm.templateIds.includes(tmpl._id);
+                        return (
+                          <div
+                            key={tmpl._id}
+                            onClick={() => handleToggleTemplate(tmpl._id)}
+                            className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors text-xs ${
+                              isSelected ? 'bg-wa-green/10 text-wa-green font-bold' : 'hover:bg-wa-hover text-wa-text-primary dark:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-wa-green" />
+                              <div>
+                                <p className="font-bold">{tmpl.name}</p>
+                                <p className="text-[9px] text-wa-text-light uppercase tracking-wider">{tmpl.category} · {tmpl.language || 'en'}</p>
+                              </div>
+                            </div>
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'border-wa-green bg-wa-green text-white' : 'border-wa-border'}`}>
+                              {isSelected && <span className="text-[10px]">✓</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-wa-text-light mt-1">If templates are selected, they will be sent automatically. Multiple templates will be sent in order.</p>
+                </div>
+
+                {/* Submit Buttons */}
+                <div className="flex gap-3 justify-end pt-4 border-t border-wa-border dark:border-wa-dark-border">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary py-2 text-xs px-4" disabled={submitting}>Cancel</button>
+                  <button type="submit" disabled={submitting} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
+                    {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Save Responder
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

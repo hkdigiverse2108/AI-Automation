@@ -9,6 +9,7 @@ import {
   IndianRupee, Calendar, FileText, ArrowRight, Loader2, XCircle,
   Shield, Zap, Bot, MessageSquare, Users, BarChart3, Megaphone, RefreshCw, Eye
 } from 'lucide-react';
+import Portal from '../../../components/Portal';
 
 export default function SubscriptionPage() {
   const { user } = useAuthStore();
@@ -512,29 +513,31 @@ export default function SubscriptionPage() {
 
       {/* Rejection Reason Modal */}
       {rejectionModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-wa-dark-panel rounded-2xl border border-wa-border dark:border-wa-dark-border max-w-sm w-full p-6 shadow-2xl animate-zoomIn text-center">
-            <div className="flex items-center gap-3 text-red-500 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-950/30 flex items-center justify-center">
-                <XCircle className="w-5 h-5" />
+        <Portal>
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fadeIn">
+            <div className="bg-white dark:bg-wa-dark-panel rounded-2xl border border-wa-border dark:border-wa-dark-border max-w-sm w-full p-6 shadow-2xl animate-zoomIn text-center">
+              <div className="flex items-center gap-3 text-red-500 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-950/30 flex items-center justify-center">
+                  <XCircle className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-bold text-wa-text-primary dark:text-white">Payment Rejected</h3>
+                  <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono mt-0.5">{rejectionModal.invoice}</p>
+                </div>
               </div>
-              <div className="text-left">
-                <h3 className="font-bold text-wa-text-primary dark:text-white">Payment Rejected</h3>
-                <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono mt-0.5">{rejectionModal.invoice}</p>
+              <div className="bg-wa-search dark:bg-wa-dark-search rounded-xl p-4 border border-wa-border dark:border-wa-dark-border mb-5 text-left">
+                <p className="text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider mb-1.5">Reason for Rejection</p>
+                <p className="text-sm text-wa-text-primary dark:text-white leading-relaxed break-words font-medium">{rejectionModal.reason || 'No reason specified by administrator.'}</p>
               </div>
+              <button
+                onClick={() => setRejectionModal({ open: false, reason: '', invoice: '' })}
+                className="w-full py-2.5 bg-wa-green hover:bg-wa-green-hover text-white font-semibold rounded-xl transition-colors text-sm shadow-sm"
+              >
+                Close
+              </button>
             </div>
-            <div className="bg-wa-search dark:bg-wa-dark-search rounded-xl p-4 border border-wa-border dark:border-wa-dark-border mb-5 text-left">
-              <p className="text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider mb-1.5">Reason for Rejection</p>
-              <p className="text-sm text-wa-text-primary dark:text-white leading-relaxed break-words font-medium">{rejectionModal.reason || 'No reason specified by administrator.'}</p>
-            </div>
-            <button
-              onClick={() => setRejectionModal({ open: false, reason: '', invoice: '' })}
-              className="w-full py-2.5 bg-wa-green hover:bg-wa-green-hover text-white font-semibold rounded-xl transition-colors text-sm shadow-sm"
-            >
-              Close
-            </button>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

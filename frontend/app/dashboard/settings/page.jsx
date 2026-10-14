@@ -10,6 +10,7 @@ import {
 import api from '../../../lib/api';
 import { useAuthStore, useConfirmStore } from '../../../lib/store';
 import { formatDate, formatDateOnly } from '../../../lib/utils';
+import Portal from '../../../components/Portal';
 
 // Pre-defined premium SVG avatars
 const AVATAR_OPTIONS = [
@@ -1689,73 +1690,75 @@ export default function SettingsPage() {
 
       {/* WhatsApp Registration Modal */}
       {showRegModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border pb-3">
-              <h3 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-2">
-                <Smartphone className="w-4 h-4 text-emerald-500" />
-                <span>Register Phone Number</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRegModal(false);
-                  setRegPin('');
-                }}
-                className="text-wa-text-secondary hover:text-wa-text-primary text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs text-wa-text-secondary leading-relaxed">
-              <p>
-                To enable sending messages via Meta Cloud API, you must register your verified phone number. This setup authorizes your number on the WhatsApp servers.
-              </p>
-              <p className="font-semibold text-amber-600 dark:text-amber-400">
-                Current Phone ID: <span className="font-mono">{metaConfig.whatsapp.phoneNumberId}</span>
-              </p>
-            </div>
-
-            <form onSubmit={handleRegisterPhone} className="space-y-4 pt-2">
-              <div className="space-y-1">
-                <label className="block text-[10px] font-extrabold uppercase text-wa-text-secondary">
-                  Two-Step Verification 6-Digit PIN *
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  required
-                  placeholder="e.g. 123456"
-                  value={regPin}
-                  onChange={(e) => setRegPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="w-full px-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-center text-wa-text-primary dark:text-white font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-wa-green/30"
-                />
-              </div>
-
-              <div className="flex gap-3 justify-end pt-3">
+        <Portal>
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-scale-up">
+              <div className="flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border pb-3">
+                <h3 className="text-sm font-bold text-wa-text-primary dark:text-white flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-emerald-500" />
+                  <span>Register Phone Number</span>
+                </h3>
                 <button
                   type="button"
                   onClick={() => {
                     setShowRegModal(false);
                     setRegPin('');
                   }}
-                  className="px-4 py-2 text-xs font-semibold border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg dark:hover:bg-wa-dark-hover rounded-xl text-wa-text-secondary"
+                  className="text-wa-text-secondary hover:text-wa-text-primary text-sm font-bold"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={registeringPhone || regPin.length !== 6}
-                  className="flex items-center gap-2 px-4 py-2 text-white bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 rounded-xl text-xs font-semibold shadow-md transition-all duration-200"
-                >
-                  {registeringPhone ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  <span>Register Number</span>
+                  ✕
                 </button>
               </div>
-            </form>
+
+              <div className="space-y-2 text-xs text-wa-text-secondary leading-relaxed">
+                <p>
+                  To enable sending messages via Meta Cloud API, you must register your verified phone number. This setup authorizes your number on the WhatsApp servers.
+                </p>
+                <p className="font-semibold text-amber-600 dark:text-amber-400">
+                  Current Phone ID: <span className="font-mono">{metaConfig.whatsapp.phoneNumberId}</span>
+                </p>
+              </div>
+
+              <form onSubmit={handleRegisterPhone} className="space-y-4 pt-2">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-wa-text-secondary">
+                    Two-Step Verification 6-Digit PIN *
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    required
+                    placeholder="e.g. 123456"
+                    value={regPin}
+                    onChange={(e) => setRegPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full px-4 py-2.5 text-sm bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-center text-wa-text-primary dark:text-white font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-wa-green/30"
+                  />
+                </div>
+
+                <div className="flex gap-3 justify-end pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRegModal(false);
+                      setRegPin('');
+                    }}
+                    className="px-4 py-2 text-xs font-semibold border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg dark:hover:bg-wa-dark-hover rounded-xl text-wa-text-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={registeringPhone || regPin.length !== 6}
+                    className="flex items-center gap-2 px-4 py-2 text-white bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 rounded-xl text-xs font-semibold shadow-md transition-all duration-200"
+                  >
+                    {registeringPhone ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    <span>Register Number</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

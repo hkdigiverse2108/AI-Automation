@@ -11,6 +11,7 @@ import { usePageData } from '../../../lib/usePageData';
 import { useConfirmStore } from '../../../lib/store';
 import { formatTime } from '../../../lib/utils';
 import AgentPermissionsTab from '../../../components/AgentPermissionsTab';
+import Portal from '../../../components/Portal';
 
 export default function TeamPage() {
   const confirm = useConfirmStore(state => state.confirm);
@@ -605,7 +606,8 @@ export default function TeamPage() {
 
       {/* MEMBER CREATE/EDIT MODAL */}
       {isAgentModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-2xl overflow-hidden animate-slide-up flex flex-col shadow-wa-lg">
             <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
               <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
@@ -746,11 +748,13 @@ export default function TeamPage() {
             </form>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* RULE CREATE/EDIT MODAL */}
       {isRuleModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Portal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
           <div className="bg-wa-panel dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl w-full max-w-md overflow-hidden animate-slide-up flex flex-col shadow-wa-lg">
             <div className="wa-header flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-5 py-4">
               <h3 className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
@@ -841,6 +845,7 @@ export default function TeamPage() {
             </form>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );
