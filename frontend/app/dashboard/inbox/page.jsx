@@ -267,12 +267,27 @@ export default function InboxPage() {
       }));
     });
 
+    socket.on('ai_mode_updated', (data) => {
+      useConversationStore.setState((state) => ({
+        conversations: state.conversations.map((c) =>
+          c._id?.toString() === data.conversationId?.toString()
+            ? { ...c, status: data.status, ai_active: data.ai_active, lock_status: data.lock_status }
+            : c
+        ),
+        currentConversation:
+          state.currentConversation?._id?.toString() === data.conversationId?.toString()
+            ? { ...state.currentConversation, status: data.status, ai_active: data.ai_active, lock_status: data.lock_status }
+            : state.currentConversation
+      }));
+    });
+
     return () => {
       socket.off('new_message');
       socket.off('message_status');
       socket.off('conversation_assigned');
       socket.off('conversation_read');
       socket.off('conversation_ai_updated');
+      socket.off('ai_mode_updated');
       socket.off('conversation_pinned');
       socket.off('conversation_starred');
     };
@@ -582,7 +597,7 @@ export default function InboxPage() {
             const isActive = selectedId === conv._id;
             const hasUnread = conv.unreadCount > 0;
 
-            const isAwaitingHuman = conv.status === 'human' && !conv.lock_status;
+            const isAwaitingHuman = conv.status === 'human' && !conv.lock_status && !conv.ai_active;
 
             return (
               <button
@@ -608,7 +623,12 @@ export default function InboxPage() {
                       <span className="font-medium text-[15px] text-wa-text-primary dark:text-wa-dark-text-primary truncate">
                         {contact.name || contact.phone || 'Unknown'}
                       </span>
-                      {conv.status && (
+                      {(conv.status === 'ai' || conv.ai_active) ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>AI Active</span>
+                        </span>
+                      ) : conv.status && (
                         conv.status === 'human' ? (
                           (!conv.lock_status && !conv.assignedAgent) ? (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse">
@@ -618,12 +638,10 @@ export default function InboxPage() {
                           ) : null
                         ) : (
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
-                            conv.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
                               conv.status === 'waiting' ? 'bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse' :
                                 'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
                             }`}>
                             <span className={`w-1 h-1 rounded-full shrink-0 ${conv.status === 'bot' ? 'bg-purple-500' :
-                              conv.status === 'ai' ? 'bg-emerald-500' :
                                 conv.status === 'waiting' ? 'bg-amber-500' :
                                   'bg-slate-400'
                               }`} />
@@ -668,9 +686,14 @@ export default function InboxPage() {
                   </div>
                   <div className="flex items-center justify-between gap-2 mt-0.5">
                     <div className="flex flex-col min-w-0 flex-1">
-                      {conv.assignedAgent && (
+                      {conv.assignedAgent && !conv.ai_active && conv.status !== 'ai' && (
                         <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-semibold mb-0.5">
                           Assigned To: {conv.assignedAgent.name}
+                        </p>
+                      )}
+                      {(conv.status === 'ai' || conv.ai_active) && (
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-0.5 flex items-center gap-1">
+                          <Sparkles className="w-2.5 h-2.5 text-amber-500" /> AI Assistant Active
                         </p>
                       )}
                       <div className="flex items-center gap-1.5">

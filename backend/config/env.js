@@ -44,6 +44,9 @@ const env = {
   // Redis
   REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
 
+  // Groq / AI
+  GROQ_API_KEY: process.env.GROQ_API_KEY,
+
   // Security
   ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
   ALLOWED_ORIGINS: (() => {

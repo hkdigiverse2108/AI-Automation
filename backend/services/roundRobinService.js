@@ -197,7 +197,8 @@ async function distributeUnassignedConversations(userId, organizationId, io = nu
   try {
     const unassignedConvs = await Conversation.find({
       userId,
-      status: { $ne: 'resolved' },
+      status: { $nin: ['resolved', 'ai'] },
+      ai_active: { $ne: true },
       $and: [
         { $or: [{ assignedAgent: { $exists: false } }, { assignedAgent: null }] },
         { $or: [{ assigned_agent_id: { $exists: false } }, { assigned_agent_id: null }] }

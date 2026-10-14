@@ -255,6 +255,26 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
   const isAgent = user?.role === 'agent';
   const isAdmin = ['superadmin', 'owner', 'admin'].includes(user?.role);
+  const isAIActive = conversation?.status === 'ai' || Boolean(conversation?.ai_active);
+  const [togglingAI, setTogglingAI] = useState(false);
+  const [isAIConfigured, setIsAIConfigured] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const checkAIStatus = async () => {
+      try {
+        const { data } = await api.get('/messages/ai-status');
+        if (isMounted && data.success) {
+          setIsAIConfigured(Boolean(data.data?.isConfigured && data.data?.isEnabled));
+        }
+      } catch (err) {
+        // Silently catch
+      }
+    };
+    checkAIStatus();
+    return () => { isMounted = false; };
+  }, []);
+
   const isLocked = conversation?.lock_status;
   const currentOwner = conversation?.assignedAgent || conversation?.assigned_agent_id;
   const isOwnerMe = currentOwner?._id?.toString() === user?._id?.toString() || currentOwner?.toString() === user?._id?.toString();
@@ -680,6 +700,27 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     } catch { toast.error('Failed to resolve'); }
   };
 
+  const handleToggleAskAI = async () => {
+    if (!conversation?._id) return;
+    setTogglingAI(true);
+    const toastId = toast.loading(isAIActive ? 'Stopping AI Assistant...' : 'Activating Ask AI ✨...');
+    try {
+      const { data } = await api.post(`/messages/conversations/${conversation._id}/toggle-ai`);
+      if (data.success) {
+        toast.success(data.message, { id: toastId });
+        setShowDropdown(false);
+        await fetchMessages(conversation._id);
+        await fetchConversations({}, true);
+      } else {
+        toast.error(data.error || 'Failed to toggle AI mode', { id: toastId });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to toggle AI mode', { id: toastId });
+    } finally {
+      setTogglingAI(false);
+    }
+  };
+
   const handleAI = async () => {
     try {
       await api.post(`/messages/conversations/${conversation._id}/transfer-to-ai`);
@@ -819,7 +860,12 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                   <h3 className="font-semibold text-sm text-wa-text-primary dark:text-white leading-tight truncate">
                     {contact.name || 'Unknown Contact'}
                   </h3>
-                  {conversation?.status && (
+                  {isAIActive ? (
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>AI Active</span>
+                    </span>
+                  ) : conversation?.status && (
                     conversation.status === 'human' ? (
                       conversation.lock_status ? (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-blue-50 text-blue-705 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
@@ -839,13 +885,9 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                       )
                     ) : (
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conversation.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
-                          conversation.status === 'ai' ? 'bg-emerald-50 text-emerald-705 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
-                            'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
+                          'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
                         }`}>
-                        <span className={`w-1 h-1 rounded-full shrink-0 ${conversation.status === 'bot' ? 'bg-purple-500' :
-                            conversation.status === 'ai' ? 'bg-emerald-500' :
-                              'bg-slate-400'
-                          }`} />
+                        <span className={`w-1 h-1 rounded-full shrink-0 ${conversation.status === 'bot' ? 'bg-purple-500' : 'bg-slate-400'}`} />
                         <span>{conversation.status}</span>
                       </span>
                     )
@@ -854,67 +896,105 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                 <div className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex flex-wrap sm:flex-nowrap items-center gap-1.5 mt-0.5 min-w-0">
                   <Phone className="w-3 h-3 text-wa-text-light shrink-0" />
                   <span className="font-mono leading-none mr-1.5 shrink-0">{contact.phone || ''}</span>
-                  {conversation?.status === 'human' && conversation.assignedAgent?.name && (
+                  {isAIActive ? (
                     <>
                       <span className="text-slate-300 dark:text-slate-700 font-bold shrink-0">•</span>
-                      {conversation.lock_status ? (
-                        <div className="flex items-center gap-1 min-w-0 shrink-0">
-                          <div className="w-4 h-4 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-[8px] uppercase shrink-0 border border-blue-500/20">
-                            {conversation.assignedAgent.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                          </div>
-                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold leading-none font-bold truncate">
-                            {conversation.assignedAgent.name}
-                          </span>
-                          {conversation.assigned_at && (
-                            <span className="text-[9px] text-wa-text-light dark:text-wa-dark-text-secondary font-medium ml-1 shrink-0">
-                              ({formatRelativeTime(conversation.assigned_at)})
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold leading-none animate-pulse truncate">
-                          Assigned to {conversation.assignedAgent.name} (Pending Takeover)
-                        </span>
-                      )}
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold leading-none flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-500" /> AI Assistant is handling this chat (Human & Bot Paused)
+                      </span>
                     </>
+                  ) : (
+                    conversation?.status === 'human' && conversation.assignedAgent?.name && (
+                      <>
+                        <span className="text-slate-300 dark:text-slate-700 font-bold shrink-0">•</span>
+                        {conversation.lock_status ? (
+                          <div className="flex items-center gap-1 min-w-0 shrink-0">
+                            <div className="w-4 h-4 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-[8px] uppercase shrink-0 border border-blue-500/20">
+                              {conversation.assignedAgent.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                            </div>
+                            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold leading-none font-bold truncate">
+                              {conversation.assignedAgent.name}
+                            </span>
+                            {conversation.assigned_at && (
+                              <span className="text-[9px] text-wa-text-light dark:text-wa-dark-text-secondary font-medium ml-1 shrink-0">
+                                ({formatRelativeTime(conversation.assigned_at)})
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold leading-none animate-pulse truncate">
+                            Assigned to {conversation.assignedAgent.name} (Pending Takeover)
+                          </span>
+                        )}
+                      </>
+                    )
                   )}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            {/* Takeover Actions */}
-            {!isLocked && (
+          <div className="flex items-center gap-1.5">
+            {/* Take Over Button (when not locked or in AI mode) */}
+            {(!isLocked || isAIActive) && (
               <button
                 onClick={handleAssign}
-                className="px-3.5 py-1.5 bg-wa-green hover:bg-wa-green-hover text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1"
-                title="Take over conversation control from AI"
+                className="px-3.5 py-1.5 bg-wa-green hover:bg-wa-green-hover text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1 shrink-0"
+                title="Take over conversation control from AI/Bot"
               >
                 <User className="w-3.5 h-3.5" />
                 <span>Take Over</span>
               </button>
             )}
 
-            {isLocked && (isOwnerMe || isAdmin) && (
+            {/* Return to Bot Button (when locked by me/admin, replaces Take Over in the same left spot) */}
+            {isLocked && !isAIActive && (isOwnerMe || isAdmin) && (
               <button
                 onClick={handleAI}
-                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1"
+                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1 shrink-0"
                 title="Release conversation and return to AI bot"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <Bot className="w-3.5 h-3.5" />
                 <span>Return to Bot</span>
               </button>
             )}
 
-            {isLocked && !isOwnerMe && !isAdmin && (
+            {/* Locked Button (when locked by another agent) */}
+            {isLocked && !isAIActive && !isOwnerMe && !isAdmin && (
               <button
                 disabled
-                className="px-3.5 py-1.5 bg-slate-200 dark:bg-slate-800 text-slate-400 text-xs font-bold rounded-lg cursor-not-allowed flex items-center gap-1"
+                className="px-3.5 py-1.5 bg-slate-200 dark:bg-slate-800 text-slate-400 text-xs font-bold rounded-lg cursor-not-allowed flex items-center gap-1 shrink-0"
                 title={`Locked by ${conversation.assignedAgent?.name || 'another agent'}`}
               >
                 <Shield className="w-3.5 h-3.5" />
                 <span>Locked</span>
+              </button>
+            )}
+
+            {/* ASK AI BUTTON (Only shown when configured in Settings or currently active) */}
+            {(isAIConfigured || isAIActive) && (
+              <button
+                onClick={handleToggleAskAI}
+                disabled={togglingAI}
+                className={`relative px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 shrink-0 select-none disabled:opacity-60 ${
+                  isAIActive
+                    ? 'group bg-emerald-600 hover:bg-rose-600 text-white border border-emerald-500 hover:border-rose-500 shadow-sm'
+                    : 'bg-white dark:bg-wa-dark-header border border-slate-200 dark:border-wa-dark-border text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-wa-dark-hover hover:border-slate-300 dark:hover:border-slate-600 shadow-sm'
+                }`}
+                title={isAIActive ? 'AI Assistant is active. Click to stop and return control.' : 'Activate AI Assistant for this chat'}
+              >
+                {isAIActive ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
+                    <span className="group-hover:hidden">AI Active</span>
+                    <span className="hidden group-hover:inline">Stop AI</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span>Ask AI</span>
+                  </>
+                )}
               </button>
             )}
 
@@ -963,8 +1043,13 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                   <button onClick={handleAssign} className="wa-dropdown-item w-full">
                     <User className="w-4 h-4" /> Take Over
                   </button>
+                  {(isAIConfigured || isAIActive) && (
+                    <button onClick={handleToggleAskAI} className="wa-dropdown-item w-full">
+                      <Sparkles className="w-4 h-4 text-amber-500" /> {isAIActive ? 'Stop AI Assistant' : 'Ask AI Assistant'}
+                    </button>
+                  )}
                   <button onClick={handleAI} className="wa-dropdown-item w-full">
-                    <Sparkles className="w-4 h-4 text-purple-500" /> Transfer to AI
+                    <Bot className="w-4 h-4 text-purple-500" /> Return to Bot
                   </button>
                   <button onClick={handleResolve} className="wa-dropdown-item w-full">
                     <Check className="w-4 h-4 text-wa-green" /> Resolve
@@ -991,6 +1076,27 @@ export default function ChatWindow({ conversation, messages, onBack }) {
             </div>
           </div>
         </div>
+
+        {/* AI ACTIVE NOTICE BANNER */}
+        {isAIActive && (
+          <div className="bg-gradient-to-r from-violet-600/10 via-fuchsia-600/10 to-indigo-600/10 border-b border-violet-400/25 px-4 py-2 flex items-center justify-between text-xs text-violet-800 dark:text-violet-300 shrink-0 z-10 shadow-sm animate-fade-in">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
+              </span>
+              <Sparkles className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400 animate-spin-slow" />
+              <span className="font-bold">Ask AI is Active (Groq Llama 3)</span>
+              <span className="text-[11px] opacity-75 hidden sm:inline">— AI automatically chats with this customer</span>
+            </div>
+            <button
+              onClick={handleToggleAskAI}
+              className="text-[11px] font-bold text-violet-700 dark:text-violet-300 hover:text-rose-600 dark:hover:text-rose-400 underline transition-colors"
+            >
+              Stop AI & Return Control
+            </button>
+          </div>
+        )}
 
         {/* MESSAGES CONTAINER */}
         <div className="flex-1 overflow-y-auto px-[5%] py-4 relative wa-chat-pattern bg-[#efeae2]/15 dark:bg-slate-900/10" ref={chatRef}>

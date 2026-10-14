@@ -404,3 +404,32 @@ button:not(:disabled):active,
   scrollbar-width: none;  /* Firefox */
 }
 
+/* ========== ASK AI AMBIENT GLOW ANIMATION ========== */
+@keyframes aiGlowPulse {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.25), 0 0 3px rgba(236, 72, 153, 0.2);
+    border-color: rgba(192, 132, 252, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(168, 85, 247, 0.5), 0 0 8px rgba(236, 72, 153, 0.4);
+    border-color: rgba(216, 180, 254, 0.75);
+  }
+}
+
+.ai-ambient-glow {
+  animation: aiGlowPulse 2.8s ease-in-out infinite;
+}
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spinSlow 8s linear infinite;
+}
+

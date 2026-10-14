@@ -180,7 +180,21 @@ async function processWebhook(body) {
       if (value.messages?.length) {
         for (const message of value.messages) {
           message.profile = value.contacts?.[0]?.profile;
-          await botEngine.processIncomingMessage(message, phoneNumberId, ioInstance);
+          try {
+            const fs = require('fs');
+            const path = require('path');
+            fs.appendFileSync(path.join(__dirname, '../../ai-trace.log'), `[${new Date().toISOString()}] WEBHOOK_MSG_DISPATCH: from=${message.from}, text="${message.text?.body || message.type}", phoneId=${phoneNumberId}\n`);
+          } catch (_) {}
+          try {
+            await botEngine.processIncomingMessage(message, phoneNumberId, ioInstance);
+          } catch (botErr) {
+            logger.error('Error in botEngine.processIncomingMessage:', botErr);
+            try {
+              const fs = require('fs');
+              const path = require('path');
+              fs.appendFileSync(path.join(__dirname, '../../ai-trace.log'), `[${new Date().toISOString()}] WEBHOOK_MSG_ERROR: ${botErr.message}\n${botErr.stack}\n`);
+            } catch (_) {}
+          }
         }
       }
     }

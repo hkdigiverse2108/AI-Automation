@@ -27,6 +27,11 @@ const conversationSchema = new mongoose.Schema(
     organization_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
     assigned_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     ai_enabled: { type: Boolean, default: true },
+    ai_active: { type: Boolean, default: false },
+    previous_status: { type: String, default: null },
+    previous_assigned_agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    previous_lock_status: { type: Boolean, default: false },
+    previous_takeover_status: { type: String, default: 'ai' },
     current_owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     last_activity: { type: Date, default: Date.now },
     sentiment: { 

@@ -5,7 +5,8 @@ import {
   User, Shield, Phone, Key, Smartphone, Loader2,
   CheckCircle2, AlertTriangle, Eye, EyeOff, Save, Link2,
   Lock, Settings, Copy, Check, Terminal, HeartPulse, RefreshCw, Info, HelpCircle,
-  Globe, Wifi, Radio, Sliders, Server, MessageSquare, Facebook, Instagram, AlertCircle, XCircle
+  Globe, Wifi, Radio, Sliders, Server, MessageSquare, Facebook, Instagram, AlertCircle, XCircle,
+  Sparkles, Bot, Zap, Cpu
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useAuthStore, useConfirmStore } from '../../../lib/store';
@@ -141,6 +142,269 @@ export default function SettingsPage() {
       toast.error(err.response?.data?.error || 'Failed to update chat settings');
     } finally {
       setSavingChatSettings(false);
+    }
+  };
+
+  // AI Integration States (Groq, Gemini, OpenAI, Claude, DeepSeek, xAI, Mistral, Perplexity, OpenRouter, Cohere, Custom)
+  const [aiConfig, setAiConfig] = useState({
+    provider: 'groq',
+    apiKey: '',
+    apiKeys: {},
+    customBaseUrl: '',
+    model: 'llama-3.1-8b-instant',
+    systemPrompt: '',
+    temperature: 0.7,
+    isEnabled: true,
+    status: 'disconnected',
+    statusDetails: {},
+    isConfigured: false
+  });
+  const [fetchingAI, setFetchingAI] = useState(false);
+  const [savingAI, setSavingAI] = useState(false);
+  const [testingAI, setTestingAI] = useState(false);
+  const [showAiKey, setShowAiKey] = useState(false);
+  const [customModelMode, setCustomModelMode] = useState(false);
+
+  const PROVIDER_PRESETS = {
+    groq: {
+      name: 'Groq Cloud',
+      tagline: 'Ultra-Fast WhatsApp Replies (Recommended ⚡)',
+      models: [
+        { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant (Recommended — Free & Fast)' },
+        { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile' },
+        { id: 'gemma2-9b-it', name: 'Gemma 2 9B IT' }
+      ],
+      placeholder: 'gsk_••••••••••••••••••••••••••••••••',
+      helpUrl: 'https://console.groq.com/keys',
+      helpText: 'Get your Groq API key from console.groq.com',
+      badge: 'Lightning Fast'
+    },
+    gemini: {
+      name: 'Google Gemini',
+      tagline: 'Deep Reasoning & Multimodal Intelligence 🧠',
+      models: [
+        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Fast & Free Tier Recommended)' },
+        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Next-Gen High Speed)' },
+        { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash 8B (Lightweight & Free)' }
+      ],
+      placeholder: 'AIzaSy••••••••••••••••••••••••••••••••',
+      helpUrl: 'https://aistudio.google.com/app/apikey',
+      helpText: 'Get your Gemini key from Google AI Studio',
+      badge: 'Multimodal'
+    },
+    openai: {
+      name: 'OpenAI',
+      tagline: 'GPT-4o & GPT-4o-mini Multilingual Models 🌐',
+      models: [
+        { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Cost-Effective & Smart)' },
+        { id: 'gpt-4o', name: 'GPT-4o (High Intelligence)' },
+        { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo (Legacy Standard)' }
+      ],
+      placeholder: 'sk-••••••••••••••••••••••••••••••••',
+      helpUrl: 'https://platform.openai.com/api-keys',
+      helpText: 'Get your OpenAI key from platform.openai.com',
+      badge: 'Industry Standard'
+    },
+    anthropic: {
+      name: 'Anthropic Claude',
+      tagline: 'Claude 3.5 Sonnet & Haiku — Nuanced & Human-like 🎭',
+      models: [
+        { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet (State-of-the-Art)' },
+        { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku (High Speed)' },
+        { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus (Deep Analysis)' }
+      ],
+      placeholder: 'sk-ant-••••••••••••••••••••••••••••••••',
+      helpUrl: 'https://console.anthropic.com/settings/keys',
+      helpText: 'Get your Claude key from console.anthropic.com',
+      badge: 'Human-like Chat'
+    },
+    deepseek: {
+      name: 'DeepSeek',
+      tagline: 'DeepSeek-V3 & DeepSeek-R1 (High Performance & Affordable 🚀)',
+      models: [
+        { id: 'deepseek-chat', name: 'DeepSeek-V3 (deepseek-chat)' },
+        { id: 'deepseek-reasoner', name: 'DeepSeek-R1 (deepseek-reasoner)' }
+      ],
+      placeholder: 'sk-••••••••••••••••••••••••••••••••',
+      helpUrl: 'https://platform.deepseek.com/api_keys',
+      helpText: 'Get your DeepSeek key from platform.deepseek.com',
+      badge: 'Trending & Smart'
+    },
+    xai: {
+      name: 'xAI (Grok)',
+      tagline: 'Elon Musk\'s Grok-2 Real-Time Intelligence 🤖',
+      models: [
+        { id: 'grok-2-latest', name: 'Grok-2 Latest' },
+        { id: 'grok-2-vision-latest', name: 'Grok-2 Vision' },
+        { id: 'grok-beta', name: 'Grok Beta' }
+      ],
+      placeholder: 'xai-••••••••••••••••••••••••••••••••',
+      helpUrl: 'https://console.x.ai',
+      helpText: 'Get your Grok API key from console.x.ai',
+      badge: 'Real-Time'
+    },
+    mistral: {
+      name: 'Mistral AI',
+      tagline: 'European Open-Weight Leader (Mistral Large & Codestral 🌊)',
+      models: [
+        { id: 'mistral-large-latest', name: 'Mistral Large' },
+        { id: 'mistral-small-latest', name: 'Mistral Small' },
+        { id: 'codestral-latest', name: 'Codestral' }
+      ],
+      placeholder: '••••••••••••••••••••••••••••••••',
+      helpUrl: 'https://console.mistral.ai/api-keys',
+      helpText: 'Get your Mistral key from console.mistral.ai',
+      badge: 'Open Weights'
+    },
+    perplexity: {
+      name: 'Perplexity AI',
+      tagline: 'Live Web-Augmented Real-Time Search & Sonar Models 🔍',
+      models: [
+        { id: 'sonar', name: 'Sonar (Search Powered)' },
+        { id: 'sonar-pro', name: 'Sonar Pro' },
+        { id: 'sonar-reasoning', name: 'Sonar Reasoning' }
+      ],
+      placeholder: 'pplx-••••••••••••••••••••••••••••••••',
+      helpUrl: 'https://www.perplexity.ai/settings/api',
+      helpText: 'Get your Perplexity key from perplexity.ai/settings/api',
+      badge: 'Web Grounded'
+    },
+    openrouter: {
+      name: 'OpenRouter',
+      tagline: 'Universal Gateway — Access 200+ Models with One Key 🔌',
+      models: [
+        { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B' },
+        { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)' },
+        { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
+        { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1' }
+      ],
+      placeholder: 'sk-or-••••••••••••••••••••••••••••••••',
+      helpUrl: 'https://openrouter.ai/keys',
+      helpText: 'Get your OpenRouter key from openrouter.ai/keys',
+      badge: '200+ Models'
+    },
+    cohere: {
+      name: 'Cohere',
+      tagline: 'Enterprise Multilingual & RAG Specialists 🧭',
+      models: [
+        { id: 'command-r-plus-08-2024', name: 'Command R+' },
+        { id: 'command-r-08-2024', name: 'Command R' }
+      ],
+      placeholder: '••••••••••••••••••••••••••••••••',
+      helpUrl: 'https://dashboard.cohere.com/api-keys',
+      helpText: 'Get your Cohere key from dashboard.cohere.com',
+      badge: 'Enterprise'
+    },
+    custom: {
+      name: 'Custom / Self-Hosted',
+      tagline: 'Connect Ollama, vLLM, LM Studio, or Private OpenAI API 💻',
+      models: [
+        { id: 'default', name: 'Default Model' },
+        { id: 'llama3', name: 'Llama 3 (Local)' },
+        { id: 'mistral', name: 'Mistral (Local)' }
+      ],
+      placeholder: 'Bearer token or API Key (Optional)',
+      helpUrl: 'https://ollama.com',
+      helpText: 'Local AI: Ollama running on localhost:11434/v1',
+      badge: 'Self-Hosted'
+    }
+  };
+
+  const fetchAIConfig = async () => {
+    setFetchingAI(true);
+    try {
+      const { data } = await api.get('/settings/integrations/ai');
+      if (data.success && data.data) {
+        const d = data.data;
+        const currentProv = d.provider || 'groq';
+        const keyForProv = d.apiKeys?.[currentProv] || '';
+        setAiConfig(prev => ({
+          ...prev,
+          ...d,
+          provider: currentProv,
+          apiKey: keyForProv,
+          model: d.model || PROVIDER_PRESETS[currentProv]?.models[0]?.id || ''
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to load AI configuration', err.message);
+    } finally {
+      setFetchingAI(false);
+    }
+  };
+
+  const handleSelectProvider = (provKey) => {
+    const prov = PROVIDER_PRESETS[provKey];
+    const keyForProv = aiConfig.apiKeys?.[provKey] || '';
+    const defaultModel = prov?.models[0]?.id || '';
+    setAiConfig(prev => ({
+      ...prev,
+      provider: provKey,
+      apiKey: keyForProv,
+      model: defaultModel
+    }));
+  };
+
+  const handleSaveAI = async (e) => {
+    if (e) e.preventDefault();
+    setSavingAI(true);
+    try {
+      const { data } = await api.post('/settings/integrations/ai', {
+        provider: aiConfig.provider,
+        apiKey: aiConfig.apiKey,
+        customBaseUrl: aiConfig.customBaseUrl,
+        model: aiConfig.model,
+        systemPrompt: aiConfig.systemPrompt,
+        temperature: aiConfig.temperature,
+        isEnabled: aiConfig.isEnabled
+      });
+      if (data.success) {
+        toast.success('AI Integration settings saved successfully!');
+        fetchAIConfig();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to save AI configuration');
+    } finally {
+      setSavingAI(false);
+    }
+  };
+
+  const handleTestAI = async () => {
+    setTestingAI(true);
+    const providerName = (PROVIDER_PRESETS[aiConfig.provider]?.name || aiConfig.provider).toUpperCase();
+    const toastId = toast.loading(`Verifying ${providerName} connection...`);
+    try {
+      // Auto-save active configuration before testing
+      await api.post('/settings/integrations/ai', {
+        provider: aiConfig.provider,
+        apiKey: aiConfig.apiKey,
+        customBaseUrl: aiConfig.customBaseUrl,
+        model: aiConfig.model,
+        systemPrompt: aiConfig.systemPrompt,
+        temperature: aiConfig.temperature,
+        isEnabled: aiConfig.isEnabled
+      });
+
+      const { data } = await api.post('/settings/integrations/ai/test', {
+        provider: aiConfig.provider,
+        apiKey: aiConfig.apiKey,
+        customBaseUrl: aiConfig.customBaseUrl,
+        model: aiConfig.model
+      });
+
+      if (data.success) {
+        toast.success(data.message || `${providerName} connected successfully!`, { id: toastId });
+        if (data.data?.model) {
+          setAiConfig(prev => ({ ...prev, model: data.data.model }));
+        }
+        fetchAIConfig();
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || `Verification failed for ${providerName}`;
+      toast.error(errorMsg, { id: toastId });
+      fetchAIConfig();
+    } finally {
+      setTestingAI(false);
     }
   };
   useEffect(() => {
@@ -290,6 +554,9 @@ export default function SettingsPage() {
     if (activeTab === 'meta-integrations') {
       fetchMetaConfig();
     }
+    if (activeTab === 'ai-integration') {
+      fetchAIConfig();
+    }
     if (activeTab === 'api-settings') {
       fetchApiKeyDetails();
     }
@@ -421,7 +688,7 @@ export default function SettingsPage() {
           <span>My Profile</span>
         </button>
 
-        {user?.role === 'admin' && (
+        {['admin', 'owner', 'superadmin'].includes(user?.role) && (
           <button
             onClick={() => {
               setActiveTab('meta-integrations');
@@ -435,6 +702,23 @@ export default function SettingsPage() {
           >
             <Globe className="w-4 h-4" />
             <span>Meta Integrations</span>
+          </button>
+        )}
+
+        {['admin', 'owner', 'superadmin'].includes(user?.role) && (
+          <button
+            onClick={() => {
+              setActiveTab('ai-integration');
+              fetchAIConfig();
+            }}
+            className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 -mb-[2px] transition-all duration-200 ${
+              activeTab === 'ai-integration'
+                ? 'border-wa-green text-wa-green font-bold'
+                : 'border-transparent text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-wa-text-primary dark:hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span>AI Integration</span>
           </button>
         )}
 
@@ -1231,6 +1515,388 @@ export default function SettingsPage() {
                 </form>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab Contents: AI INTEGRATION DASHBOARD & CONFIGURATION */}
+      {activeTab === 'ai-integration' && ['admin', 'owner', 'superadmin'].includes(user?.role) && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Top Status & Overview Card */}
+          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-6 shadow-sm space-y-5 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-500/5 via-violet-500/5 to-transparent rounded-bl-full pointer-events-none" />
+            
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/10 via-emerald-500/10 to-blue-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center justify-center shrink-0 shadow-sm">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h3 className="text-base font-bold text-wa-text-primary dark:text-white">AI Assistant Integration</h3>
+                    {aiConfig.status === 'connected' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Connected ({PROVIDER_PRESETS[aiConfig.provider]?.name || aiConfig.provider.toUpperCase()})</span>
+                      </span>
+                    ) : aiConfig.status === 'error' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                        <span>Verification Error</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                        <span>Not Configured</span>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-wa-text-secondary mt-1">
+                    Connect your preferred AI provider to empower automated WhatsApp replies, conversational intelligence, and one-click agent takeovers.
+                  </p>
+                </div>
+              </div>
+
+              {/* Master AI Toggle */}
+              <div className="flex items-center gap-3 bg-slate-50 dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border px-4 py-2.5 rounded-xl shrink-0 self-start sm:self-auto">
+                <div className="text-right">
+                  <span className="block text-xs font-bold text-wa-text-primary dark:text-white">Enable AI in Inbox</span>
+                  <span className="text-[10px] text-wa-text-secondary">{aiConfig.isEnabled ? 'Ask AI button is active' : 'AI features disabled'}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAiConfig(prev => ({ ...prev, isEnabled: !prev.isEnabled }))}
+                  className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out ${
+                    aiConfig.isEnabled ? 'bg-wa-green' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                >
+                  <div
+                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${
+                      aiConfig.isEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Diagnostics error banner if any */}
+            {aiConfig.status === 'error' && aiConfig.statusDetails?.errorReason && (
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 rounded-xl flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-400">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
+                <div>
+                  <span className="font-bold">Connection Verification Notice:</span>
+                  <p className="mt-0.5 font-mono text-[11px]">{aiConfig.statusDetails.errorReason}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Configuration Form */}
+          <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-6 shadow-sm space-y-6">
+            <form onSubmit={handleSaveAI} className="space-y-6">
+              
+              {/* 1. SELECT PROVIDER */}
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-wa-text-secondary">
+                    1. Choose AI Provider ({Object.keys(PROVIDER_PRESETS).length} Available)
+                  </label>
+                  <span className="text-[11px] text-wa-text-secondary">
+                    Select any provider to configure their API key
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {Object.entries(PROVIDER_PRESETS).map(([key, prov]) => {
+                    const isSelected = aiConfig.provider === key;
+                    const hasKey = Boolean(aiConfig.apiKeys?.[key] || (isSelected && aiConfig.apiKey));
+
+                    return (
+                      <div
+                        key={key}
+                        onClick={() => handleSelectProvider(key)}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all duration-200 relative flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-wa-green bg-wa-green/5 dark:bg-wa-green/10 shadow-sm ring-1 ring-wa-green/30'
+                            : 'border-wa-border dark:border-wa-dark-border hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-wa-dark-header'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
+                                key === 'groq' ? 'bg-amber-500/10 text-amber-600' :
+                                key === 'gemini' ? 'bg-blue-500/10 text-blue-600' :
+                                key === 'openai' ? 'bg-emerald-500/10 text-emerald-600' :
+                                key === 'anthropic' ? 'bg-orange-500/10 text-orange-600' :
+                                key === 'deepseek' ? 'bg-indigo-500/10 text-indigo-600' :
+                                key === 'xai' ? 'bg-violet-500/10 text-violet-600' :
+                                key === 'mistral' ? 'bg-teal-500/10 text-teal-600' :
+                                key === 'perplexity' ? 'bg-cyan-500/10 text-cyan-600' :
+                                key === 'openrouter' ? 'bg-pink-500/10 text-pink-600' :
+                                key === 'cohere' ? 'bg-rose-500/10 text-rose-600' :
+                                'bg-slate-500/10 text-slate-600'
+                              }`}>
+                                {key === 'groq' ? <Zap className="w-4 h-4" /> :
+                                 key === 'gemini' ? <Sparkles className="w-4 h-4" /> :
+                                 key === 'openai' ? <Bot className="w-4 h-4" /> :
+                                 key === 'anthropic' ? <Sparkles className="w-4 h-4" /> :
+                                 key === 'deepseek' ? <Cpu className="w-4 h-4" /> :
+                                 key === 'xai' ? <Bot className="w-4 h-4" /> :
+                                 key === 'mistral' ? <Cpu className="w-4 h-4" /> :
+                                 key === 'perplexity' ? <Globe className="w-4 h-4" /> :
+                                 key === 'openrouter' ? <Zap className="w-4 h-4" /> :
+                                 key === 'cohere' ? <Sliders className="w-4 h-4" /> :
+                                 <Server className="w-4 h-4" />}
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-bold text-wa-text-primary dark:text-white leading-tight">{prov.name}</h4>
+                                {prov.badge && (
+                                  <span className="text-[9px] text-wa-text-secondary leading-none">{prov.badge}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              isSelected ? 'border-wa-green bg-wa-green/10' : 'border-slate-300 dark:border-slate-600'
+                            }`}>
+                              {isSelected && <div className="w-2 h-2 rounded-full bg-wa-green" />}
+                            </div>
+                          </div>
+
+                          <p className="text-[11px] text-wa-text-secondary leading-snug line-clamp-2 mt-1">{prov.tagline}</p>
+                        </div>
+
+                        <div className="mt-3 pt-2 border-t border-wa-border/50 dark:border-wa-dark-border/50 flex items-center justify-between">
+                          {hasKey ? (
+                            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              ✓ Saved Key
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-semibold text-slate-400 bg-slate-200/50 dark:bg-slate-700/50 px-2 py-0.5 rounded-full">
+                              No Key
+                            </span>
+                          )}
+                          <span className="text-[9px] text-wa-text-secondary font-mono">{prov.models?.length || 1} models</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. OPTIONAL CUSTOM BASE URL (FOR SELF-HOSTED / LOCAL AI / PRIVATE ENDPOINTS) */}
+              {aiConfig.provider === 'custom' && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-wa-text-secondary">
+                      Custom API Base URL *
+                    </label>
+                    <span className="text-[11px] text-wa-text-secondary">
+                      e.g. http://localhost:11434/v1 for Ollama
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={aiConfig.customBaseUrl || ''}
+                    onChange={(e) => setAiConfig(prev => ({ ...prev, customBaseUrl: e.target.value }))}
+                    placeholder="http://localhost:11434/v1"
+                    className="w-full px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30 font-mono"
+                  />
+                  <p className="text-[11px] text-wa-text-secondary mt-1">
+                    Compatible with any OpenAI-compatible API endpoint (Ollama, vLLM, LM Studio, FastChat, etc.).
+                  </p>
+                </div>
+              )}
+
+              {/* 3. API KEY INPUT */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-wa-text-secondary">
+                    {aiConfig.provider === 'custom' ? '3.' : '2.'} {PROVIDER_PRESETS[aiConfig.provider]?.name} API Key {aiConfig.provider === 'custom' ? '(Optional for local models)' : '*'}
+                  </label>
+                  {PROVIDER_PRESETS[aiConfig.provider]?.helpUrl && (
+                    <a
+                      href={PROVIDER_PRESETS[aiConfig.provider]?.helpUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-wa-green hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <span>{PROVIDER_PRESETS[aiConfig.provider]?.helpText}</span>
+                      <Link2 className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showAiKey ? "text" : "password"}
+                    value={aiConfig.apiKey || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAiConfig(prev => ({
+                        ...prev,
+                        apiKey: val,
+                        apiKeys: {
+                          ...(prev.apiKeys || {}),
+                          [prev.provider]: val
+                        }
+                      }));
+                    }}
+                    placeholder={PROVIDER_PRESETS[aiConfig.provider]?.placeholder || 'Enter API Key'}
+                    className="w-full pl-4 pr-12 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30 font-mono tracking-wider"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAiKey(!showAiKey)}
+                    className="absolute right-3.5 top-2.5 p-1 text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white transition-colors"
+                    title={showAiKey ? "Hide key" : "Show key"}
+                  >
+                    {showAiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-wa-text-secondary mt-1">
+                  Your API key is securely encrypted at rest using AES-256 before being stored in the database.
+                </p>
+              </div>
+
+              {/* 3. MODEL SELECTION */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-wa-text-secondary">
+                      3. AI Model
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setCustomModelMode(!customModelMode)}
+                      className="text-[11px] text-wa-green hover:underline font-medium"
+                    >
+                      {customModelMode ? 'Choose from presets' : 'Enter custom model name'}
+                    </button>
+                  </div>
+
+                  {customModelMode ? (
+                    <input
+                      type="text"
+                      value={aiConfig.model}
+                      onChange={(e) => setAiConfig(prev => ({ ...prev, model: e.target.value }))}
+                      placeholder="e.g. llama-3.3-70b-versatile or gemini-1.5-flash"
+                      className="w-full px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30 font-mono"
+                    />
+                  ) : (
+                    <select
+                      value={aiConfig.model}
+                      onChange={(e) => setAiConfig(prev => ({ ...prev, model: e.target.value }))}
+                      className="w-full px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30"
+                    >
+                      {(PROVIDER_PRESETS[aiConfig.provider]?.models || []).map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="text-[10px] text-wa-text-secondary mt-1">
+                    Select the model engine used to craft replies to WhatsApp customer inquiries.
+                  </p>
+                </div>
+
+                {/* Temperature slider */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-wa-text-secondary">
+                      Response Temperature: <span className="font-mono text-wa-green font-bold">{aiConfig.temperature ?? 0.7}</span>
+                    </label>
+                    <span className="text-[10px] text-wa-text-secondary">
+                      {(aiConfig.temperature ?? 0.7) <= 0.3 ? 'Deterministic' : (aiConfig.temperature ?? 0.7) <= 0.8 ? 'Balanced' : 'Creative'}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1.2"
+                    step="0.05"
+                    value={aiConfig.temperature ?? 0.7}
+                    onChange={(e) => setAiConfig(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
+                    className="w-full accent-wa-green h-2 bg-slate-200 dark:bg-slate-700 rounded-lg cursor-pointer mt-2"
+                  />
+                  <div className="flex justify-between text-[10px] text-wa-text-secondary mt-1">
+                    <span>0.0 (Precise)</span>
+                    <span>0.7 (Standard)</span>
+                    <span>1.2 (Inventive)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. CUSTOM SYSTEM INSTRUCTIONS */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-wa-text-secondary mb-1.5">
+                  4. Custom Business Instructions / Rules (Optional)
+                </label>
+                <textarea
+                  rows={4}
+                  value={aiConfig.systemPrompt}
+                  onChange={(e) => setAiConfig(prev => ({ ...prev, systemPrompt: e.target.value }))}
+                  placeholder="e.g. Store timings: 10 AM to 8 PM Monday-Saturday. We offer free shipping on prepaid orders over ₹1,000. For refunds, please ask for order receipt and notify support."
+                  className="w-full px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30 font-sans leading-relaxed"
+                />
+                <p className="text-[11px] text-wa-text-secondary mt-1">
+                  Add specific company policies, FAQs, or contact guidelines. The AI assistant will adhere to these instructions when conversing with customers.
+                </p>
+              </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-wa-border dark:border-wa-dark-border">
+                <div className="flex items-center gap-2 text-xs text-wa-text-secondary">
+                  {aiConfig.statusDetails?.lastTested && (
+                    <span>Last tested: {new Date(aiConfig.statusDetails.lastTested).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  )}
+                  {aiConfig.statusDetails?.latencyMs && (
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">• {aiConfig.statusDetails.latencyMs}ms response</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={handleTestAI}
+                    disabled={testingAI}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 text-wa-text-primary dark:text-white border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg dark:hover:bg-wa-dark-hover disabled:opacity-50 rounded-xl text-xs font-bold transition-all duration-200"
+                  >
+                    {testingAI ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-wa-green" />
+                        <span>Verifying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4 text-amber-500" />
+                        <span>Test Connection</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={savingAI}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 text-white bg-wa-green hover:bg-wa-green-hover disabled:opacity-50 rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all duration-200"
+                  >
+                    {savingAI ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save AI Settings</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+            </form>
           </div>
         </div>
       )}

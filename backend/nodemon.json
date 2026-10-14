@@ -1,0 +1,13 @@
+{
+  "watch": [
+    "server.js",
+    "routes",
+    "services",
+    "models",
+    "middleware",
+    "config"
+  ],
+  "ext": "js,json",
+  "legacyWatch": true,
+  "delay": 500
+}

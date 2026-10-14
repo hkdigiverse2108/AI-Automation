@@ -1303,6 +1303,243 @@ router.post('/conversations/:id/transfer-to-ai', ...validateObjectId('id'), asyn
   }
 });
 
+// GET /messages/ai-status — Check if AI assistant is configured and active
+router.get('/ai-status', async (req, res) => {
+  try {
+    const Organization = require('../models/Organization');
+    const { resolveAIConfig } = require('../services/aiAgent');
+
+    let org = null;
+    if (req.organizationId) {
+      org = await Organization.findById(req.organizationId);
+    }
+    if (!org && req.user?.role === 'superadmin') {
+      org = await Organization.findOne();
+    }
+
+    const aiConfig = resolveAIConfig(org);
+    const isConfigured = Boolean(aiConfig && aiConfig.apiKey);
+
+    res.json({
+      success: true,
+      data: {
+        isConfigured,
+        provider: aiConfig?.provider || null,
+        model: aiConfig?.model || null,
+        isEnabled: org?.aiConfig?.isEnabled !== false
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to check AI status', code: 'AI_STATUS_ERROR' });
+  }
+});
+
+// POST /messages/conversations/:id/toggle-ai — Toggle Groq/Gemini/OpenAI Ask AI takeover mode
+router.post('/conversations/:id/toggle-ai', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const conversationId = req.params.id;
+    const userId = req.userId;
+
+    let conversation = await Conversation.findOne({ _id: conversationId, userId })
+      .populate('contactId')
+      .populate('assignedAgent', 'name email');
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
+    }
+
+    const isCurrentlyAI = conversation.status === 'ai' || conversation.ai_active;
+
+    if (!isCurrentlyAI) {
+      // ACTIVATE ASK AI:
+      // Verify AI is configured before allowing activation
+      const Organization = require('../models/Organization');
+      const { resolveAIConfig } = require('../services/aiAgent');
+      let org = null;
+      if (req.organizationId) {
+        org = await Organization.findById(req.organizationId);
+      }
+      if (!org && req.user?.role === 'superadmin') {
+        org = await Organization.findOne();
+      }
+      const aiConfig = resolveAIConfig(org);
+      if (!aiConfig || !aiConfig.apiKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'AI Assistant is not configured. Please enter your API key in Settings > AI Integration.',
+          code: 'AI_NOT_CONFIGURED'
+        });
+      }
+
+      // 1. Snapshot previous state before AI takeover
+      const currentStatus = conversation.status || 'bot';
+      const currentAgent = conversation.assignedAgent?._id || conversation.assigned_agent_id || null;
+      const currentLock = Boolean(conversation.lock_status);
+      const currentTakeover = conversation.takeover_status || 'ai';
+
+      conversation.previous_status = currentStatus === 'ai' ? 'bot' : currentStatus;
+      conversation.previous_assigned_agent = currentAgent;
+      conversation.previous_lock_status = currentLock;
+      conversation.previous_takeover_status = currentTakeover;
+
+      // 2. Set to AI takeover mode
+      conversation.status = 'ai';
+      conversation.ai_active = true;
+      conversation.lock_status = true; // prevent automatic bot flow or round-robin interruption
+      conversation.takeover_status = 'ai';
+      conversation.assignedAgent = null;
+      conversation.assigned_agent_id = null;
+      await conversation.save();
+
+      // Re-populate for response
+      conversation = await Conversation.findById(conversation._id).populate('contactId');
+
+      // 3. Emit real-time events via Socket.io
+      const io = req.app.get('io');
+      if (io) {
+        const payload = {
+          conversationId: conversation._id,
+          status: 'ai',
+          ai_active: true,
+          lock_status: true,
+          takeover_status: 'ai',
+          assignedAgent: null,
+          assigned_agent_id: null
+        };
+        const roomId = req.user.ownerId ? `user_${req.user.ownerId}` : `user_${req.userId}`;
+        io.to(roomId).emit('conversation_assigned', payload);
+        io.to(roomId).emit('ai_mode_updated', payload);
+        if (currentAgent) {
+          io.to(`user_${currentAgent}`).emit('conversation_assigned', payload);
+        }
+      }
+
+      await AuditLog.log({
+        userId: req.userId,
+        actorId: req.user._id,
+        actorName: req.user.name,
+        action: 'AI_ASSISTANT_ACTIVATED',
+        resource: 'Conversation',
+        resourceId: conversation._id.toString(),
+        newValue: { status: 'ai', previousStatus: conversation.previous_status },
+        ip: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
+      // 4. If the latest message in this conversation was inbound from customer, auto-reply immediately!
+      const lastMsg = await Message.findOne({ conversationId: conversation._id, userId }).sort({ createdAt: -1 });
+      if (lastMsg && lastMsg.direction === 'inbound') {
+        const { triggerAIReply } = require('../services/aiAgent');
+        triggerAIReply({ conversationId: conversation._id, userId, io, incomingText: lastMsg.content?.text || '' }).catch(err => {
+          console.error('Failed to auto-trigger AI reply on takeover:', err.message);
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: 'Ask AI activated ✨ AI is now chatting with this contact.',
+        data: { conversation, active: true }
+      });
+    } else {
+      // DEACTIVATE ASK AI — RESTORE PREVIOUS HANDLER
+      const prevStatus = conversation.previous_status || 'bot';
+      const prevAgent = conversation.previous_assigned_agent || null;
+      const prevLock = conversation.previous_lock_status ?? false;
+
+      conversation.ai_active = false;
+
+      if (prevStatus === 'human' && prevAgent) {
+        conversation.status = 'human';
+        conversation.assignedAgent = prevAgent;
+        conversation.assigned_agent_id = prevAgent;
+        conversation.lock_status = prevLock;
+        conversation.takeover_status = 'human';
+      } else {
+        conversation.status = 'bot';
+        conversation.assignedAgent = null;
+        conversation.assigned_agent_id = null;
+        conversation.lock_status = false;
+        conversation.takeover_status = 'ai';
+      }
+
+      conversation.previous_status = null;
+      conversation.previous_assigned_agent = null;
+      await conversation.save();
+
+      conversation = await Conversation.findById(conversation._id)
+        .populate('contactId')
+        .populate('assignedAgent', 'name email');
+
+      const io = req.app.get('io');
+      if (io) {
+        const payload = {
+          conversationId: conversation._id,
+          status: conversation.status,
+          ai_active: false,
+          lock_status: conversation.lock_status,
+          takeover_status: conversation.takeover_status,
+          assignedAgent: conversation.assignedAgent ? {
+            _id: conversation.assignedAgent._id,
+            name: conversation.assignedAgent.name,
+            email: conversation.assignedAgent.email
+          } : null,
+          assigned_agent_id: conversation.assigned_agent_id
+        };
+        const roomId = req.user.ownerId ? `user_${req.user.ownerId}` : `user_${req.userId}`;
+        io.to(roomId).emit('conversation_assigned', payload);
+        io.to(roomId).emit('ai_mode_updated', payload);
+        if (conversation.assigned_agent_id) {
+          io.to(`user_${conversation.assigned_agent_id}`).emit('conversation_assigned', payload);
+        }
+      }
+
+      await AuditLog.log({
+        userId: req.userId,
+        actorId: req.user._id,
+        actorName: req.user.name,
+        action: 'AI_ASSISTANT_DEACTIVATED',
+        resource: 'Conversation',
+        resourceId: conversation._id.toString(),
+        newValue: { status: conversation.status, restoredTo: prevStatus },
+        ip: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
+      return res.json({
+        success: true,
+        message: conversation.status === 'human' ? 'Ask AI stopped. Restored to Human agent.' : 'Ask AI stopped. Restored to Bot.',
+        data: { conversation, active: false }
+      });
+    }
+  } catch (error) {
+    console.error('Failed to toggle AI mode:', error);
+    res.status(500).json({ success: false, error: 'Failed to toggle AI mode', details: error.message });
+  }
+});
+
+// POST /messages/conversations/:id/trigger-ai — Generate an AI reply on demand
+router.post('/conversations/:id/trigger-ai', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    const { triggerAIReply } = require('../services/aiAgent');
+    const io = req.app.get('io');
+    const message = await triggerAIReply({
+      conversationId: req.params.id,
+      userId: req.userId,
+      io,
+      incomingText: prompt || ''
+    });
+
+    if (!message) {
+      return res.status(400).json({ success: false, error: 'Failed to generate AI response' });
+    }
+
+    return res.json({ success: true, message: 'AI response generated successfully', data: { message } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // DELETE /messages/conversations/:id — delete a conversation and its messages
 router.delete('/conversations/:id', ...validateObjectId('id'), async (req, res) => {
   try {

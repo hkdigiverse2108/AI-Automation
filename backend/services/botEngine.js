@@ -67,10 +67,18 @@ function detectSource(text) {
  * Main entry point — process incoming WhatsApp message.
  */
 async function processIncomingMessage(messageData, phoneNumberId, io) {
+  const fs = require('fs');
+  const path = require('path');
+  const traceLog = path.join(__dirname, '../../ai-trace.log');
+  try {
+    fs.appendFileSync(traceLog, `[${new Date().toISOString()}] BOTENGINE_START: from=${messageData.from}, text="${messageData.text?.body || messageData.type}", phoneId=${phoneNumberId}\n`);
+  } catch (_) {}
+
   try {
     // 1. Find which business account this belongs to
     const waAccount = await WhatsAppAccount.findOne({ phoneNumberId, isActive: true });
     if (!waAccount) {
+      try { fs.appendFileSync(traceLog, `[${new Date().toISOString()}] BOTENGINE_NO_WA_ACCOUNT: phoneId=${phoneNumberId}\n`); } catch (_) {}
       logger.warn(`No active WA account for phoneNumberId: ${phoneNumberId}`);
       return;
     }
@@ -82,6 +90,7 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
         const redisKey = `webhook:msg:${userId}:${messageData.id}`;
         const isNew = await redis.set(redisKey, '1', 'NX', 'EX', 120);
         if (!isNew) {
+          try { fs.appendFileSync(traceLog, `[${new Date().toISOString()}] BOTENGINE_DEDUP_SKIPPED_REDIS: id=${messageData.id}\n`); } catch (_) {}
           logger.info(`Duplicate message received via webhook (Redis), skipping: ${messageData.id}`);
           return;
         }
@@ -89,6 +98,7 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
         logger.error(`Redis deduplication error: ${err.message}. Falling back to database check.`);
         const existingMsg = await Message.findOne({ userId, metaMessageId: messageData.id });
         if (existingMsg) {
+          try { fs.appendFileSync(traceLog, `[${new Date().toISOString()}] BOTENGINE_DEDUP_SKIPPED_DB: id=${messageData.id}\n`); } catch (_) {}
           logger.info(`Duplicate message found in database, skipping: ${messageData.id}`);
           return;
         }
@@ -125,6 +135,12 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     } else {
       contact = await Contact.findOne({ userId, phone: from });
     }
+
+    // Fallback: If contact exists for this phone under any user account, link to it!
+    if (!contact) {
+      contact = await Contact.findOne({ phone: from });
+    }
+
     const isNewContact = !contact;
     if (!contact) {
       let source = msgType === 'text' ? detectSource(messageData.text?.body) : 'direct';
@@ -167,9 +183,25 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     const User = require('../models/User');
     const Organization = require('../models/Organization');
     const adminUser = await User.findById(userId);
-    const org = adminUser ? await Organization.findById(adminUser.organizationId) : null;
+    let org = adminUser?.organizationId ? await Organization.findById(adminUser.organizationId) : null;
+    if (!org) org = await Organization.findOne();
 
-    let conversation = await Conversation.findOne({ userId, contactId: contact._id });
+    // Priority 1: Check if an active AI conversation exists for this contact
+    let conversation = await Conversation.findOne({
+      contactId: contact._id,
+      $or: [{ status: 'ai' }, { ai_active: true }]
+    });
+
+    // Priority 2: Check conversation matching this specific userId
+    if (!conversation) {
+      conversation = await Conversation.findOne({ userId, contactId: contact._id });
+    }
+
+    // Priority 3: Fallback to most recent conversation for this contact
+    if (!conversation) {
+      conversation = await Conversation.findOne({ contactId: contact._id }).sort({ lastMessageAt: -1, updatedAt: -1 });
+    }
+
     const isNewConversation = !conversation;
     if (!conversation) {
       if (org) {
@@ -210,12 +242,17 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
       await conversation.save();
     }
 
+    const effectiveUserId = conversation.userId || userId;
+    try {
+      fs.appendFileSync(traceLog, `[${new Date().toISOString()}] BOTENGINE_CONV_FOUND: id=${conversation._id}, effUserId=${effectiveUserId}, status=${conversation.status}, ai_active=${conversation.ai_active}, lock=${conversation.lock_status}\n`);
+    } catch (_) {}
+
     // 4. Extract content from message
     const content = extractContent(messageData, msgType);
     const textContent = (content.text || '').toLowerCase().trim();
 
-    // Auto Team Assignment: Check explicit rules, fallback to Round Robin
-    if (!conversation.assignedAgent && !conversation.assigned_agent_id) {
+    // Auto Team Assignment: Check explicit rules, fallback to Round Robin (Skipped if AI Assistant mode is active)
+    if (!conversation.assignedAgent && !conversation.assigned_agent_id && conversation.status !== 'ai' && !conversation.ai_active) {
       let assigned = false;
       const AssignmentRule = require('../models/AssignmentRule');
       const assignRules = await AssignmentRule.find({ userId, isActive: true }).sort('createdAt').lean();
@@ -318,7 +355,7 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
 
     // 5. Save inbound message
     const savedMsg = await Message.create({
-      userId,
+      userId: effectiveUserId,
       conversationId: conversation._id,
       contactId: contact._id,
       direction: 'inbound',
@@ -358,15 +395,13 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     // Trigger real-time message notification
     const { createNotification } = require('./notificationService');
     createNotification({
-      userId,
+      userId: effectiveUserId,
       organizationId: conversation.organization_id || (adminUser ? adminUser.organizationId : null),
       type: 'message',
       title: `New Message from ${contact.name || contact.phone}`,
       message: content.text || `Sent a ${msgType} attachment.`,
       link: '/dashboard/inbox'
     }).catch(err => logger.error('Failed to trigger message notification:', err.message));
-
-
 
     // Mark as read on WhatsApp (only if not assigned to a human)
     const isHuman = conversation.status === 'human' || 
@@ -381,14 +416,37 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     if (io) {
       const { decryptMessage } = require('./oekService');
       const decryptedMsg = decryptMessage(savedMsg, rawOek);
-      io.to(`user_${userId}`).emit('new_message', {
+      const newMsgPayload = {
         message: decryptedMsg,
         contact: contact.toObject(),
         conversationId: conversation._id,
         isNewConversation,
-      });
+      };
+      io.to(`user_${userId}`).emit('new_message', newMsgPayload);
+      if (effectiveUserId && effectiveUserId.toString() !== userId.toString()) {
+        io.to(`user_${effectiveUserId}`).emit('new_message', newMsgPayload);
+      }
     }
 
+    // 7. Route based on conversation status
+    // AI TAKEOVER MODE: Both bot and human chat are paused; AI handles customer communication with top priority!
+    if (conversation.status === 'ai' || conversation.ai_active) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        fs.appendFileSync(path.join(__dirname, '../../ai-trace.log'), `[${new Date().toISOString()}] BOTENGINE_AI_TAKEOVER: phone=${contact.phone}, text="${content.text || ''}"\n`);
+      } catch (_) {}
+      logger.info(`[AI_ASSISTANT] Active AI mode for contact ${contact.phone} in conversation ${conversation._id}`);
+      const { triggerAIReply } = require('./aiAgent');
+      await triggerAIReply({
+        conversationId: conversation._id,
+        userId: effectiveUserId,
+        io,
+        incomingText: content.text || '',
+        incomingMessage: savedMsg
+      });
+      return;
+    }
 
     // Run WhatsApp Commerce Engine check
     const commerceEngine = require('./commerceEngine');
@@ -418,7 +476,6 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
       }
     }
 
-    // 7. Route based on conversation status
     if (conversation.status === 'human' || conversation.lock_status || conversation.takeover_status === 'human') {
       // Just save message, notify agent
       const agentId = conversation.assigned_agent_id || conversation.assignedAgent;
@@ -431,31 +488,6 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
           conversationId: conversation._id,
         });
       }
-      return;
-    }
-
-    if (conversation.status === 'ai') {
-      // AI is deprecated, route to human agent
-      conversation.status = 'human';
-      await conversation.save();
-      await sendAndSaveMessage(
-        userId, conversation, contact, phoneNumberId, token,
-        "Connecting you to our team right now! ⚡ Someone will be with you shortly.",
-        'bot', io
-      );
-      if (io) io.to(`user_${userId}`).emit('conversation_assigned', { conversationId: conversation._id, needsAgent: true });
-      
-      // Trigger handoff notification
-      const { createNotification } = require('./notificationService');
-      createNotification({
-        userId,
-        organizationId: conversation.organization_id || (adminUser ? adminUser.organizationId : null),
-        type: 'bot',
-        title: `Handoff Requested: ${contact.name || contact.phone}`,
-        message: `Customer is waiting for an agent takeover.`,
-        link: '/dashboard/inbox'
-      }).catch(err => logger.error('Failed to trigger handoff notification:', err.message));
-
       return;
     }
 
@@ -1457,6 +1489,11 @@ function interpolate(text, vars) {
 
 async function runAutomations(userId, conversation, contact, savedMsg, phoneNumberId, token, io) {
   try {
+    // If AI assistant mode is active, strictly skip all automations, auto-assignment, and triggers
+    if (conversation.status === 'ai' || conversation.ai_active) {
+      return false;
+    }
+
     const textContent = (savedMsg.content?.text || '').toLowerCase().trim();
 
     // 1. Log button response if interactive
@@ -1531,8 +1568,8 @@ async function runAutomations(userId, conversation, contact, savedMsg, phoneNumb
       }
     }
 
-    // 3. Auto Team Assignment
-    if (!conversation.assignedAgent) {
+    // 3. Auto Team Assignment (Skipped for AI assistant mode)
+    if (!conversation.assignedAgent && conversation.status !== 'ai' && !conversation.ai_active) {
       const AssignmentRule = require('../models/AssignmentRule');
       const assignRules = await AssignmentRule.find({ userId, isActive: true }).sort('createdAt').lean();
 
@@ -1580,8 +1617,8 @@ async function runAutomations(userId, conversation, contact, savedMsg, phoneNumb
       }
     }
 
-    // 4. Keyword Reply Triggers & Fallback responder
-    if (conversation.status !== 'human' && !conversation.lock_status && conversation.takeover_status !== 'human') {
+    // 4. Keyword Reply Triggers & Fallback responder (Skipped for AI assistant mode)
+    if (conversation.status !== 'human' && conversation.status !== 'ai' && !conversation.ai_active && !conversation.lock_status && conversation.takeover_status !== 'human') {
       const ReplyTrigger = require('../models/ReplyTrigger');
       const activeTriggers = await ReplyTrigger.find({ userId, isActive: true }).lean();
       

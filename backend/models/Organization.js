@@ -64,8 +64,32 @@ const organizationSchema = new mongoose.Schema(
       }
     },
     aiConfig: {
+      provider: { type: String, default: '' },
+      groqApiKey: { type: String, default: '' },
+      geminiApiKey: { type: String, default: '' },
       openaiApiKey: { type: String, default: '' },
-      grokApiKey: { type: String, default: '' }
+      anthropicApiKey: { type: String, default: '' },
+      deepseekApiKey: { type: String, default: '' },
+      xaiApiKey: { type: String, default: '' },
+      mistralApiKey: { type: String, default: '' },
+      perplexityApiKey: { type: String, default: '' },
+      openrouterApiKey: { type: String, default: '' },
+      cohereApiKey: { type: String, default: '' },
+      customApiKey: { type: String, default: '' },
+      customBaseUrl: { type: String, default: '' },
+      grokApiKey: { type: String, default: '' },
+      activeApiKey: { type: String, default: '' },
+      apiKeys: { type: Map, of: String, default: {} },
+      model: { type: String, default: '' },
+      systemPrompt: { type: String, default: '' },
+      temperature: { type: Number, default: 0.7 },
+      isEnabled: { type: Boolean, default: true },
+      status: { type: String, enum: ['connected', 'disconnected', 'error'], default: 'disconnected' },
+      statusDetails: {
+        lastTested: { type: Date },
+        latencyMs: { type: Number },
+        errorReason: { type: String, default: '' },
+      }
     },
     encryptionConfig: {
       enabled: { type: Boolean, default: false },

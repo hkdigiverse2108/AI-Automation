@@ -22,9 +22,9 @@ function maskToken(token) {
   return token.slice(0, 4) + '••••••••••••••••••••••••••••••••' + token.slice(-3);
 }
 
-// Apply Auth and Admin role checking
+// Apply Auth and Admin/Owner/Superadmin role checking
 router.use(verifyToken);
-router.use(requireRole('admin'));
+router.use(requireRole('admin', 'owner', 'superadmin'));
 
 // GET /api/settings/integrations/meta - Retrieve organization's Meta config (masked)
 router.get('/meta', async (req, res) => {
@@ -721,6 +721,497 @@ router.post('/meta/register-phone', async (req, res) => {
   } catch (error) {
     logger.error('Phone number registration endpoint error:', error.message);
     res.status(500).json({ success: false, error: 'Internal execution failure', code: 'REGISTRATION_ERROR' });
+  }
+});
+
+// ==========================================
+// AI INTEGRATION SETTINGS (Groq, Gemini, OpenAI)
+// ==========================================
+
+// Helper to get active Organization for user
+async function resolveUserOrg(req) {
+  let org = null;
+  if (req.organizationId) {
+    org = await Organization.findById(req.organizationId);
+  }
+  if (!org && req.user?.role === 'superadmin') {
+    org = await Organization.findOne();
+  }
+  return org;
+}
+
+// Helper to resolve decrypted key for a provider
+function getStoredKey(aiConfig, provider) {
+  if (!aiConfig || !provider) return '';
+  const prov = provider.toLowerCase().trim();
+  const mapKey = aiConfig.apiKeys?.get ? aiConfig.apiKeys.get(prov) : aiConfig.apiKeys?.[prov];
+  const fieldKey = aiConfig[`${prov}ApiKey`] || (prov === 'xai' ? aiConfig.grokApiKey : '');
+  const encKey = mapKey || fieldKey || aiConfig.activeApiKey || '';
+  return encKey ? decryptField(encKey) : '';
+}
+
+// GET /api/settings/integrations/ai — Retrieve AI configuration (all providers)
+router.get('/ai', async (req, res) => {
+  try {
+    const org = await resolveUserOrg(req);
+    if (!org) {
+      return res.status(404).json({ success: false, error: 'Organization not found', code: 'ORG_NOT_FOUND' });
+    }
+
+    const ai = org.aiConfig || {};
+    const activeProvider = (ai.provider || '').toLowerCase().trim();
+
+    // Map of masked keys for each provider
+    const keys = {
+      groq: maskToken(ai.groqApiKey || ai.grokApiKey ? decryptField(ai.groqApiKey || ai.grokApiKey) : ''),
+      gemini: maskToken(ai.geminiApiKey ? decryptField(ai.geminiApiKey) : ''),
+      openai: maskToken(ai.openaiApiKey ? decryptField(ai.openaiApiKey) : ''),
+      anthropic: maskToken(ai.anthropicApiKey ? decryptField(ai.anthropicApiKey) : ''),
+      deepseek: maskToken(ai.deepseekApiKey ? decryptField(ai.deepseekApiKey) : ''),
+      xai: maskToken(ai.xaiApiKey || ai.grokApiKey ? decryptField(ai.xaiApiKey || ai.grokApiKey) : ''),
+      mistral: maskToken(ai.mistralApiKey ? decryptField(ai.mistralApiKey) : ''),
+      perplexity: maskToken(ai.perplexityApiKey ? decryptField(ai.perplexityApiKey) : ''),
+      openrouter: maskToken(ai.openrouterApiKey ? decryptField(ai.openrouterApiKey) : ''),
+      cohere: maskToken(ai.cohereApiKey ? decryptField(ai.cohereApiKey) : ''),
+      custom: maskToken(ai.customApiKey ? decryptField(ai.customApiKey) : '')
+    };
+
+    if (ai.apiKeys) {
+      const entries = ai.apiKeys.entries ? Array.from(ai.apiKeys.entries()) : Object.entries(ai.apiKeys);
+      for (const [k, v] of entries) {
+        if (v) keys[k] = maskToken(decryptField(v));
+      }
+    }
+
+    // STRICT: Only configured if user explicitly saved key in DB
+    const activeRawKey = getStoredKey(ai, activeProvider);
+    const isConfigured = Boolean(
+      activeProvider &&
+      (activeRawKey || (activeProvider === 'custom' && ai.customBaseUrl)) &&
+      ai.isEnabled !== false
+    );
+
+    res.json({
+      success: true,
+      data: {
+        provider: activeProvider || 'groq',
+        apiKeys: keys,
+        customBaseUrl: ai.customBaseUrl || '',
+        model: ai.model || '',
+        systemPrompt: ai.systemPrompt || '',
+        temperature: typeof ai.temperature === 'number' ? ai.temperature : 0.7,
+        isEnabled: ai.isEnabled !== false,
+        status: ai.status || 'disconnected',
+        statusDetails: ai.statusDetails || {},
+        isConfigured
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to get AI settings:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch AI settings', code: 'FETCH_ERROR' });
+  }
+});
+
+// POST /api/settings/integrations/ai — Update AI configuration
+router.post('/ai', async (req, res) => {
+  try {
+    const org = await resolveUserOrg(req);
+    if (!org) {
+      return res.status(404).json({ success: false, error: 'Organization not found', code: 'ORG_NOT_FOUND' });
+    }
+
+    const {
+      provider,
+      apiKey,
+      customBaseUrl,
+      model,
+      systemPrompt,
+      temperature,
+      isEnabled
+    } = req.body;
+
+    if (!org.aiConfig) {
+      org.aiConfig = {};
+    }
+
+    const targetProvider = (provider || org.aiConfig.provider || 'groq').toLowerCase().trim();
+    org.aiConfig.provider = targetProvider;
+
+    // Save or clear API key for target provider
+    if (apiKey !== undefined) {
+      const cleanKey = apiKey.trim();
+      if (cleanKey === '') {
+        // Clear key
+        if (org.aiConfig.apiKeys?.set) org.aiConfig.apiKeys.set(targetProvider, '');
+        org.aiConfig[`${targetProvider}ApiKey`] = '';
+        if (targetProvider === 'groq' || targetProvider === 'xai') org.aiConfig.grokApiKey = '';
+        org.aiConfig.activeApiKey = '';
+        org.aiConfig.status = 'disconnected';
+      } else if (!cleanKey.includes('••••')) {
+        const encrypted = encryptField(cleanKey);
+        if (org.aiConfig.apiKeys?.set) org.aiConfig.apiKeys.set(targetProvider, encrypted);
+        org.aiConfig[`${targetProvider}ApiKey`] = encrypted;
+        org.aiConfig.activeApiKey = encrypted;
+      }
+    }
+
+    if (customBaseUrl !== undefined) {
+      org.aiConfig.customBaseUrl = customBaseUrl.trim();
+    }
+
+    if (model !== undefined) {
+      org.aiConfig.model = model.trim();
+    }
+
+    if (systemPrompt !== undefined) {
+      org.aiConfig.systemPrompt = systemPrompt.trim();
+    }
+
+    if (temperature !== undefined) {
+      org.aiConfig.temperature = Math.min(Math.max(Number(temperature) || 0.7, 0), 1.5);
+    }
+
+    if (isEnabled !== undefined) {
+      org.aiConfig.isEnabled = Boolean(isEnabled);
+    }
+
+    await org.save();
+
+    const AuditLog = require('../models/AuditLog');
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user._id,
+      actorName: req.user.name,
+      action: 'UPDATE_AI_CONFIG',
+      resource: 'Organization',
+      resourceId: org._id.toString(),
+      newValue: { provider: org.aiConfig.provider, model: org.aiConfig.model, isEnabled: org.aiConfig.isEnabled },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({
+      success: true,
+      message: 'AI Integration settings saved successfully!',
+      data: {
+        provider: org.aiConfig.provider,
+        model: org.aiConfig.model,
+        isEnabled: org.aiConfig.isEnabled,
+        status: org.aiConfig.status
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to save AI config:', error.message);
+    res.status(500).json({ success: false, error: error.message || 'Failed to save AI settings', code: 'SAVE_ERROR' });
+  }
+});
+
+// POST /api/settings/integrations/ai/test — Test AI Provider Key & Latency (supports all providers)
+router.post('/ai/test', async (req, res) => {
+  let org = null;
+  try {
+    org = await resolveUserOrg(req);
+    const { provider = 'groq', apiKey: rawKeyInput, model, customBaseUrl } = req.body;
+    const targetProvider = provider.toLowerCase().trim();
+
+    let targetKey = (rawKeyInput || '').trim();
+
+    // If key contains mask or is empty, resolve from DB
+    if (!targetKey || targetKey.includes('••••')) {
+      targetKey = getStoredKey(org?.aiConfig, targetProvider);
+    }
+
+    // Custom provider without key is allowed if customBaseUrl is set
+    if (!targetKey && !(targetProvider === 'custom' && (customBaseUrl || org?.aiConfig?.customBaseUrl))) {
+      return res.status(400).json({
+        success: false,
+        error: `Please enter an API Key for ${targetProvider.toUpperCase()} before testing.`,
+        code: 'MISSING_API_KEY'
+      });
+    }
+
+    const startTime = Date.now();
+    let testResponseText = '';
+    let chosenWorkingModel = model || '';
+
+    if (targetProvider === 'anthropic') {
+      const anthropicCandidates = [model, 'claude-3-5-haiku-20241022', 'claude-3-5-sonnet-20241022', 'claude-3-haiku-20240307'].filter(Boolean);
+      let anthropicSuccess = false;
+      let lastAnthropicError = null;
+
+      for (const am of anthropicCandidates) {
+        try {
+          const response = await axios.post(
+            'https://api.anthropic.com/v1/messages',
+            {
+              model: am,
+              max_tokens: 10,
+              messages: [{ role: 'user', content: 'Reply "AI_READY"' }]
+            },
+            {
+              headers: {
+                'x-api-key': targetKey,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json'
+              },
+              timeout: 15000
+            }
+          );
+          testResponseText = response.data?.content?.[0]?.text || '';
+          chosenWorkingModel = am;
+          anthropicSuccess = true;
+          break;
+        } catch (aErr) {
+          lastAnthropicError = aErr;
+          if (aErr.response?.status === 401) throw aErr;
+        }
+      }
+
+      if (!anthropicSuccess) {
+        throw lastAnthropicError || new Error('Anthropic connection verification failed');
+      }
+
+    } else if (targetProvider === 'gemini') {
+      const geminiCandidates = Array.from(new Set([model, 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-8b'].filter(Boolean)));
+      let geminiSuccess = false;
+      let primaryModelError = null;
+      let lastGeminiError = null;
+
+      for (const gm of geminiCandidates) {
+        try {
+          const response = await axios.post(
+            'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+            {
+              model: gm,
+              messages: [{ role: 'user', content: 'Reply "AI_READY"' }],
+              max_tokens: 10
+            },
+            {
+              headers: {
+                'Authorization': `Bearer ${targetKey}`,
+                'Content-Type': 'application/json'
+              },
+              timeout: 15000
+            }
+          );
+          testResponseText = response.data?.choices?.[0]?.message?.content || '';
+          chosenWorkingModel = gm;
+          geminiSuccess = true;
+          break;
+        } catch (errOpenAI) {
+          try {
+            const directRes = await axios.post(
+              `https://generativelanguage.googleapis.com/v1beta/models/${gm}:generateContent?key=${targetKey}`,
+              {
+                contents: [{ role: 'user', parts: [{ text: 'Reply "AI_READY"' }] }]
+              },
+              {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 15000
+              }
+            );
+            testResponseText = directRes.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            chosenWorkingModel = gm;
+            geminiSuccess = true;
+            break;
+          } catch (directErr) {
+            lastGeminiError = directErr;
+            if (!primaryModelError) primaryModelError = directErr;
+
+            const errBody = directErr.response?.data?.error;
+            const errMsg = errBody?.message || directErr.message || '';
+            const status = directErr.response?.status;
+
+            if (status === 401 || status === 403 || errMsg.includes('API key not valid') || errMsg.includes('API_KEY_INVALID')) {
+              throw directErr;
+            }
+          }
+        }
+      }
+
+      if (!geminiSuccess) {
+        throw primaryModelError || lastGeminiError || new Error('Gemini connection verification failed');
+      }
+
+    } else {
+      // Standard OpenAI-Compatible Providers
+      let baseURL = '';
+      let defaultModel = '';
+      let candidateModels = [];
+
+      if (targetProvider === 'groq') {
+        baseURL = 'https://api.groq.com/openai/v1';
+        defaultModel = 'llama-3.1-8b-instant';
+        candidateModels = [
+          'llama-3.1-8b-instant',
+          'llama-3.3-70b-versatile',
+          'gemma2-9b-it'
+        ];
+      } else if (targetProvider === 'openai') {
+        baseURL = 'https://api.openai.com/v1';
+        defaultModel = 'gpt-4o-mini';
+        candidateModels = ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'];
+      } else if (targetProvider === 'deepseek') {
+        baseURL = 'https://api.deepseek.com';
+        defaultModel = 'deepseek-chat';
+        candidateModels = ['deepseek-chat', 'deepseek-reasoner'];
+      } else if (targetProvider === 'xai') {
+        baseURL = 'https://api.x.ai/v1';
+        defaultModel = 'grok-2-latest';
+        candidateModels = ['grok-2-latest', 'grok-beta'];
+      } else if (targetProvider === 'mistral') {
+        baseURL = 'https://api.mistral.ai/v1';
+        defaultModel = 'mistral-large-latest';
+        candidateModels = ['mistral-large-latest', 'mistral-small-latest', 'open-mistral-7b'];
+      } else if (targetProvider === 'perplexity') {
+        baseURL = 'https://api.perplexity.ai';
+        defaultModel = 'sonar';
+        candidateModels = ['sonar', 'sonar-pro'];
+      } else if (targetProvider === 'openrouter') {
+        baseURL = 'https://openrouter.ai/api/v1';
+        defaultModel = 'meta-llama/llama-3.3-70b-instruct';
+        candidateModels = ['meta-llama/llama-3.3-70b-instruct', 'google/gemini-2.0-flash-exp:free'];
+      } else if (targetProvider === 'cohere') {
+        baseURL = 'https://api.cohere.com/v2';
+        defaultModel = 'command-r-plus-08-2024';
+        candidateModels = ['command-r-plus-08-2024', 'command-r-08-2024'];
+      } else if (targetProvider === 'custom') {
+        baseURL = (customBaseUrl || org?.aiConfig?.customBaseUrl || '').replace(/\/+$/, '');
+        defaultModel = 'default';
+        candidateModels = ['default'];
+        if (!baseURL) {
+          return res.status(400).json({ success: false, error: 'Please enter a Base URL for Custom Provider.' });
+        }
+      }
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (targetKey) headers['Authorization'] = `Bearer ${targetKey}`;
+
+      const requestedModel = model || defaultModel;
+      const modelsToTry = [requestedModel];
+      for (const cm of candidateModels) {
+        if (!modelsToTry.includes(cm)) modelsToTry.push(cm);
+      }
+
+      chosenWorkingModel = requestedModel;
+      let callSuccess = false;
+      let lastCallError = null;
+
+      for (const m of modelsToTry) {
+        try {
+          const response = await axios.post(
+            `${baseURL}/chat/completions`,
+            {
+              model: m,
+              messages: [{ role: 'user', content: 'Reply "AI_READY"' }],
+              max_tokens: 10,
+              temperature: 0.1
+            },
+            {
+              headers,
+              timeout: 15000
+            }
+          );
+          testResponseText = response.data?.choices?.[0]?.message?.content || '';
+          chosenWorkingModel = m;
+          callSuccess = true;
+          break;
+        } catch (mErr) {
+          lastCallError = mErr;
+          const status = mErr.response?.status;
+          const errDataMsg = (mErr.response?.data?.error?.message || mErr.response?.data?.error || mErr.message || '').toLowerCase();
+          if (status === 401 || errDataMsg.includes('invalid api key') || errDataMsg.includes('unauthorized')) {
+            throw mErr;
+          }
+        }
+      }
+
+      // If preset candidates failed, dynamically discover active chat models via /models
+      if (!callSuccess) {
+        try {
+          const modelsRes = await axios.get(`${baseURL}/models`, { headers, timeout: 10000 });
+          const availModels = (modelsRes.data?.data || []).map(item => item.id).filter(id => {
+            const lower = (id || '').toLowerCase();
+            return !lower.includes('whisper') && !lower.includes('embed') && !lower.includes('tts') && !lower.includes('dall-e');
+          });
+
+          for (const m of availModels.slice(0, 4)) {
+            try {
+              const response = await axios.post(
+                `${baseURL}/chat/completions`,
+                {
+                  model: m,
+                  messages: [{ role: 'user', content: 'Reply "AI_READY"' }],
+                  max_tokens: 10,
+                  temperature: 0.1
+                },
+                {
+                  headers,
+                  timeout: 15000
+                }
+              );
+              testResponseText = response.data?.choices?.[0]?.message?.content || '';
+              chosenWorkingModel = m;
+              callSuccess = true;
+              break;
+            } catch (err) {
+              // try next available model
+            }
+          }
+        } catch (fetchErr) {
+          // ignore
+        }
+      }
+
+      if (!callSuccess) {
+        throw lastCallError || new Error(`No available model found on ${targetProvider.toUpperCase()}`);
+      }
+    }
+
+    const latencyMs = Date.now() - startTime;
+
+    if (org) {
+      if (!org.aiConfig) org.aiConfig = {};
+      org.aiConfig.status = 'connected';
+      org.aiConfig.model = chosenWorkingModel;
+      org.aiConfig.statusDetails = {
+        lastTested: new Date(),
+        latencyMs,
+        errorReason: ''
+      };
+      await org.save();
+    }
+
+    res.json({
+      success: true,
+      message: `Verified successfully! ${targetProvider.toUpperCase()} connected using model '${chosenWorkingModel}' in ${latencyMs}ms.`,
+      data: {
+        status: 'connected',
+        latencyMs,
+        model: chosenWorkingModel,
+        response: testResponseText.trim()
+      }
+    });
+
+  } catch (error) {
+    const errorDetails = error.response?.data?.error?.message || error.response?.data?.error || error.message;
+    logger.error('AI Connection test failed:', errorDetails);
+
+    if (org) {
+      if (!org.aiConfig) org.aiConfig = {};
+      org.aiConfig.status = 'error';
+      org.aiConfig.statusDetails = {
+        lastTested: new Date(),
+        errorReason: errorDetails
+      };
+      await org.save();
+    }
+
+    res.status(400).json({
+      success: false,
+      error: `Verification failed: ${errorDetails}`,
+      code: 'TEST_FAILED'
+    });
   }
 });
 
