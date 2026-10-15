@@ -220,14 +220,26 @@ export default function CampaignsPage() {
                             <div className="bg-wa-green h-1.5 rounded-full transition-all duration-500" style={{ width: `${deliveryRate}%` }} />
                           </div>
                           <div className="text-[10px] text-wa-text-light">
-                            {sent} sent · {delivered} delivered · {campaign.stats?.failed || 0} failed
+                            {sent} sent · {delivered} delivered · <span className={campaign.stats?.failed > 0 ? "text-red-500 font-semibold" : ""}>{campaign.stats?.failed || 0} failed</span>
                           </div>
+                          {campaign.lastError && (campaign.status === 'failed' || (campaign.stats?.failed || 0) > 0) && (
+                            <div 
+                              className="text-[10px] text-red-500 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded truncate max-w-[170px] cursor-help font-medium"
+                              title={campaign.lastError}
+                            >
+                              ⚠ {campaign.lastError}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end items-center gap-1.5">
-                          {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
-                            <button onClick={() => handleStartCampaign(campaign._id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-wa-green hover:bg-wa-green/10 transition-colors" title="Start">
+                          {(campaign.status === 'draft' || campaign.status === 'scheduled' || campaign.status === 'failed') && (
+                            <button 
+                              onClick={() => handleStartCampaign(campaign._id)} 
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-wa-green hover:bg-wa-green/10 transition-colors" 
+                              title={campaign.status === 'failed' ? "Retry Campaign" : "Start"}
+                            >
                               <Play className="w-4 h-4 fill-current" />
                             </button>
                           )}
@@ -241,7 +253,7 @@ export default function CampaignsPage() {
                               <Play className="w-4 h-4 fill-current" />
                             </button>
                           )}
-                          {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
+                          {(campaign.status === 'draft' || campaign.status === 'scheduled' || campaign.status === 'failed') && (
                             <button onClick={() => handleEditCampaign(campaign)} className="w-8 h-8 rounded-lg flex items-center justify-center text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit">
                               <Edit2 className="w-4 h-4" />
                             </button>

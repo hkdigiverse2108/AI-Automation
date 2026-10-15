@@ -33,6 +33,7 @@ const campaignSchema = new mongoose.Schema(
     startedAt: { type: Date },
     completedAt: { type: Date },
     jobId: { type: String },
+    lastError: { type: String },
   },
   { timestamps: true, strict: true }
 );

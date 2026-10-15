@@ -45,6 +45,9 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
             const matched = data.data.templates.find(t => t._id === campaign.templateId || t.name === campaign.templateName);
             if (matched) {
               setSelectedTemplate(matched);
+              if (campaign.variables?.length) {
+                setVariables(campaign.variables);
+              }
             }
           }
         }
@@ -94,7 +97,11 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
           return acc + (matches ? matches.length : 0);
         }, 0);
       }
-      setVariables(Array(varCount).fill(''));
+      if (campaign && (campaign.templateId === t._id || campaign.templateName === t.name) && campaign.variables?.length === varCount) {
+        setVariables([...campaign.variables]);
+      } else {
+        setVariables(Array(varCount).fill(''));
+      }
     } else {
       setVariables([]);
     }
@@ -104,6 +111,23 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
     const next = [...variables];
     next[idx] = value;
     setVariables(next);
+  };
+
+  const getVariableContext = (varNum) => {
+    if (!selectedTemplate) return `Variable {{${varNum}}}`;
+    const bodyComp = selectedTemplate.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+    if (!bodyComp || !bodyComp.text) return `Variable {{${varNum}}}`;
+    
+    const regex = new RegExp(`(?:([\\w\\s\\.,:₹#\\-]{1,25}))?\\{\\{${varNum}\\}\\}(?:([\\w\\s\\.,:₹#\\-]{1,25}))?`, 'i');
+    const match = bodyComp.text.match(regex);
+    if (match) {
+      const before = (match[1] || '').trim();
+      const after = (match[2] || '').trim();
+      if (before && after) return `${before} [{{${varNum}}}] ${after}`;
+      if (before) return `After "${before}"`;
+      if (after) return `Before "${after}"`;
+    }
+    return `Variable {{${varNum}}}`;
   };
 
   const headerComponent = selectedTemplate?.components?.find(
@@ -138,8 +162,8 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
   const handleImageUpload = handleMediaUpload;
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!name) return toast.error('Campaign name is required');
+    if (e && e.preventDefault) e.preventDefault();
+    if (!name || !name.trim()) return toast.error('Campaign name is required');
     if (!selectedTemplate) return toast.error('Please select a template');
     
     if (hasMediaHeader && !headerMediaId) {
@@ -148,6 +172,19 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
     
     if (audienceType === 'tag' && !audienceTags) {
       return toast.error('Please specify target tags');
+    }
+
+    if (audienceType === 'group' && !selectedGroupId) {
+      return toast.error('Please select a target contact group');
+    }
+
+    // Strict validation for template variables
+    if (variables.length > 0) {
+      for (let i = 0; i < variables.length; i++) {
+        if (!variables[i] || !String(variables[i]).trim()) {
+          return toast.error(`Please provide a value for Variable {{${i + 1}}} (or use {{name}})`);
+        }
+      }
     }
     
     if (isScheduled && !scheduledAt) {
@@ -422,7 +459,33 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
                           {c.format === 'VIDEO' ? '🎥 [Video Header]' : c.format === 'DOCUMENT' ? '📄 [Document/PDF Header]' : c.format === 'IMAGE' ? '🖼️ [Image Header]' : (c.text || 'Header')}
                         </div>
                       );
-                      if (c.type === 'BODY') return <div key={i} className="text-dark-700 dark:text-dark-300 whitespace-pre-wrap">{c.text}</div>;
+                      if (c.type === 'BODY') {
+                        const parts = (c.text || '').split(/(\{\{[0-9]+\}\})/g);
+                        return (
+                          <div key={i} className="text-dark-700 dark:text-dark-300 whitespace-pre-wrap text-xs leading-relaxed">
+                            {parts.map((part, pIdx) => {
+                              const match = part.match(/^\{\{([0-9]+)\}\}$/);
+                              if (match) {
+                                const varIndex = parseInt(match[1], 10) - 1;
+                                const val = variables[varIndex];
+                                if (val && val.trim()) {
+                                  return (
+                                    <span key={pIdx} className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 font-semibold px-1 py-0.5 rounded text-[11px] border border-emerald-300 dark:border-emerald-700">
+                                      {val}
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span key={pIdx} className="bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-semibold px-1 py-0.5 rounded text-[11px] border border-amber-300 dark:border-amber-700 animate-pulse" title="Required parameter">
+                                    {part}
+                                  </span>
+                                );
+                              }
+                              return part;
+                            })}
+                          </div>
+                        );
+                      }
                       if (c.type === 'FOOTER') return <div key={i} className="text-xs text-dark-400 mt-1">{c.text}</div>;
                       if (c.type === 'BUTTONS') return (
                         <div key={i} className="flex flex-col gap-1 border-t border-dark-100 dark:border-dark-800 pt-2 text-center text-brand-500 font-semibold text-xs mt-2">
@@ -435,20 +498,49 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
                 </div>
 
                 {variables.length > 0 && (
-                  <div className="space-y-3 pt-2 border-t border-dark-200 dark:border-dark-750">
-                    <span className="block text-xs font-bold uppercase text-dark-400">Map Custom Variable Values</span>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-3 pt-3 border-t border-dark-200 dark:border-dark-750">
+                    <div className="flex items-center justify-between">
+                      <span className="block text-xs font-bold uppercase text-dark-500">
+                        Template Variables ({variables.length} required) *
+                      </span>
+                      <span className="text-[11px] text-dark-400">
+                        All variables must have a value or tag
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                       {variables.map((v, idx) => (
-                        <div key={idx}>
-                          <label className="block text-xs font-medium text-dark-500 mb-1">Variable `{"{{" + (idx + 1) + "}}"}` value:</label>
+                        <div key={idx} className="p-2.5 rounded-xl border border-dark-200 dark:border-dark-700 bg-white/50 dark:bg-dark-850/50 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs font-medium text-dark-600 dark:text-dark-300">
+                            <span className="font-semibold text-brand-600 dark:text-brand-400">Variable `{"{{" + (idx + 1) + "}}"}`</span>
+                            <span className="text-[10px] text-dark-400 truncate max-w-[150px]" title={getVariableContext(idx + 1)}>
+                              {getVariableContext(idx + 1)}
+                            </span>
+                          </div>
                           <input
                             type="text"
                             required
-                            placeholder={`Value for {{${idx + 1}}}`}
+                            placeholder={`e.g. {{name}} or custom value`}
                             value={v}
                             onChange={(e) => handleVariableChange(idx, e.target.value)}
                             className="w-full px-3 py-1.5 text-sm bg-white dark:bg-dark-900 border border-dark-200 dark:border-dark-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/50"
                           />
+                          <div className="flex items-center gap-1.5 pt-0.5">
+                            <span className="text-[10px] text-dark-400">Quick insert:</span>
+                            <button
+                              type="button"
+                              onClick={() => handleVariableChange(idx, (v && !v.includes('{{name}}') ? v + ' ' : '') + '{{name}}')}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-brand-50 hover:bg-brand-100 dark:bg-brand-900/30 dark:hover:bg-brand-900/50 text-brand-600 dark:text-brand-400 font-medium transition-colors"
+                            >
+                              + Name
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleVariableChange(idx, (v && !v.includes('{{phone}}') ? v + ' ' : '') + '{{phone}}')}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-dark-100 hover:bg-dark-200 dark:bg-dark-800 dark:hover:bg-dark-700 text-dark-600 dark:text-dark-300 font-medium transition-colors"
+                            >
+                              + Phone
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

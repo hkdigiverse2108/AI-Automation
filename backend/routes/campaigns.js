@@ -42,6 +42,40 @@ router.post('/', campaignValidation, async (req, res) => {
   try {
     const { name, templateName, templateId, audience, variables, scheduledAt, headerMediaId, isUnofficial } = req.body;
 
+    // Validate that required template variables are not empty
+    const Template = require('../models/Template');
+    const tmplQuery = { userId: req.userId };
+    if (templateId && mongoose.Types.ObjectId.isValid(templateId)) {
+      tmplQuery._id = templateId;
+    } else {
+      tmplQuery.name = templateName;
+    }
+    const tmpl = await Template.findOne(tmplQuery);
+    if (tmpl) {
+      const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+      const varMatches = (bodyComp?.text || '').match(/\{\{[0-9]+\}\}/g) || [];
+      const requiredVarCount = varMatches.length;
+
+      if (requiredVarCount > 0) {
+        if (!Array.isArray(variables) || variables.length < requiredVarCount) {
+          return res.status(400).json({
+            success: false,
+            error: `Template "${tmpl.name}" requires ${requiredVarCount} variable(s). Please fill in all variables.`,
+            code: 'MISSING_VARIABLES'
+          });
+        }
+        for (let i = 0; i < requiredVarCount; i++) {
+          if (!variables[i] || !String(variables[i]).trim()) {
+            return res.status(400).json({
+              success: false,
+              error: `Variable {{${i + 1}}} cannot be empty. Please provide a value or dynamic tag like {{name}}.`,
+              code: 'EMPTY_VARIABLE'
+            });
+          }
+        }
+      }
+    }
+
     const campaign = await Campaign.create({
       userId: req.userId,
       name,
@@ -102,7 +136,7 @@ router.post('/:id/start', ...validateObjectId('id'), async (req, res) => {
     const campaign = await Campaign.findOne({ _id: req.params.id, userId: req.userId });
     if (!campaign) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
 
-    if (!['draft', 'scheduled'].includes(campaign.status)) {
+    if (!['draft', 'scheduled', 'failed'].includes(campaign.status)) {
       return res.status(400).json({ success: false, error: 'Campaign cannot be started', code: 'INVALID_STATUS' });
     }
 
@@ -171,23 +205,64 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
     const campaign = await Campaign.findOne({ _id: req.params.id, userId: req.userId });
     if (!campaign) return res.status(404).json({ success: false, error: 'Campaign not found', code: 'NOT_FOUND' });
 
-    // Only allow editing drafts or scheduled campaigns
-    if (!['draft', 'scheduled'].includes(campaign.status)) {
-      return res.status(400).json({ success: false, error: 'Only drafts or scheduled campaigns can be edited', code: 'INVALID_STATUS' });
+    // Only allow editing drafts, scheduled or failed campaigns
+    if (!['draft', 'scheduled', 'failed'].includes(campaign.status)) {
+      return res.status(400).json({ success: false, error: 'Only drafts, scheduled, or failed campaigns can be edited', code: 'INVALID_STATUS' });
     }
 
     const { name, templateName, templateId, audience, variables, scheduledAt, headerMediaId } = req.body;
+
+    const targetTemplateName = templateName || campaign.templateName;
+    const targetTemplateId = templateId || campaign.templateId;
+
+    if (variables !== undefined) {
+      const Template = require('../models/Template');
+      const tmplQuery = { userId: req.userId };
+      if (targetTemplateId && mongoose.Types.ObjectId.isValid(targetTemplateId)) {
+        tmplQuery._id = targetTemplateId;
+      } else {
+        tmplQuery.name = targetTemplateName;
+      }
+      const tmpl = await Template.findOne(tmplQuery);
+      if (tmpl) {
+        const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+        const varMatches = (bodyComp?.text || '').match(/\{\{[0-9]+\}\}/g) || [];
+        const requiredVarCount = varMatches.length;
+
+        if (requiredVarCount > 0) {
+          if (!Array.isArray(variables) || variables.length < requiredVarCount) {
+            return res.status(400).json({
+              success: false,
+              error: `Template requires ${requiredVarCount} variable(s). Please fill in all variables.`,
+              code: 'MISSING_VARIABLES'
+            });
+          }
+          for (let i = 0; i < requiredVarCount; i++) {
+            if (!variables[i] || !String(variables[i]).trim()) {
+              return res.status(400).json({
+                success: false,
+                error: `Variable {{${i + 1}}} cannot be empty.`,
+                code: 'EMPTY_VARIABLE'
+              });
+            }
+          }
+        }
+      }
+      campaign.variables = variables;
+    }
 
     if (name) campaign.name = name;
     if (templateName) campaign.templateName = templateName;
     if (templateId) campaign.templateId = templateId;
     if (audience) campaign.audience = audience;
-    if (variables) campaign.variables = variables;
     if (headerMediaId !== undefined) campaign.headerMediaId = headerMediaId;
     
     if (scheduledAt !== undefined) {
       campaign.scheduledAt = scheduledAt ? new Date(scheduledAt) : undefined;
       campaign.status = scheduledAt ? 'scheduled' : 'draft';
+    } else if (campaign.status === 'failed') {
+      campaign.status = 'draft';
+      campaign.lastError = undefined;
     }
 
     await campaign.save();

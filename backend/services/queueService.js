@@ -84,7 +84,19 @@ async function processCampaignJob(job, isUnofficial) {
       if (variables.length > 0) {
         templateComponents.push({
           type: 'body',
-          parameters: variables.map((v) => ({ type: 'text', text: v })),
+          parameters: variables.map((v, idx) => {
+            let textVal = String(v ?? '').trim();
+            // Support dynamic placeholder substitution
+            textVal = textVal
+              .replace(/\{\{\s*(name|contact\.name)\s*\}\}/gi, contact.name || 'Customer')
+              .replace(/\{\{\s*(phone|contact\.phone)\s*\}\}/gi, contact.phone || '')
+              .trim();
+            // Meta strictly rejects empty string parameter with error #131008
+            if (!textVal) {
+              textVal = idx === 0 ? (contact.name || 'Customer') : '-';
+            }
+            return { type: 'text', text: textVal };
+          }),
         });
       }
 
@@ -154,7 +166,14 @@ async function processCampaignJob(job, isUnofficial) {
         });
       }
     } else {
-      await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.failed': 1 } });
+      const errorMsg = result.error || result.data?.error?.message || (result.data?.error ? JSON.stringify(result.data.error) : 'Failed to send message via Meta API');
+      await Campaign.updateOne(
+        { _id: campaignId },
+        { 
+          $inc: { 'stats.failed': 1 },
+          $set: { lastError: errorMsg }
+        }
+      );
 
       const isRateLimit = result.status === 429 || result.code === 429 || result.code === 130429 || result.error_subcode === 130429;
       if (isRateLimit) {
@@ -194,7 +213,13 @@ async function processCampaignJob(job, isUnofficial) {
     return { success: result.success };
   } catch (error) {
     logger.error(`Campaign job error: ${error.message}`, { campaignId, contactId });
-    await Campaign.updateOne({ _id: campaignId }, { $inc: { 'stats.failed': 1 } });
+    await Campaign.updateOne(
+      { _id: campaignId },
+      { 
+        $inc: { 'stats.failed': 1 },
+        $set: { lastError: error.message }
+      }
+    );
     throw error;
   }
 }
@@ -208,15 +233,15 @@ function registerQueueListeners(queue) {
       if (waiting === 0 && active === 0) {
         const campaignObj = await Campaign.findOne({ _id: campaignId, status: 'running' });
         if (campaignObj) {
-          campaignObj.status = 'completed';
-          campaignObj.completedAt = new Date();
-          await campaignObj.save();
-
-          logger.info(`Campaign ${campaignId} completed`);
-
           const totalFailed = campaignObj.stats?.failed || 0;
           const totalSent = campaignObj.stats?.sent || 0;
           const isFailedCampaign = totalFailed > 0 && totalSent === 0;
+
+          campaignObj.status = isFailedCampaign ? 'failed' : 'completed';
+          campaignObj.completedAt = new Date();
+          await campaignObj.save();
+
+          logger.info(`Campaign ${campaignId} ${isFailedCampaign ? 'failed' : 'completed'}`);
 
           const User = require('../models/User');
           const user = await User.findById(campaignObj.userId).lean();
@@ -408,6 +433,8 @@ async function startCampaign(campaignId, userId) {
   campaign.audience.totalCount = contacts.length;
   campaign.status = 'running';
   campaign.startedAt = new Date();
+  campaign.completedAt = undefined;
+  campaign.lastError = undefined;
   campaign.stats = { sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, optedOut: 0 };
   await campaign.save();
 
