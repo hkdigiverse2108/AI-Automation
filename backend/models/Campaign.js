@@ -3,6 +3,10 @@ const mongoose = require('mongoose');
 const campaignSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    createdByName: { type: String, default: 'Admin' },
+    lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    lastModifiedByName: { type: String, default: 'Admin' },
     name: { type: String, required: true, trim: true },
     templateId: { type: String },
     templateName: { type: String },

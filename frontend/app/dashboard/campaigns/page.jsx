@@ -3,11 +3,13 @@ import { useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   Megaphone, Plus, Play, Pause, RefreshCw, BarChart2, Calendar,
-  CheckCircle2, AlertTriangle, Loader2, Clock, ArrowUpRight, Edit2, Trash2, CalendarOff
+  CheckCircle2, AlertTriangle, Loader2, Clock, ArrowUpRight, Edit2, Trash2, CalendarOff, History
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { usePageData } from '../../../lib/usePageData';
 import dynamic from 'next/dynamic';
+import CampaignReports from '../../../components/CampaignReports';
+import CampaignActivityLogs from '../../../components/CampaignActivityLogs';
 
 const CampaignForm = dynamic(() => import('../../../components/CampaignForm'), {
   ssr: false,
@@ -17,6 +19,7 @@ import { formatDate } from '../../../lib/utils';
 
 export default function CampaignsPage() {
   const confirm = useConfirmStore((state) => state.confirm);
+  const [activeTab, setActiveTab] = useState('campaigns'); // 'campaigns' | 'reports' | 'logs'
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
 
@@ -133,20 +136,79 @@ export default function CampaignsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Blast Campaigns</h2>
-          <p className="text-sm text-wa-text-secondary dark:text-wa-dark-text-secondary mt-0.5">Launch marketing campaigns and track delivery metrics.</p>
+          <h2 className="text-xl font-bold text-wa-text-primary dark:text-wa-dark-text-primary">
+            {activeTab === 'campaigns'
+              ? 'Blast Campaigns'
+              : activeTab === 'reports'
+              ? 'Campaign Analytics & Reports'
+              : 'Campaign Activity & Audit Logs'}
+          </h2>
+          <p className="text-sm text-wa-text-secondary dark:text-wa-dark-text-secondary mt-0.5">
+            {activeTab === 'campaigns'
+              ? 'Launch marketing campaigns and track delivery metrics.'
+              : activeTab === 'reports'
+              ? 'Deep-dive delivery funnel, read rates, engagement, and template performance.'
+              : 'Complete history of who created, edited, scheduled, launched, or deleted campaigns.'}
+          </p>
         </div>
-        <button
-          onClick={() => { setEditingCampaign(null); setIsFormOpen(true); }}
-          className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          New Campaign
-        </button>
+
+        <div className="flex items-center gap-3">
+          {/* Toggle Switcher: Campaigns / Reports / Activity Logs */}
+          <div className="bg-wa-search dark:bg-wa-dark-search p-1 rounded-xl flex items-center border border-wa-border/50 dark:border-wa-dark-border/50 shadow-inner">
+            <button
+              type="button"
+              onClick={() => setActiveTab('campaigns')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                activeTab === 'campaigns'
+                  ? 'bg-wa-surface dark:bg-wa-dark-surface text-wa-green shadow-sm'
+                  : 'text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-wa-dark-text-primary'
+              }`}
+            >
+              <Megaphone className="w-3.5 h-3.5" />
+              Campaigns
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('reports')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                activeTab === 'reports'
+                  ? 'bg-wa-surface dark:bg-wa-dark-surface text-wa-green shadow-sm'
+                  : 'text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-wa-dark-text-primary'
+              }`}
+            >
+              <BarChart2 className="w-3.5 h-3.5" />
+              Reports
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('logs')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                activeTab === 'logs'
+                  ? 'bg-wa-surface dark:bg-wa-dark-surface text-wa-green shadow-sm'
+                  : 'text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-wa-dark-text-primary'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              Activity Logs
+            </button>
+          </div>
+
+          {activeTab === 'campaigns' && (
+            <button
+              onClick={() => { setEditingCampaign(null); setIsFormOpen(true); }}
+              className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              New Campaign
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {activeTab === 'campaigns' ? (
+        <>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((card, i) => (
           <div
             key={i}
@@ -233,7 +295,15 @@ export default function CampaignsPage() {
                       style={{ animationDelay: `${Math.min(idx, 15) * 30}ms` }}
                       className="animate-row-in hover:bg-wa-hover/60 dark:hover:bg-wa-dark-hover/60 transition-all"
                     >
-                      <td className="px-6 py-4 font-semibold text-wa-text-primary dark:text-wa-dark-text-primary">{campaign.name}</td>
+                      <td className="px-6 py-4">
+                        <span className="font-semibold text-wa-text-primary dark:text-wa-dark-text-primary block">
+                          {campaign.name}
+                        </span>
+                        <span className="text-[10px] text-wa-text-secondary block mt-0.5">
+                          By {campaign.createdByName || 'Admin'}
+                          {campaign.lastModifiedByName && campaign.lastModifiedByName !== (campaign.createdByName || 'Admin') && ` · Edited by ${campaign.lastModifiedByName}`}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 text-wa-text-secondary font-mono text-xs">{campaign.templateName}</td>
                       <td className="px-6 py-4 text-wa-text-secondary text-xs">{target}</td>
                       <td className="px-6 py-4 text-xs">
@@ -323,8 +393,22 @@ export default function CampaignsPage() {
           </table>
         </div>
       </div>
+    </>
+  ) : activeTab === 'reports' ? (
+    <CampaignReports
+      campaigns={campaigns}
+      onRefresh={fetchCampaigns}
+      loading={loading}
+      onViewLogs={() => setActiveTab('logs')}
+    />
+  ) : (
+    <CampaignActivityLogs
+      campaigns={campaigns}
+      onRefreshCampaigns={fetchCampaigns}
+    />
+  )}
 
-      {/* FORM MODAL */}
+  {/* FORM MODAL */}
       {isFormOpen && (
         <CampaignForm
           campaign={editingCampaign}

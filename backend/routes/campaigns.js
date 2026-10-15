@@ -37,6 +37,45 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /campaigns/logs — fetch full CRUD audit trail for campaigns
+router.get('/logs', async (req, res) => {
+  try {
+    const { limit = 100, page = 1, campaignId, action } = req.query;
+    const query = {
+      userId: req.userId,
+      resource: 'Campaign',
+    };
+    if (campaignId && mongoose.Types.ObjectId.isValid(campaignId)) {
+      query.resourceId = campaignId;
+    }
+    if (action && action !== 'all') {
+      query.action = action;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [logs, total] = await Promise.all([
+      AuditLog.find(query)
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      AuditLog.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        logs,
+        total,
+        page: parseInt(page),
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch campaign logs', code: 'LOGS_ERROR' });
+  }
+});
+
 // POST /campaigns — create
 router.post('/', campaignValidation, async (req, res) => {
   try {
@@ -88,8 +127,13 @@ router.post('/', campaignValidation, async (req, res) => {
       parsedScheduledAt = new Date(schedTime);
     }
 
+    const actorName = req.user?.name || req.user?.email || 'Admin';
     const campaign = await Campaign.create({
       userId: req.userId,
+      createdBy: req.user?._id,
+      createdByName: actorName,
+      lastModifiedBy: req.user?._id,
+      lastModifiedByName: actorName,
       name,
       templateName,
       templateId,
@@ -104,6 +148,25 @@ router.post('/', campaignValidation, async (req, res) => {
     if (campaign.audience?.groupIds?.length) {
       await campaign.populate('audience.groupIds', 'name');
     }
+
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user?._id,
+      actorName: actorName,
+      role: req.user?.role || 'admin',
+      action: 'CREATE_CAMPAIGN',
+      resource: 'Campaign',
+      resourceId: campaign._id.toString(),
+      newValue: {
+        name: campaign.name,
+        templateName: campaign.templateName,
+        audienceType: campaign.audience?.type,
+        status: campaign.status,
+        scheduledAt: campaign.scheduledAt
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
 
     res.status(201).json({ success: true, data: { campaign }, message: 'Campaign created' });
   } catch (error) {
@@ -154,7 +217,23 @@ router.post('/:id/start', ...validateObjectId('id'), async (req, res) => {
 
     const result = await queueService.startCampaign(campaign._id, req.userId);
 
-    await AuditLog.log({ userId: req.userId, action: 'START_CAMPAIGN', resource: 'Campaign', resourceId: req.params.id, ip: req.ip, userAgent: req.headers['user-agent'] });
+    const actorName = req.user?.name || req.user?.email || 'Admin';
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user?._id,
+      actorName: actorName,
+      role: req.user?.role || 'admin',
+      action: 'START_CAMPAIGN',
+      resource: 'Campaign',
+      resourceId: req.params.id,
+      newValue: {
+        name: campaign.name,
+        templateName: campaign.templateName,
+        status: 'running'
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
 
     res.json({ success: true, data: result, message: 'Campaign started' });
   } catch (error) {
@@ -169,6 +248,21 @@ router.post('/:id/pause', ...validateObjectId('id'), async (req, res) => {
     if (!campaign) return res.status(404).json({ success: false, error: 'Not found or not running', code: 'NOT_FOUND' });
 
     await queueService.pauseCampaign(campaign._id);
+
+    const actorName = req.user?.name || req.user?.email || 'Admin';
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user?._id,
+      actorName: actorName,
+      role: req.user?.role || 'admin',
+      action: 'PAUSE_CAMPAIGN',
+      resource: 'Campaign',
+      resourceId: req.params.id,
+      newValue: { name: campaign.name, status: 'paused' },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.json({ success: true, message: 'Campaign paused' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Pause failed', code: 'PAUSE_ERROR' });
@@ -182,6 +276,21 @@ router.post('/:id/resume', ...validateObjectId('id'), async (req, res) => {
     if (!campaign) return res.status(404).json({ success: false, error: 'Not found or not paused', code: 'NOT_FOUND' });
 
     await queueService.resumeCampaign(campaign._id);
+
+    const actorName = req.user?.name || req.user?.email || 'Admin';
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user?._id,
+      actorName: actorName,
+      role: req.user?.role || 'admin',
+      action: 'RESUME_CAMPAIGN',
+      resource: 'Campaign',
+      resourceId: req.params.id,
+      newValue: { name: campaign.name, status: 'running' },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
     res.json({ success: true, message: 'Campaign resumed' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Resume failed', code: 'RESUME_ERROR' });
@@ -263,6 +372,17 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
       campaign.variables = variables;
     }
 
+    const actorName = req.user?.name || req.user?.email || 'Admin';
+    const oldValues = {
+      name: campaign.name,
+      templateName: campaign.templateName,
+      scheduledAt: campaign.scheduledAt,
+      status: campaign.status,
+    };
+
+    campaign.lastModifiedBy = req.user?._id;
+    campaign.lastModifiedByName = actorName;
+
     if (name) campaign.name = name;
     if (templateName) campaign.templateName = templateName;
     if (templateId) campaign.templateId = templateId;
@@ -295,7 +415,24 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
       await campaign.populate('audience.groupIds', 'name');
     }
 
-    await AuditLog.log({ userId: req.userId, action: 'EDIT_CAMPAIGN', resource: 'Campaign', resourceId: req.params.id, ip: req.ip, userAgent: req.headers['user-agent'] });
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user?._id,
+      actorName: actorName,
+      role: req.user?.role || 'admin',
+      action: 'EDIT_CAMPAIGN',
+      resource: 'Campaign',
+      resourceId: req.params.id,
+      oldValue: oldValues,
+      newValue: {
+        name: campaign.name,
+        templateName: campaign.templateName,
+        scheduledAt: campaign.scheduledAt,
+        status: campaign.status
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
 
     res.json({ success: true, data: { campaign }, message: 'Campaign updated successfully' });
   } catch (error) {
@@ -313,11 +450,28 @@ router.post('/:id/unschedule', ...validateObjectId('id'), async (req, res) => {
       return res.status(400).json({ success: false, error: 'Only scheduled campaigns can be unscheduled', code: 'INVALID_STATUS' });
     }
 
+    const actorName = req.user?.name || req.user?.email || 'Admin';
+    const oldSched = campaign.scheduledAt;
+
     campaign.status = 'draft';
     campaign.scheduledAt = undefined;
+    campaign.lastModifiedBy = req.user?._id;
+    campaign.lastModifiedByName = actorName;
     await campaign.save();
 
-    await AuditLog.log({ userId: req.userId, action: 'UNSCHEDULE_CAMPAIGN', resource: 'Campaign', resourceId: req.params.id, ip: req.ip, userAgent: req.headers['user-agent'] });
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user?._id,
+      actorName: actorName,
+      role: req.user?.role || 'admin',
+      action: 'UNSCHEDULE_CAMPAIGN',
+      resource: 'Campaign',
+      resourceId: req.params.id,
+      oldValue: { scheduledAt: oldSched, status: 'scheduled' },
+      newValue: { status: 'draft' },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
 
     res.json({ success: true, message: 'Campaign schedule canceled. Moved to drafts.', data: { campaign } });
   } catch (error) {
@@ -340,7 +494,23 @@ router.delete('/:id', ...validateObjectId('id'), async (req, res) => {
       }
     }
 
-    await AuditLog.log({ userId: req.userId, action: 'DELETE_CAMPAIGN', resource: 'Campaign', resourceId: req.params.id, ip: req.ip, userAgent: req.headers['user-agent'] });
+    const actorName = req.user?.name || req.user?.email || 'Admin';
+    await AuditLog.log({
+      userId: req.userId,
+      actorId: req.user?._id,
+      actorName: actorName,
+      role: req.user?.role || 'admin',
+      action: 'DELETE_CAMPAIGN',
+      resource: 'Campaign',
+      resourceId: req.params.id,
+      oldValue: {
+        name: campaign.name,
+        templateName: campaign.templateName,
+        status: campaign.status
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
     
     res.json({ success: true, message: 'Campaign deleted successfully' });
   } catch (error) {
