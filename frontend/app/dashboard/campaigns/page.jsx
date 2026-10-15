@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   Megaphone, Plus, Play, Pause, RefreshCw, BarChart2, Calendar,
-  CheckCircle2, AlertTriangle, Loader2, Clock, ArrowUpRight, Edit2, Trash2
+  CheckCircle2, AlertTriangle, Loader2, Clock, ArrowUpRight, Edit2, Trash2, CalendarOff
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { usePageData } from '../../../lib/usePageData';
@@ -35,15 +35,43 @@ export default function CampaignsPage() {
     totalSent: campaigns.reduce((acc, c) => acc + (c.stats?.sent || 0), 0),
   };
 
-  const handleStartCampaign = async (id) => {
+  const handleStartCampaign = async (campaign) => {
+    const campaignId = typeof campaign === 'object' ? campaign._id : campaign;
+    const campaignObj = typeof campaign === 'object' ? campaign : campaigns.find(c => c._id === campaignId);
+
+    if (campaignObj?.status === 'scheduled') {
+      const confirmed = await confirm(
+        `This campaign is scheduled for ${formatDate(campaignObj.scheduledAt)}. Are you sure you want to send it NOW immediately?`,
+        'Send Scheduled Campaign Now'
+      );
+      if (!confirmed) return;
+    }
+
     try {
-      const { data } = await api.post(`/campaigns/${id}/start`);
+      const { data } = await api.post(`/campaigns/${campaignId}/start`);
       if (data.success) {
         toast.success(data.message || 'Campaign blast queued!');
         fetchCampaigns();
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to start campaign');
+    }
+  };
+
+  const handleUnscheduleCampaign = async (id) => {
+    const confirmed = await confirm(
+      'Are you sure you want to cancel the schedule and move this campaign back to drafts?',
+      'Unschedule Campaign'
+    );
+    if (!confirmed) return;
+    try {
+      const { data } = await api.post(`/campaigns/${id}/unschedule`);
+      if (data.success) {
+        toast.success(data.message || 'Campaign schedule canceled');
+        fetchCampaigns();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to unschedule');
     }
   };
 
@@ -208,7 +236,16 @@ export default function CampaignsPage() {
                       <td className="px-6 py-4 font-semibold text-wa-text-primary dark:text-wa-dark-text-primary">{campaign.name}</td>
                       <td className="px-6 py-4 text-wa-text-secondary font-mono text-xs">{campaign.templateName}</td>
                       <td className="px-6 py-4 text-wa-text-secondary text-xs">{target}</td>
-                      <td className="px-6 py-4 text-wa-text-secondary text-xs">{formatDate(campaign.scheduledAt || campaign.createdAt)}</td>
+                      <td className="px-6 py-4 text-xs">
+                        {campaign.status === 'scheduled' && campaign.scheduledAt ? (
+                          <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium" title={`Scheduled for: ${new Date(campaign.scheduledAt).toLocaleString()}`}>
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
+                            <span>{formatDate(campaign.scheduledAt)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-wa-text-secondary">{formatDate(campaign.createdAt)}</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4">{getStatusBadge(campaign.status)}</td>
                       <td className="px-6 py-4">
                         <div className="space-y-1.5 min-w-[130px]">
@@ -234,11 +271,26 @@ export default function CampaignsPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end items-center gap-1.5">
+                          {campaign.status === 'scheduled' && (
+                            <button
+                              onClick={() => handleUnscheduleCampaign(campaign._id)}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                              title="Cancel Schedule / Move to Draft"
+                            >
+                              <CalendarOff className="w-4 h-4" />
+                            </button>
+                          )}
                           {(campaign.status === 'draft' || campaign.status === 'scheduled' || campaign.status === 'failed') && (
                             <button 
-                              onClick={() => handleStartCampaign(campaign._id)} 
+                              onClick={() => handleStartCampaign(campaign)} 
                               className="w-8 h-8 rounded-lg flex items-center justify-center text-wa-green hover:bg-wa-green/10 transition-colors" 
-                              title={campaign.status === 'failed' ? "Retry Campaign" : "Start"}
+                              title={
+                                campaign.status === 'failed' 
+                                  ? "Retry Campaign" 
+                                  : campaign.status === 'scheduled' 
+                                  ? "Send Scheduled Campaign Now" 
+                                  : "Start Campaign"
+                              }
                             >
                               <Play className="w-4 h-4 fill-current" />
                             </button>

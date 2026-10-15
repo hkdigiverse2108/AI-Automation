@@ -76,6 +76,18 @@ router.post('/', campaignValidation, async (req, res) => {
       }
     }
 
+    let parsedScheduledAt = undefined;
+    if (scheduledAt) {
+      const schedTime = new Date(scheduledAt).getTime();
+      if (isNaN(schedTime)) {
+        return res.status(400).json({ success: false, error: 'Invalid scheduled date format', code: 'INVALID_SCHEDULE' });
+      }
+      if (schedTime <= Date.now() + 60000) {
+        return res.status(400).json({ success: false, error: 'Scheduled time must be at least 1-2 minutes in the future', code: 'PAST_SCHEDULE_TIME' });
+      }
+      parsedScheduledAt = new Date(schedTime);
+    }
+
     const campaign = await Campaign.create({
       userId: req.userId,
       name,
@@ -85,8 +97,8 @@ router.post('/', campaignValidation, async (req, res) => {
       variables: variables || [],
       headerMediaId,
       isUnofficial: !!isUnofficial,
-      status: scheduledAt ? 'scheduled' : 'draft',
-      scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+      status: parsedScheduledAt ? 'scheduled' : 'draft',
+      scheduledAt: parsedScheduledAt,
     });
     
     if (campaign.audience?.groupIds?.length) {
@@ -258,8 +270,20 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
     if (headerMediaId !== undefined) campaign.headerMediaId = headerMediaId;
     
     if (scheduledAt !== undefined) {
-      campaign.scheduledAt = scheduledAt ? new Date(scheduledAt) : undefined;
-      campaign.status = scheduledAt ? 'scheduled' : 'draft';
+      if (scheduledAt) {
+        const schedTime = new Date(scheduledAt).getTime();
+        if (isNaN(schedTime)) {
+          return res.status(400).json({ success: false, error: 'Invalid scheduled date format', code: 'INVALID_SCHEDULE' });
+        }
+        if (schedTime <= Date.now() + 60000) {
+          return res.status(400).json({ success: false, error: 'Scheduled time must be at least 1-2 minutes in the future', code: 'PAST_SCHEDULE_TIME' });
+        }
+        campaign.scheduledAt = new Date(schedTime);
+        campaign.status = 'scheduled';
+      } else {
+        campaign.scheduledAt = undefined;
+        campaign.status = 'draft';
+      }
     } else if (campaign.status === 'failed') {
       campaign.status = 'draft';
       campaign.lastError = undefined;
@@ -276,6 +300,28 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
     res.json({ success: true, data: { campaign }, message: 'Campaign updated successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to update campaign', code: 'UPDATE_ERROR' });
+  }
+});
+
+// POST /campaigns/:id/unschedule — Cancel schedule and move back to draft
+router.post('/:id/unschedule', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const campaign = await Campaign.findOne({ _id: req.params.id, userId: req.userId });
+    if (!campaign) return res.status(404).json({ success: false, error: 'Campaign not found', code: 'NOT_FOUND' });
+
+    if (campaign.status !== 'scheduled') {
+      return res.status(400).json({ success: false, error: 'Only scheduled campaigns can be unscheduled', code: 'INVALID_STATUS' });
+    }
+
+    campaign.status = 'draft';
+    campaign.scheduledAt = undefined;
+    await campaign.save();
+
+    await AuditLog.log({ userId: req.userId, action: 'UNSCHEDULE_CAMPAIGN', resource: 'Campaign', resourceId: req.params.id, ip: req.ip, userAgent: req.headers['user-agent'] });
+
+    res.json({ success: true, message: 'Campaign schedule canceled. Moved to drafts.', data: { campaign } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message || 'Failed to unschedule campaign', code: 'UNSCHEDULE_ERROR' });
   }
 });
 

@@ -372,8 +372,37 @@ async function initQueues(io) {
         scheduledAt: { $lte: new Date() },
       });
       for (const campaign of due) {
-        logger.info(`Starting scheduled campaign: ${campaign._id}`);
-        await startCampaign(campaign._id, campaign.userId);
+        // Safe check for stale / expired campaigns (e.g. server was offline for > 24 hours)
+        const overdueHours = (Date.now() - new Date(campaign.scheduledAt).getTime()) / 3600000;
+        if (overdueHours > 24) {
+          logger.warn(`Scheduled campaign ${campaign._id} expired (${overdueHours.toFixed(1)}h overdue). Converting to draft.`);
+          campaign.status = 'draft';
+          campaign.lastError = `Scheduled time expired while system was offline (was set for ${new Date(campaign.scheduledAt).toLocaleString()}). Please reschedule.`;
+          await campaign.save();
+          continue;
+        }
+
+        // Atomic lock to prevent duplicate runs across concurrent workers or instances
+        const lockedCampaign = await Campaign.findOneAndUpdate(
+          { _id: campaign._id, status: 'scheduled' },
+          { $set: { status: 'running', startedAt: new Date() } },
+          { new: true }
+        );
+        if (!lockedCampaign) {
+          // Already locked or updated by another worker
+          continue;
+        }
+
+        try {
+          logger.info(`Starting scheduled campaign: ${lockedCampaign._id}`);
+          await startCampaign(lockedCampaign._id, lockedCampaign.userId);
+        } catch (startErr) {
+          logger.error(`Failed to start scheduled campaign ${lockedCampaign._id}: ${startErr.message}`);
+          await Campaign.updateOne(
+            { _id: lockedCampaign._id },
+            { $set: { status: 'failed', lastError: startErr.message } }
+          );
+        }
       }
 
       // 2. Process due sequences

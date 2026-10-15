@@ -1,9 +1,17 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { X, Play, Calendar, Users, FileText, AlertCircle, Loader2, FolderOpen } from 'lucide-react';
+import { X, Play, Calendar, Users, FileText, AlertCircle, Loader2, FolderOpen, Clock } from 'lucide-react';
 import api from '../lib/api';
 import Portal from './Portal';
+
+function toLocalDatetimeString(date) {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  const tzOffset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+}
 
 export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficial }) {
   const [templates, setTemplates] = useState([]);
@@ -27,7 +35,7 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
   const [variables, setVariables] = useState(campaign?.variables || []);
   const [isScheduled, setIsScheduled] = useState(campaign ? !!campaign.scheduledAt : false);
   const [scheduledAt, setScheduledAt] = useState(
-    campaign?.scheduledAt ? new Date(campaign.scheduledAt).toISOString().slice(0, 16) : ''
+    campaign?.scheduledAt ? toLocalDatetimeString(campaign.scheduledAt) : ''
   );
   const [headerMediaId, setHeaderMediaId] = useState(campaign?.headerMediaId || '');
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -187,8 +195,17 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
       }
     }
     
-    if (isScheduled && !scheduledAt) {
-      return toast.error('Please specify a schedule time');
+    if (isScheduled) {
+      if (!scheduledAt) {
+        return toast.error('Please specify a schedule date and time');
+      }
+      const schedDate = new Date(scheduledAt);
+      if (isNaN(schedDate.getTime())) {
+        return toast.error('Invalid schedule date format');
+      }
+      if (schedDate.getTime() <= Date.now() + 60000) {
+        return toast.error('Scheduled time must be at least 1-2 minutes in the future');
+      }
     }
 
     setSaving(true);
@@ -205,7 +222,7 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
         variables,
         headerMediaId,
         isUnofficial: isUnofficial !== undefined ? isUnofficial : (campaign ? campaign.isUnofficial : false),
-        scheduledAt: isScheduled ? new Date(scheduledAt).toISOString() : undefined
+        scheduledAt: isScheduled && scheduledAt ? new Date(scheduledAt).toISOString() : undefined
       };
 
       let res;
@@ -567,15 +584,26 @@ export default function CampaignForm({ campaign, onClose, onSuccess, isUnofficia
             </div>
 
             {isScheduled && (
-              <div className="flex items-center gap-2 max-w-sm animate-fade-in">
-                <Calendar className="w-5 h-5 text-dark-400 shrink-0" />
-                <input 
-                  type="datetime-local" 
-                  required
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  className="input-field py-2 text-sm"
-                />
+              <div className="space-y-2.5 animate-fade-in">
+                <div className="flex items-center gap-2 max-w-sm">
+                  <Calendar className="w-5 h-5 text-dark-400 shrink-0" />
+                  <input 
+                    type="datetime-local" 
+                    required
+                    min={toLocalDatetimeString(new Date(Date.now() + 2 * 60000))}
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    className="input-field py-2 text-sm"
+                  />
+                </div>
+                {scheduledAt && !isNaN(new Date(scheduledAt).getTime()) && (
+                  <div className="p-2.5 rounded-xl bg-brand-50/60 dark:bg-brand-950/20 border border-brand-200 dark:border-brand-900/50 text-xs text-brand-700 dark:text-brand-300 flex items-center gap-2">
+                    <Clock className="w-4 h-4 shrink-0 text-brand-500" />
+                    <span>
+                      Will trigger on: <strong>{new Date(scheduledAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</strong> ({Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local Time'})
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
