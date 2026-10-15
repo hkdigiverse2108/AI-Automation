@@ -1073,11 +1073,31 @@ router.post('/conversations/:id/assign', ...validateObjectId('id'), async (req, 
       return res.json({ success: true, data: { conversation: result.conversation } });
     }
 
-    // 1. Determine target agent.
-    // Agents can only take over for themselves. Admins can assign to anyone.
-    const targetAgentId = req.user.role === 'agent' ? req.user._id : (agentId || req.user._id);
+    // 1. Fetch current conversation state
+    const oldConv = await Conversation.findOne({ _id: req.params.id, userId: req.userId }).populate('assignedAgent', 'name email');
+    if (!oldConv) {
+      return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
+    }
 
-    // 2. Fetch agent details
+    // 2. Determine target agent.
+    // - Agents can only take over for themselves (req.user._id).
+    // - Admins can assign to anyone explicitly (agentId).
+    // - If Admin takes over without specifying agentId, restore previous_assigned_agent if exists, else assign to caller.
+    let targetAgentId = req.user.role === 'agent' ? req.user._id : agentId;
+    if (!targetAgentId) {
+      const candidateAgent = oldConv.previous_assigned_agent || oldConv.assignedAgent?._id || oldConv.assignedAgent;
+      if (candidateAgent) {
+        const prevUser = await User.findById(candidateAgent);
+        if (prevUser && !prevUser.isDeleted && !prevUser.isSuspended) {
+          targetAgentId = candidateAgent;
+        }
+      }
+      if (!targetAgentId) {
+        targetAgentId = req.user._id;
+      }
+    }
+
+    // 3. Fetch agent details
     const agentUser = await User.findById(targetAgentId);
     if (!agentUser || agentUser.isDeleted) {
       return res.status(400).json({ success: false, error: 'Target agent not found', code: 'AGENT_NOT_FOUND' });
@@ -1086,7 +1106,7 @@ router.post('/conversations/:id/assign', ...validateObjectId('id'), async (req, 
       return res.status(400).json({ success: false, error: 'Target agent is suspended', code: 'AGENT_SUSPENDED' });
     }
 
-    // 3. Setup atomic query conditions
+    // 4. Setup atomic query conditions
     let query = {
       _id: req.params.id,
       userId: req.userId
@@ -1102,12 +1122,7 @@ router.post('/conversations/:id/assign', ...validateObjectId('id'), async (req, 
       ];
     }
 
-    // 4. Perform atomic update
-    const oldConv = await Conversation.findOne({ _id: req.params.id, userId: req.userId }).populate('assignedAgent', 'name email');
-    if (!oldConv) {
-      return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
-    }
-
+    // 5. Perform atomic update
     const conversation = await Conversation.findOneAndUpdate(
       query,
       {
@@ -1117,7 +1132,9 @@ router.post('/conversations/:id/assign', ...validateObjectId('id'), async (req, 
           assigned_at: new Date(),
           lock_status: true,
           takeover_status: 'human',
-          status: 'human'
+          status: 'human',
+          previous_assigned_agent: null,
+          previous_status: null
         }
       },
       { new: true }
@@ -1253,18 +1270,31 @@ router.post('/conversations/:id/transfer-to-ai', ...validateObjectId('id'), asyn
       ];
     }
 
-    const conversation = await Conversation.findOneAndUpdate(
-      query,
-      {
-        $set: {
-          status: 'bot', // returns to bot mode
-          lock_status: false,
-          takeover_status: 'ai',
-          assignedAgent: null,
-          assigned_agent_id: null,
-          assigned_at: null
-        }
-      },
+    const existingConv = await Conversation.findOne(query);
+    if (!existingConv) {
+      return res.status(403).json({ success: false, error: 'Access denied or conversation not found', code: 'FORBIDDEN' });
+    }
+
+    const currentAgent = existingConv.assignedAgent || existingConv.assigned_agent_id || null;
+    const updateSet = {
+      status: 'bot', // returns to bot mode
+      lock_status: false,
+      takeover_status: 'ai',
+      assignedAgent: null,
+      assigned_agent_id: null,
+      assigned_at: null,
+      currentNodeId: null,
+      currentFlowId: null
+    };
+
+    if (currentAgent) {
+      updateSet.previous_assigned_agent = currentAgent;
+      updateSet.previous_status = 'human';
+    }
+
+    const conversation = await Conversation.findByIdAndUpdate(
+      existingConv._id,
+      { $set: updateSet },
       { new: true }
     ).populate('contactId').populate('assignedAgent', 'name email');
 
@@ -1276,14 +1306,18 @@ router.post('/conversations/:id/transfer-to-ai', ...validateObjectId('id'), asyn
     if (io) {
       // Emit to tenant room if user is an agent, otherwise to their personal room
       const roomId = req.user.ownerId ? `user_${req.user.ownerId}` : `user_${req.userId}`;
-      io.to(roomId).emit('conversation_assigned', {
+      const payload = {
         conversationId: conversation._id,
         assignedAgent: null,
         assigned_agent_id: null,
         lock_status: false,
         takeover_status: 'ai',
         status: 'bot'
-      });
+      };
+      io.to(roomId).emit('conversation_assigned', payload);
+      if (currentAgent) {
+        io.to(`user_${currentAgent}`).emit('conversation_assigned', payload);
+      }
     }
 
     await AuditLog.log({

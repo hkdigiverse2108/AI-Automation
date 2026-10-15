@@ -724,11 +724,11 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   const handleAI = async () => {
     try {
       await api.post(`/messages/conversations/${conversation._id}/transfer-to-ai`);
-      toast.success('Transferred to AI');
+      toast.success('Returned to Bot');
       setShowDropdown(false);
       // Just refresh the current conversation, don't refetch all conversations
       await fetchMessages(conversation._id);
-    } catch { toast.error('Failed to transfer'); }
+    } catch { toast.error('Failed to return to bot'); }
   };
 
   const handleDeleteChat = async () => {

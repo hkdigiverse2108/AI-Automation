@@ -251,8 +251,11 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     const content = extractContent(messageData, msgType);
     const textContent = (content.text || '').toLowerCase().trim();
 
-    // Auto Team Assignment: Check explicit rules, fallback to Round Robin (Skipped if AI Assistant mode is active)
-    if (!conversation.assignedAgent && !conversation.assigned_agent_id && conversation.status !== 'ai' && !conversation.ai_active) {
+    // Auto Team Assignment: Check explicit rules, fallback to Round Robin (Skipped if AI Assistant mode is active or conversation is in Bot mode)
+    const isBotMode = conversation.status === 'bot' && !isNewConversation;
+    const isAIMode = conversation.status === 'ai' || conversation.ai_active;
+
+    if (!conversation.assignedAgent && !conversation.assigned_agent_id && !isAIMode && !isBotMode) {
       let assigned = false;
       const AssignmentRule = require('../models/AssignmentRule');
       const assignRules = await AssignmentRule.find({ userId, isActive: true }).sort('createdAt').lean();
@@ -270,10 +273,17 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
         if (match) {
           conversation.assignedAgent = rule.agentId;
           conversation.assigned_agent_id = rule.agentId;
+          conversation.previous_assigned_agent = rule.agentId;
           conversation.assigned_at = new Date();
-          conversation.lock_status = true;
-          conversation.takeover_status = 'human';
-          conversation.status = 'human';
+          if (isNewConversation) {
+            conversation.lock_status = false;
+            conversation.takeover_status = 'ai';
+            conversation.status = 'bot';
+          } else {
+            conversation.lock_status = true;
+            conversation.takeover_status = 'human';
+            conversation.status = 'human';
+          }
           await conversation.save();
 
           const { recordAgentActivity } = require('./roundRobinService');
@@ -284,9 +294,9 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
               conversationId: conversation._id,
               assignedAgent: { _id: rule.agentId },
               assigned_agent_id: rule.agentId,
-              lock_status: true,
-              takeover_status: 'human',
-              status: 'human'
+              lock_status: conversation.lock_status,
+              takeover_status: conversation.takeover_status,
+              status: conversation.status
             };
             io.to(`user_${rule.agentId}`).emit('conversation_assigned', assignPayload);
             io.to(`user_${userId}`).emit('conversation_assigned', assignPayload);
@@ -316,10 +326,11 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
           organizationId: conversation.organization_id || (adminUser ? adminUser.organizationId : null),
           ownerId: userId,
           io,
-          contactName: contact.name || contact.phone
+          contactName: contact.name || contact.phone,
+          asBot: isNewConversation
         });
         if (rrResult.agent) {
-          logger.info(`Auto-assigned conversation ${conversation._id} to agent ${rrResult.agent._id} (${rrResult.agent.name}) via Round-Robin`);
+          logger.info(`Auto-assigned conversation ${conversation._id} to agent ${rrResult.agent._id} (${rrResult.agent.name}) via Round-Robin (status=${conversation.status})`);
         }
       }
     }

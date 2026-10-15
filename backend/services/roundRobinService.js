@@ -98,7 +98,8 @@ async function assignConversationRoundRobin({
   organizationId,
   ownerId,
   io = null,
-  contactName = ''
+  contactName = '',
+  asBot = false
 }) {
   try {
     if (!conversation) {
@@ -116,10 +117,17 @@ async function assignConversationRoundRobin({
     const now = new Date();
     conversation.assignedAgent = agent._id;
     conversation.assigned_agent_id = agent._id;
+    conversation.previous_assigned_agent = agent._id;
     conversation.assigned_at = now;
-    conversation.lock_status = true;
-    conversation.takeover_status = 'human';
-    conversation.status = 'human';
+    if (asBot) {
+      conversation.lock_status = false;
+      conversation.takeover_status = 'ai';
+      conversation.status = 'bot';
+    } else {
+      conversation.lock_status = true;
+      conversation.takeover_status = 'human';
+      conversation.status = 'human';
+    }
     await conversation.save();
 
     // Re-populate for clean socket and API responses
@@ -138,9 +146,9 @@ async function assignConversationRoundRobin({
           email: agent.email
         },
         assigned_agent_id: agent._id,
-        lock_status: true,
-        takeover_status: 'human',
-        status: 'human',
+        lock_status: conversation.lock_status,
+        takeover_status: conversation.takeover_status,
+        status: conversation.status,
         assigned_at: now
       };
 
