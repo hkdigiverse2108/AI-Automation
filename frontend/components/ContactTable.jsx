@@ -130,11 +130,12 @@ export default function ContactTable() {
   const [selectedPrimaryMap, setSelectedPrimaryMap] = useState({});
   const [mergingGroupIndex, setMergingGroupIndex] = useState(null);
   
-  // Import (CSV / Excel) & Export (PDF) State
+  // Import (CSV / Excel) & Export (PDF / CSV) State
   const [csvFile, setCsvFile] = useState(null);
   const [importing, setImporting] = useState(false);
   const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   // Bulk Message State
   const [isBulkMessageModalOpen, setIsBulkMessageModalOpen] = useState(false);
@@ -632,6 +633,124 @@ export default function ContactTable() {
     }
   };
 
+  // Export Contacts to CSV / Excel Handler
+  const handleExportCSV = async () => {
+    setIsActionsDropdownOpen(false);
+    setExportingCsv(true);
+    const toastId = toast.loading('Preparing contacts CSV export...');
+
+    try {
+      let exportList = [];
+
+      // If user selected rows, export only selected
+      if (selectedIds.length > 0) {
+        exportList = contacts.filter(c => selectedIds.includes(c._id));
+      } else {
+        // Fetch contacts matching current active filters (up to 1000)
+        const params = {
+          page: 1,
+          limit: 1000,
+          search: debouncedSearch || undefined,
+          tags: selectedTag || undefined,
+          source: source || undefined,
+          optedOut: optedOut === '' ? undefined : optedOut,
+          segment: segment || undefined,
+          assignedAgent: assignedAgent || undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          lastActivityStart: lastActivityStart || undefined,
+          lastActivityEnd: lastActivityEnd || undefined,
+        };
+
+        const { data } = await api.get('/contacts', { params });
+        if (data.success && data.data?.contacts?.length) {
+          exportList = data.data.contacts;
+        } else {
+          exportList = contacts;
+        }
+      }
+
+      if (!exportList || exportList.length === 0) {
+        toast.error('No contacts available to export', { id: toastId });
+        setExportingCsv(false);
+        return;
+      }
+
+      // Collect any custom field keys across exported contacts
+      const customFieldKeys = new Set();
+      exportList.forEach(c => {
+        if (c.customFields && typeof c.customFields === 'object') {
+          const keys = c.customFields instanceof Map ? Array.from(c.customFields.keys()) : Object.keys(c.customFields);
+          keys.forEach(k => {
+            if (k && k.trim()) customFieldKeys.add(k.trim());
+          });
+        }
+      });
+      const extraKeys = Array.from(customFieldKeys);
+
+      // Define standard headers
+      const headers = ['No.', 'Name', 'Phone', 'Email', 'Source', 'Tags', 'Status', 'Segment', 'Engagement Score', 'Notes', 'Created At', ...extraKeys];
+
+      // Helper to escape CSV field values according to RFC 4180
+      const formatCsvField = (val) => {
+        if (val === null || val === undefined) return '""';
+        const str = String(val);
+        return `"${str.replace(/"/g, '""')}"`;
+      };
+
+      const csvRows = [];
+      csvRows.push(headers.map(formatCsvField).join(','));
+
+      exportList.forEach((c, index) => {
+        const row = [
+          index + 1,
+          c.name || '',
+          c.phone || '',
+          c.email || '',
+          c.source || 'manual',
+          Array.isArray(c.tags) && c.tags.length > 0 ? c.tags.join(';') : (c.tags || ''),
+          c.optedOut ? 'Opted Out' : 'Active',
+          c.segment || '',
+          c.engagementScore !== undefined && c.engagementScore !== null ? c.engagementScore : 0,
+          c.notes || '',
+          c.createdAt ? new Date(c.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '',
+        ];
+
+        // Append custom field values
+        extraKeys.forEach(k => {
+          let val = '';
+          if (c.customFields && typeof c.customFields === 'object') {
+            val = c.customFields instanceof Map ? c.customFields.get(k) : c.customFields[k];
+          }
+          row.push(val !== undefined && val !== null ? val : '');
+        });
+
+        csvRows.push(row.map(formatCsvField).join(','));
+      });
+
+      const csvContent = csvRows.join('\r\n');
+      const dateStr = new Date().toISOString().split('T')[0];
+
+      // Use UTF-8 BOM (\uFEFF) so Excel opens it with proper encoding
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `HK_Contacts_Export_${dateStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${exportList.length} contacts to CSV!`, { id: toastId });
+    } catch (err) {
+      console.error('Failed to export CSV:', err);
+      toast.error('Failed to export contacts CSV', { id: toastId });
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
   // Duplicate Scanner Handlers
   const handleOpenDuplicateScanner = async () => {
     setIsDuplicateModalOpen(true);
@@ -890,7 +1009,7 @@ export default function ContactTable() {
                   className="fixed inset-0 z-40" 
                   onClick={() => setIsActionsDropdownOpen(false)} 
                 />
-                <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-150">
                   <button
                     type="button"
                     onClick={() => {
@@ -912,7 +1031,28 @@ export default function ContactTable() {
 
                   <button
                     type="button"
-                    disabled={exportingPdf}
+                    disabled={exportingCsv || exportingPdf}
+                    onClick={handleExportCSV}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-bg dark:hover:bg-wa-dark-header transition-colors text-left disabled:opacity-50"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-emerald-600/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      {exportingCsv ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                      )}
+                    </div>
+                    <div>
+                      <span className="block font-bold">Export CSV / Excel</span>
+                      <span className="block text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-normal">
+                        {selectedIds.length > 0 ? `Export ${selectedIds.length} selected contacts` : 'Download contacts spreadsheet (.csv)'}
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={exportingPdf || exportingCsv}
                     onClick={handleExportPDF}
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-bg dark:hover:bg-wa-dark-header transition-colors text-left disabled:opacity-50"
                   >
