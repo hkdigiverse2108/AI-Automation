@@ -7,7 +7,7 @@ import {
   Phone, MoreVertical, Search, Mic, Image, FileText, Camera,
   UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, Trash2, Mail, Loader2, MessageSquare, ChevronLeft,
   Download, Pin, Plus, Save, Star, RefreshCw, ArrowUpLeft, ChevronDown, ChevronUp, Copy, CheckCircle2, Clock,
-  Globe, Languages, RotateCcw
+  Globe, Languages, RotateCcw, Square, MicOff
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -203,6 +203,130 @@ export default function ChatWindow({ conversation, messages, onBack }) {
       return next;
     });
   };
+
+  // Voice-to-Text (Speech Recognition) states & handlers
+  const [isListening, setIsListening] = useState(false);
+  const [speechLang, setSpeechLang] = useState('hi-IN'); // Default Hindi (supports Hinglish/English too)
+  const [voiceDuration, setVoiceDuration] = useState(0);
+  const recognitionRef = useRef(null);
+  const timerRef = useRef(null);
+  const isListeningRef = useRef(false);
+
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+    isListeningRef.current = false;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const startListening = useCallback((langToUse = speechLang) => {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error('Voice-to-text is not supported in this browser. Please use Google Chrome, Microsoft Edge, or Safari.');
+      return;
+    }
+
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) {}
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = langToUse;
+
+      let baseText = text ? (text.trim() + ' ') : '';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        isListeningRef.current = true;
+        setVoiceDuration(0);
+        if (timerRef.current) clearInterval(timerRef.current);
+        timerRef.current = setInterval(() => {
+          setVoiceDuration(prev => prev + 1);
+        }, 1000);
+        const langName = langToUse === 'hi-IN' ? 'हिन्दी (Hindi)' : langToUse === 'gu-IN' ? 'ગુજરાતી (Gujarati)' : 'English';
+        toast.success(`Voice-to-Text active (${langName})! Speak into your mic.`, { icon: '🎙️' });
+      };
+
+      recognition.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0]?.transcript || '';
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        const speechResult = finalTranscript || interimTranscript;
+        if (speechResult) {
+          setText(baseText + speechResult);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed') {
+          toast.error('Microphone permission denied. Please allow microphone access in your browser address bar.');
+          stopListening();
+        } else if (event.error === 'no-speech') {
+          // Silent pause, keep listening
+        } else {
+          toast.error(`Voice error: ${event.error}`);
+          stopListening();
+        }
+      };
+
+      recognition.onend = () => {
+        if (isListeningRef.current) {
+          setIsListening(false);
+          isListeningRef.current = false;
+        }
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to start speech recognition:', err);
+      toast.error('Failed to access microphone. Please check permissions.');
+      setIsListening(false);
+      isListeningRef.current = false;
+    }
+  }, [speechLang, text, stopListening]);
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+      toast('Voice recording stopped', { icon: '⏹️' });
+    } else {
+      startListening(speechLang);
+    }
+  };
+
+  // Clean up listening when conversation switches
+  useEffect(() => {
+    return () => {
+      stopListening();
+    };
+  }, [conversation?._id, stopListening]);
 
 
   const handleFileUpload = async (e, forcedType = null) => {
@@ -2193,8 +2317,66 @@ export default function ChatWindow({ conversation, messages, onBack }) {
             ) : (
               <>
                 <div className="relative flex-1 flex flex-col justify-end">
+                  {/* Active Voice-to-Text Listening Banner */}
+                  {isListening && (
+                    <div className="absolute left-0 -top-11 right-0 z-20 flex items-center justify-between px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-500/15 via-amber-500/15 to-emerald-500/15 dark:from-rose-950/40 dark:via-amber-950/40 dark:to-emerald-950/40 border border-rose-500/30 backdrop-blur-md shadow-md animate-fade-in">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="relative flex h-2.5 w-2.5 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                        </span>
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 shrink-0">
+                          <Mic className="w-3.5 h-3.5 animate-pulse" />
+                          <span>Listening...</span>
+                          <span className="font-mono text-[10px] bg-rose-500/20 text-rose-700 dark:text-rose-300 px-1.5 py-0.5 rounded">
+                            {Math.floor(voiceDuration / 60)}:{(voiceDuration % 60).toString().padStart(2, '0')}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate hidden md:inline">
+                          Speak now — voice automatically types into box
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Language switcher chips */}
+                        <div className="flex items-center gap-0.5 bg-white/70 dark:bg-slate-800/80 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                          {[
+                            { code: 'hi-IN', label: 'हिन्दी' },
+                            { code: 'en-IN', label: 'English' },
+                            { code: 'gu-IN', label: 'ગુજરાતી' },
+                          ].map((l) => (
+                            <button
+                              key={l.code}
+                              type="button"
+                              onClick={() => {
+                                setSpeechLang(l.code);
+                                stopListening();
+                                setTimeout(() => startListening(l.code), 120);
+                              }}
+                              className={`px-1.5 py-0.5 text-[10px] font-bold rounded transition-colors ${
+                                speechLang === l.code
+                                  ? 'bg-rose-500 text-white'
+                                  : 'text-slate-600 dark:text-slate-300 hover:text-rose-600'
+                              }`}
+                            >
+                              {l.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={stopListening}
+                          className="px-2 py-0.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold rounded-md flex items-center gap-1 transition-colors"
+                        >
+                          <Square className="w-2.5 h-2.5 fill-white" /> Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Floating 'Polish Draft' button when human mode is ON and user has typed >= 2 characters */}
-                  {isHumanReplyMode && text.trim().length >= 2 && (
+                  {isHumanReplyMode && text.trim().length >= 2 && !isListening && (
                     <button
                       type="button"
                       onClick={handlePolishDraft}
@@ -2216,26 +2398,48 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                       if (e.key === 'Enter') {
                         if (!e.shiftKey && !e.ctrlKey) {
                           e.preventDefault();
+                          if (isListening) stopListening();
                           handleSend();
                         }
                       }
                     }}
                     className="w-full px-4 py-[9px] bg-wa-panel dark:bg-wa-dark-input rounded-xl text-[14.5px] text-wa-text-primary dark:text-white placeholder-wa-text-light focus:outline-none border border-transparent focus:border-wa-border resize-none leading-normal min-h-[42px] max-h-[140px]"
-                    placeholder="Type a message..."
+                    placeholder={isListening ? "Listening to your voice... Speak now..." : "Type a message..."}
                   />
                 </div>
 
-                {text.trim() ? (
+                {/* Voice-to-Text Button */}
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${
+                    isListening
+                      ? 'bg-rose-500 text-white shadow-lg animate-pulse scale-105'
+                      : text.trim()
+                        ? 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover hover:text-rose-500'
+                        : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover hover:text-emerald-600 dark:hover:text-emerald-400'
+                  }`}
+                  title={isListening ? "Listening... Click to stop voice-to-text" : "Click to speak (Voice-to-Text in Hindi / English / Gujarati)"}
+                >
+                  {isListening ? (
+                    <Square className="w-4 h-4 fill-white" />
+                  ) : (
+                    <Mic className="w-6 h-6" />
+                  )}
+                </button>
+
+                {/* Send Button */}
+                {text.trim() && (
                   <button
-                    onClick={handleSend}
+                    onClick={() => {
+                      if (isListening) stopListening();
+                      handleSend();
+                    }}
                     disabled={sending}
                     className="w-10 h-10 rounded-full flex items-center justify-center text-wa-green hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors disabled:opacity-50 shrink-0"
+                    title="Send message"
                   >
                     <Send className="w-6 h-6 fill-wa-green/10" />
-                  </button>
-                ) : (
-                  <button className="w-10 h-10 rounded-full flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors shrink-0">
-                    <Mic className="w-6 h-6" />
                   </button>
                 )}
               </>
