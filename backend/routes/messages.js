@@ -74,6 +74,32 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// POST /messages/translate — Translate a message text to target language
+router.post('/translate', async (req, res) => {
+  try {
+    const { text, targetLang = 'en', targetLangName = 'English' } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, error: 'Text is required for translation' });
+    }
+
+    const { translateText } = require('../services/translationService');
+    const result = await translateText({
+      text: text.trim(),
+      targetLang,
+      targetLangName,
+      organizationId: req.organizationId
+    });
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (err) {
+    console.error('Translation route error:', err);
+    res.status(500).json({ success: false, error: 'Failed to translate message', details: err.message });
+  }
+});
+
 // GET /messages/conversations — list all conversations
 router.get('/conversations', async (req, res) => {
   try {
@@ -1571,6 +1597,212 @@ router.post('/conversations/:id/trigger-ai', ...validateObjectId('id'), async (r
     return res.json({ success: true, message: 'AI response generated successfully', data: { message } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /messages/conversations/:id/suggest-reply — Generate AI suggestions ONLY when Human Reply Mode is ON
+router.post('/conversations/:id/suggest-reply', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const conversationId = req.params.id;
+    const userId = req.userId;
+    const { draftText } = req.body || {};
+
+    const conversation = await Conversation.findOne({ _id: conversationId, userId })
+      .populate('contactId');
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
+    }
+
+    // STRICT CHECK: ONLY when Human Reply Mode is ON
+    const isHumanMode = conversation.status === 'human' || conversation.takeover_status === 'human' || (Boolean(conversation.lock_status) && !conversation.ai_active);
+    if (!isHumanMode || conversation.status === 'ai' || conversation.ai_active) {
+      return res.status(400).json({
+        success: false,
+        error: 'AI Reply suggestions are only available when Human Reply Mode is active',
+        code: 'NOT_HUMAN_MODE'
+      });
+    }
+
+    const Organization = require('../models/Organization');
+    const { generateAIReplySuggestions } = require('../services/aiAgent');
+
+    let org = null;
+    if (req.organizationId) {
+      org = await Organization.findById(req.organizationId);
+    }
+    if (!org && req.user?.role === 'superadmin') {
+      org = await Organization.findOne();
+    }
+
+    const result = await generateAIReplySuggestions({
+      conversation,
+      contact: conversation.contactId,
+      userId,
+      org,
+      draftText
+    });
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (err) {
+    console.error('Failed to generate reply suggestions:', err);
+    res.status(500).json({ success: false, error: 'Failed to generate suggestions', details: err.message });
+  }
+});
+
+// GET /messages/conversations/:id/summary — Fetch existing summary or generate on-demand
+router.post('/conversations/:id/summary/generate', ...validateObjectId('id'), async (req, res) => {
+  // Alias for POST /summary
+  req.url = `/conversations/${req.params.id}/summary`;
+  return router.handle(req, res);
+});
+
+router.get('/conversations/:id/summary', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const conversationId = req.params.id;
+    const userId = req.userId;
+
+    const conversation = await Conversation.findOne({ _id: conversationId, userId })
+      .populate('contactId');
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
+    }
+
+    // Return cached summary if present
+    if (conversation.summary && conversation.summary.executiveSummary) {
+      return res.json({
+        success: true,
+        data: conversation.summary,
+        cached: true
+      });
+    }
+
+    const Organization = require('../models/Organization');
+    const { generateConversationSummary } = require('../services/aiAgent');
+
+    let org = null;
+    if (req.organizationId) {
+      org = await Organization.findById(req.organizationId);
+    }
+    if (!org && req.user?.role === 'superadmin') {
+      org = await Organization.findOne();
+    }
+
+    const summaryResult = await generateConversationSummary({
+      conversation,
+      contact: conversation.contactId,
+      userId,
+      org
+    });
+
+    conversation.summary = summaryResult;
+    await conversation.save();
+
+    res.json({
+      success: true,
+      data: summaryResult,
+      cached: false
+    });
+  } catch (err) {
+    console.error('Failed to get conversation summary:', err);
+    res.status(500).json({ success: false, error: 'Failed to get summary', details: err.message });
+  }
+});
+
+// POST /messages/conversations/:id/summary — Force re-generate conversation summary
+router.post('/conversations/:id/summary', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const conversationId = req.params.id;
+    const userId = req.userId;
+
+    const conversation = await Conversation.findOne({ _id: conversationId, userId })
+      .populate('contactId');
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
+    }
+
+    const Organization = require('../models/Organization');
+    const { generateConversationSummary } = require('../services/aiAgent');
+
+    let org = null;
+    if (req.organizationId) {
+      org = await Organization.findById(req.organizationId);
+    }
+    if (!org && req.user?.role === 'superadmin') {
+      org = await Organization.findOne();
+    }
+
+    const summaryResult = await generateConversationSummary({
+      conversation,
+      contact: conversation.contactId,
+      userId,
+      org
+    });
+
+    conversation.summary = summaryResult;
+    await conversation.save();
+
+    res.json({
+      success: true,
+      data: summaryResult
+    });
+  } catch (err) {
+    console.error('Failed to regenerate conversation summary:', err);
+    res.status(500).json({ success: false, error: 'Failed to regenerate summary', details: err.message });
+  }
+});
+
+// POST /messages/conversations/:id/summary/save-note — Save summary into contact notes timeline
+router.post('/conversations/:id/summary/save-note', ...validateObjectId('id'), async (req, res) => {
+  try {
+    const conversationId = req.params.id;
+    const userId = req.userId;
+
+    const conversation = await Conversation.findOne({ _id: conversationId, userId })
+      .populate('contactId');
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, error: 'Conversation not found' });
+    }
+
+    const summary = conversation.summary;
+    if (!summary || !summary.executiveSummary) {
+      return res.status(400).json({ success: false, error: 'No summary generated yet to save as note' });
+    }
+
+    const dateStr = summary.generatedAt ? new Date(summary.generatedAt).toLocaleDateString() : new Date().toLocaleDateString();
+    const formattedNote = [
+      `📋 AI Conversation Summary (${dateStr}):`,
+      `• Intent: ${summary.customerIntent || 'Inquiry'}`,
+      `• Summary: ${summary.executiveSummary}`,
+      summary.keyPoints?.length ? `• Key Points:\n  - ${summary.keyPoints.join('\n  - ')}` : '',
+      summary.actionItems?.length ? `• Next Steps:\n  - ${summary.actionItems.join('\n  - ')}` : '',
+      `• Sentiment: ${summary.sentiment || 'neutral'}`
+    ].filter(Boolean).join('\n');
+
+    const ContactNote = require('../models/ContactNote');
+    const newNote = await ContactNote.create({
+      organizationId: req.organizationId || conversation.organization_id,
+      contactId: conversation.contactId._id || conversation.contactId,
+      note: formattedNote,
+      createdBy: req.user._id,
+    });
+
+    await newNote.populate('createdBy', 'name email role');
+
+    res.json({
+      success: true,
+      message: 'Summary saved to internal contact notes 📝',
+      data: newNote
+    });
+  } catch (err) {
+    console.error('Failed to save summary as note:', err);
+    res.status(500).json({ success: false, error: 'Failed to save summary as note', details: err.message });
   }
 });
 

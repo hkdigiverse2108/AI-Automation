@@ -1,16 +1,18 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useConversationStore, useAuthStore, useConfirmStore } from '../lib/store';
 import api from '../lib/api';
 import {
   Send, Paperclip, Smile, Check, CheckCheck, User, Bot, Sparkles,
   Phone, MoreVertical, Search, Mic, Image, FileText, Camera,
   UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, Trash2, Mail, Loader2, MessageSquare, ChevronLeft,
-  Download, Pin, Plus, Save, Star
+  Download, Pin, Plus, Save, Star, RefreshCw, ArrowUpLeft, ChevronDown, ChevronUp, Copy, CheckCircle2, Clock,
+  Globe, Languages, RotateCcw
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 import Portal from './Portal';
+import { GOOGLE_TRANSLATE_LANGUAGES, POPULAR_LANGUAGES } from '../lib/googleTranslateLanguages';
 
 function formatMessageDate(date) {
   if (isToday(date)) return 'TODAY';
@@ -121,6 +123,86 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   const [contactCardPhone, setContactCardPhone] = useState('');
   const [previewPdfUrl, setPreviewPdfUrl] = useState(null);
   const [previewPdfName, setPreviewPdfName] = useState('');
+
+  // AI Translation per message states
+  const [messageTranslations, setMessageTranslations] = useState({});
+  const [translateModalMsg, setTranslateModalMsg] = useState(null); // { msgId, text, isOut }
+  const [translateSearch, setTranslateSearch] = useState('');
+  const [translateActiveTab, setTranslateActiveTab] = useState('popular'); // 'popular' | 'all'
+
+  // Filter 130+ languages by search query
+  const filteredLanguages = GOOGLE_TRANSLATE_LANGUAGES.filter((l) => {
+    if (!translateSearch.trim()) return true;
+    const q = translateSearch.toLowerCase();
+    return (
+      l.name.toLowerCase().includes(q) ||
+      l.native.toLowerCase().includes(q) ||
+      l.code.toLowerCase().includes(q)
+    );
+  });
+
+  // Handle translation for a specific separate message
+  const handleTranslateMessage = async (msgId, rawText, targetLang = 'en', targetLangName = 'English') => {
+    if (!rawText || !rawText.trim()) {
+      toast.error('No text content found to translate');
+      return;
+    }
+
+    setMessageTranslations(prev => ({
+      ...prev,
+      [msgId]: {
+        loading: true,
+        targetLang,
+        targetLangName,
+        translatedText: prev[msgId]?.translatedText || '',
+        error: null
+      }
+    }));
+
+    try {
+      const res = await api.post('/messages/translate', {
+        text: rawText.trim(),
+        targetLang,
+        targetLangName
+      });
+
+      if (res.data?.success && res.data?.data) {
+        setMessageTranslations(prev => ({
+          ...prev,
+          [msgId]: {
+            loading: false,
+            translatedText: res.data.data.translatedText,
+            targetLang: res.data.data.targetLang || targetLang,
+            targetLangName: res.data.data.targetLangName || targetLangName,
+            detectedSourceLang: res.data.data.detectedSourceLang,
+            provider: res.data.data.provider,
+            error: null
+          }
+        }));
+      } else {
+        throw new Error(res.data?.error || 'Translation failed');
+      }
+    } catch (err) {
+      console.error('Translation error:', err);
+      toast.error(err.response?.data?.error || err.message || 'Failed to translate message');
+      setMessageTranslations(prev => ({
+        ...prev,
+        [msgId]: {
+          ...(prev[msgId] || {}),
+          loading: false,
+          error: 'Translation failed. Please try again.'
+        }
+      }));
+    }
+  };
+
+  const handleClearTranslation = (msgId) => {
+    setMessageTranslations(prev => {
+      const next = { ...prev };
+      delete next[msgId];
+      return next;
+    });
+  };
 
 
   const handleFileUpload = async (e, forcedType = null) => {
@@ -282,6 +364,133 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   const showTakeoverBanner = isAgent && !isLocked;
   const isLockedByOther = isLocked && !isOwnerMe && !isAdmin;
 
+  // AI Reply Suggestion System (Strictly only active when Human Reply Mode is ON)
+  const isHumanReplyMode = (conversation?.status === 'human' || conversation?.takeover_status === 'human' || Boolean(isLocked && !isAIActive)) && !isAIActive;
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [draftSuggestions, setDraftSuggestions] = useState([]);
+  const [suggestionTab, setSuggestionTab] = useState('customer'); // 'customer' | 'draft'
+  const [originalDraft, setOriginalDraft] = useState('');
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [showSuggestionsPanel, setShowSuggestionsPanel] = useState(true);
+
+  const fetchAISuggestions = useCallback(async (isManual = false, overrideDraftText = null) => {
+    if (!conversation?._id || !isHumanReplyMode) {
+      setAiSuggestions([]);
+      setDraftSuggestions([]);
+      return;
+    }
+
+    const isEnhancingDraft = typeof overrideDraftText === 'string'
+      ? Boolean(overrideDraftText.trim())
+      : false;
+
+    setLoadingSuggestions(true);
+    try {
+      const payload = isEnhancingDraft ? { draftText: overrideDraftText.trim() } : {};
+      const { data } = await api.post(`/messages/conversations/${conversation._id}/suggest-reply`, payload);
+      if (data.success && Array.isArray(data.data?.suggestions)) {
+        if (data.data.isDraftEnhancement) {
+          setDraftSuggestions(data.data.suggestions);
+          setSuggestionTab('draft');
+          setShowSuggestionsPanel(true);
+          if (isManual) {
+            toast.success('Generated 3 improved versions of your draft ✨');
+          }
+        } else {
+          setAiSuggestions(data.data.suggestions);
+          if (isManual) {
+            toast.success('Generated fresh AI reply suggestions ✨');
+          }
+        }
+      }
+    } catch (err) {
+      if (isManual) {
+        toast.error(err.response?.data?.error || 'Failed to generate suggestions');
+      }
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }, [conversation?._id, isHumanReplyMode]);
+
+  const handlePolishDraft = useCallback(() => {
+    if (!text.trim()) {
+      toast.error('Please type a reply first to polish!');
+      return;
+    }
+    setOriginalDraft(text);
+    fetchAISuggestions(true, text.trim());
+  }, [text, fetchAISuggestions]);
+
+  const handleRestoreDraft = () => {
+    if (originalDraft) {
+      setText(originalDraft);
+      toast.success('Original draft restored! ↩️');
+    }
+  };
+
+  // Auto-fetch suggestions when entering human reply mode or switching conversation in human reply mode
+  useEffect(() => {
+    if (isHumanReplyMode && conversation?._id) {
+      fetchAISuggestions(false, null);
+      setDraftSuggestions([]);
+      setSuggestionTab('customer');
+      setOriginalDraft('');
+    } else {
+      setAiSuggestions([]);
+      setDraftSuggestions([]);
+      setOriginalDraft('');
+    }
+  }, [conversation?._id, isHumanReplyMode, fetchAISuggestions]);
+
+  // Auto-fetch suggestions when a new inbound message is received from the customer
+  const lastInboundMsgIdRef = useRef(null);
+  useEffect(() => {
+    if (!isHumanReplyMode || !messages?.length) return;
+    const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
+    if (lastInbound?._id && lastInbound._id !== lastInboundMsgIdRef.current) {
+      lastInboundMsgIdRef.current = lastInbound._id;
+      fetchAISuggestions(false, null);
+    }
+  }, [messages, isHumanReplyMode, fetchAISuggestions]);
+
+  const handleUseSuggestion = (suggestion, isFromDraft = false) => {
+    if (!suggestion) return;
+    if (isFromDraft || suggestionTab === 'draft') {
+      if (text && text !== suggestion && !originalDraft) {
+        setOriginalDraft(text);
+      }
+      setText(suggestion);
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 50);
+      toast.success('Polished version applied! ✍️');
+    } else {
+      setText(suggestion);
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 50);
+      toast.success('Suggestion copied to message input! ✍️');
+    }
+  };
+
+  const handleQuickSendSuggestion = async (suggestion) => {
+    if (!suggestion?.trim() || !contact?._id) return;
+    const toastId = toast.loading('Sending AI suggestion...');
+    try {
+      const result = await sendMessage(contact._id, suggestion.trim());
+      if (result.success) {
+        toast.success('Message sent successfully! 🚀', { id: toastId });
+        setText('');
+        setDraftSuggestions([]);
+        setOriginalDraft('');
+      } else {
+        toast.error(result.error || 'Failed to send', { id: toastId });
+      }
+    } catch (err) {
+      toast.error('Failed to send message', { id: toastId });
+    }
+  };
+
   const contact = conversation?.contactId || {};
 
   const fetchContactNotes = async () => {
@@ -321,6 +530,84 @@ export default function ChatWindow({ conversation, messages, onBack }) {
       prevContactIdRef.current = null;
     }
   }, [contact?._id]);
+
+  // AI Conversation Summary States & Functions
+  const [summaryData, setSummaryData] = useState(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [savingSummaryNote, setSavingSummaryNote] = useState(false);
+
+  // Sync summary from conversation when selected conversation changes
+  useEffect(() => {
+    if (conversation?.summary?.executiveSummary) {
+      setSummaryData(conversation.summary);
+    } else {
+      setSummaryData(null);
+    }
+  }, [conversation?._id, conversation?.summary]);
+
+  const fetchConversationSummary = useCallback(async (forceRegenerate = false) => {
+    if (!conversation?._id) return;
+    setLoadingSummary(true);
+    const toastId = forceRegenerate ? toast.loading('Analyzing chat & generating AI summary...') : null;
+    try {
+      const endpoint = forceRegenerate
+        ? `/messages/conversations/${conversation._id}/summary`
+        : `/messages/conversations/${conversation._id}/summary`;
+      
+      const { data } = forceRegenerate
+        ? await api.post(endpoint)
+        : await api.get(endpoint);
+
+      if (data.success && data.data) {
+        setSummaryData(data.data);
+        if (forceRegenerate) {
+          toast.success('Conversation summary updated ✨', { id: toastId });
+        }
+      } else {
+        if (forceRegenerate) toast.error('Failed to generate summary', { id: toastId });
+      }
+    } catch (err) {
+      if (forceRegenerate) {
+        toast.error(err.response?.data?.error || 'Failed to generate summary', { id: toastId });
+      }
+    } finally {
+      setLoadingSummary(false);
+    }
+  }, [conversation?._id]);
+
+  const handleCopySummary = () => {
+    if (!summaryData) return;
+    const copyText = [
+      `📋 AI Conversation Summary: ${contact.name || contact.phone || 'Customer'}`,
+      `Intent: ${summaryData.customerIntent || 'Inquiry'} | Status: ${summaryData.resolutionStatus || 'Active'} | Sentiment: ${summaryData.sentiment || 'neutral'}`,
+      `\nExecutive Overview:\n${summaryData.executiveSummary}`,
+      summaryData.keyPoints?.length ? `\nKey Discussion Points:\n• ${summaryData.keyPoints.join('\n• ')}` : '',
+      summaryData.actionItems?.length ? `\nAction Items & Next Steps:\n• ${summaryData.actionItems.join('\n• ')}` : ''
+    ].filter(Boolean).join('\n');
+
+    navigator.clipboard.writeText(copyText);
+    toast.success('Conversation summary copied to clipboard! 📋');
+  };
+
+  const handleSaveSummaryAsNote = async () => {
+    if (!conversation?._id || !summaryData?.executiveSummary) return;
+    setSavingSummaryNote(true);
+    const toastId = toast.loading('Saving summary to contact notes...');
+    try {
+      const { data } = await api.post(`/messages/conversations/${conversation._id}/summary/save-note`);
+      if (data.success) {
+        toast.success('Summary saved to internal contact notes! 📝', { id: toastId });
+        fetchContactNotes();
+      } else {
+        toast.error(data.error || 'Failed to save as note', { id: toastId });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to save note', { id: toastId });
+    } finally {
+      setSavingSummaryNote(false);
+    }
+  };
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -514,8 +801,13 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     setSending(true);
     try {
       const result = await sendMessage(contact._id, text.trim());
-      if (result.success) setText('');
-      else toast.error(result.error || 'Failed to send');
+      if (result.success) {
+        setText('');
+        setDraftSuggestions([]);
+        setOriginalDraft('');
+      } else {
+        toast.error(result.error || 'Failed to send');
+      }
     } catch (err) {
       toast.error('Failed to send message');
     }
@@ -1024,6 +1316,19 @@ export default function ChatWindow({ conversation, messages, onBack }) {
               <Star className={`w-4 h-4 ${conversation?.isStarred ? 'fill-amber-400 text-amber-500' : ''}`} />
             </button>
 
+            {/* AI Conversation Summary Button */}
+            <button
+              onClick={() => {
+                setShowSummaryModal(true);
+                if (!summaryData) fetchConversationSummary(false);
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-indigo-500/10 hover:from-teal-500/20 hover:to-emerald-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/20 transition-all flex items-center gap-1.5 shrink-0 shadow-xs active:scale-95"
+              title="View AI Conversation Summary & Key Points"
+            >
+              <FileText className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+              <span className="hidden sm:inline font-bold">Summary</span>
+            </button>
+
             <button
               onClick={() => setShowSidebar(!showSidebar)}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${showSidebar ? 'text-wa-green bg-wa-green/10' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'}`}
@@ -1040,6 +1345,16 @@ export default function ChatWindow({ conversation, messages, onBack }) {
               </button>
               {showDropdown && (
                 <div className="wa-dropdown">
+                  <button
+                    onClick={() => {
+                      setShowDropdown(false);
+                      setShowSummaryModal(true);
+                      if (!summaryData) fetchConversationSummary(false);
+                    }}
+                    className="wa-dropdown-item w-full"
+                  >
+                    <FileText className="w-4 h-4 text-teal-600" />Summary
+                  </button>
                   <button onClick={handleAssign} className="wa-dropdown-item w-full">
                     <User className="w-4 h-4" /> Take Over
                   </button>
@@ -1111,6 +1426,9 @@ export default function ChatWindow({ conversation, messages, onBack }) {
             {messages.map((msg, i) => {
               const isOut = msg.direction === 'outbound';
               const msgDate = msg.timestamp ? new Date(msg.timestamp) : null;
+              const msgId = msg._id || `msg-${i}`;
+              const messageRawText = msg.content?.text || msg.content?.caption || (typeof msg.content === 'string' ? msg.content : '') || (msg.text || '');
+              const msgTranslation = messageTranslations[msgId];
 
               let showDateDivider = false;
               if (msgDate) {
@@ -1130,6 +1448,34 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                   <div className={`flex ${isOut ? 'justify-end' : 'justify-start'} mb-1 msg-wrapper animate-message-pop`}>
                     <div className={`${isOut ? 'chat-bubble-out' : 'chat-bubble-in'} relative group`}>
                       {!isOut && msg.sentBy && <SentByLabel sentBy={msg.sentBy} />}
+
+                      {/* Quick Hover Translate Trigger Button (Gemini AI Rotating Border Highlight) */}
+                      {messageRawText && messageRawText.trim() && (
+                        <div
+                          className={`absolute -top-3 ${isOut ? '-left-2' : '-right-2'} opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20`}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTranslateModalMsg({
+                                msgId,
+                                text: messageRawText.trim(),
+                                isOut
+                              });
+                              setTranslateSearch('');
+                              setTranslateActiveTab('popular');
+                            }}
+                            className="gemini-border-btn"
+                            title="Translate this message (AI & Google Translate 130+ languages)"
+                          >
+                            <span className="gemini-border-btn-inner">
+                              <Globe className="w-3 h-3 text-teal-600 dark:text-teal-400 shrink-0" />
+                              <span className="hidden sm:inline">Translate</span>
+                            </span>
+                          </button>
+                        </div>
+                      )}
 
                       {msg.type === 'image' && msg.content?.mediaUrl && (
                         <div className="mb-1.5 max-w-sm rounded-lg overflow-hidden border border-wa-border dark:border-wa-dark-border shadow-sm">
@@ -1217,6 +1563,104 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                         <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap text-wa-text-primary dark:text-wa-dark-text-primary">
                           {msg.content?.text || msg.content?.caption}
                         </p>
+                      )}
+
+                      {/* TRANSLATION BOX (Per-message result) */}
+                      {msgTranslation && (
+                        <div className="mt-2 pt-1.5 border-t border-teal-500/20 dark:border-teal-400/20 animate-fade-in">
+                          {msgTranslation.loading ? (
+                            <div className="p-2 rounded-lg bg-teal-500/10 dark:bg-teal-950/30 border border-teal-500/20 flex items-center gap-2 text-xs text-teal-700 dark:text-teal-300">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600 dark:text-teal-400" />
+                              <span className="font-medium">
+                                Translating to {msgTranslation.targetLangName || 'selected language'}...
+                              </span>
+                            </div>
+                          ) : msgTranslation.error ? (
+                            <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
+                              <span>{msgTranslation.error}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleTranslateMessage(msgId, messageRawText.trim(), msgTranslation.targetLang, msgTranslation.targetLangName)}
+                                className="underline font-bold hover:text-rose-900"
+                              >
+                                Retry
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl p-2.5 bg-gradient-to-br from-teal-500/10 via-emerald-500/10 to-cyan-500/10 dark:from-teal-950/40 dark:via-emerald-950/40 dark:to-cyan-950/40 border border-teal-500/25 dark:border-teal-500/30 shadow-xs">
+                              {/* Header with language & controls */}
+                              <div className="flex items-center justify-between gap-2 pb-1.5 mb-1.5 border-b border-teal-500/15 dark:border-teal-400/15 text-[11px]">
+                                <div className="flex items-center gap-1.5 font-semibold text-teal-800 dark:text-teal-200">
+                                  <Globe className="w-3 h-3 text-teal-600 dark:text-teal-400 shrink-0" />
+                                  <span className="font-bold">{msgTranslation.targetLangName}</span>
+                                  {msgTranslation.detectedSourceLang && msgTranslation.detectedSourceLang !== 'auto' && (
+                                    <span className="text-[9px] px-1 py-0.2 rounded bg-teal-600/10 text-teal-700 dark:text-teal-300 font-mono">
+                                      from {msgTranslation.detectedSourceLang.toUpperCase()}
+                                    </span>
+                                  )}
+                                  {msgTranslation.provider === 'google-translate' && (
+                                    <span className="text-[9px] px-1 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-300 font-sans hidden sm:inline">
+                                      Google
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {/* Copy translated text */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigator.clipboard.writeText(msgTranslation.translatedText);
+                                      toast.success('Translated text copied!');
+                                    }}
+                                    title="Copy translated text"
+                                    className="p-1 rounded-md text-teal-700 dark:text-teal-300 hover:bg-teal-500/20 transition-colors"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+
+                                  {/* Change target language */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTranslateModalMsg({
+                                        msgId,
+                                        text: messageRawText.trim(),
+                                        isOut
+                                      });
+                                      setTranslateSearch('');
+                                      setTranslateActiveTab('popular');
+                                    }}
+                                    title="Translate to another language"
+                                    className="px-1.5 py-0.5 rounded-md text-[10px] font-bold text-teal-700 dark:text-teal-300 hover:bg-teal-500/20 transition-colors"
+                                  >
+                                    Change
+                                  </button>
+
+                                  {/* Dismiss/Hide translation */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleClearTranslation(msgId);
+                                    }}
+                                    title="Hide translation"
+                                    className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Translated Content */}
+                              <p className="text-[13.5px] leading-relaxed text-slate-900 dark:text-slate-100 font-sans select-text whitespace-pre-wrap">
+                                {msgTranslation.translatedText}
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       <div className="flex items-center gap-1 mt-1 justify-end">
@@ -1308,7 +1752,297 @@ export default function ChatWindow({ conversation, messages, onBack }) {
             </div>
           )}
 
+          {/* AI REPLY SUGGESTIONS BAR (ONLY IN HUMAN REPLY MODE) */}
+          {isHumanReplyMode && (
+            <div className="mb-2 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 dark:from-emerald-950/30 dark:via-teal-950/30 dark:to-indigo-950/30 border border-emerald-500/20 dark:border-emerald-600/30 rounded-2xl p-2.5 backdrop-blur-md transition-all duration-200 shadow-sm animate-fade-in">
+              {/* Suggestions Header */}
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2 px-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <span className="text-xs font-bold text-wa-text-primary dark:text-white">
+                      AI Reply Assistant
+                    </span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 uppercase tracking-wider">
+                      Human Mode
+                    </span>
+                  </div>
+
+                  {/* Mode / Tabs: Customer Inquiry vs Polished Draft */}
+                  <div className="flex items-center gap-1 bg-black/5 dark:bg-white/5 p-0.5 rounded-lg border border-black/5 dark:border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => setSuggestionTab('customer')}
+                      className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-md transition-all flex items-center gap-1 ${
+                        suggestionTab === 'customer'
+                          ? 'bg-white dark:bg-wa-dark-panel text-emerald-700 dark:text-emerald-400 shadow-xs'
+                          : 'text-wa-text-secondary hover:text-wa-text-primary'
+                      }`}
+                    >
+                      💬 Customer Reply {aiSuggestions.length > 0 && `(${aiSuggestions.length})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSuggestionTab('draft');
+                        if (draftSuggestions.length === 0 && text.trim()) {
+                          handlePolishDraft();
+                        }
+                      }}
+                      className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-md transition-all flex items-center gap-1 ${
+                        suggestionTab === 'draft'
+                          ? 'bg-white dark:bg-wa-dark-panel text-indigo-700 dark:text-indigo-400 shadow-xs'
+                          : 'text-wa-text-secondary hover:text-wa-text-primary'
+                      }`}
+                      title={text.trim() ? "Polish what you've typed" : "Type a reply below to polish it"}
+                    >
+                      <span>✨ Polish Draft</span>
+                      {draftSuggestions.length > 0 ? (
+                        `(${draftSuggestions.length})`
+                      ) : text.trim() ? (
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                      ) : null}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (suggestionTab === 'draft') {
+                        if (text.trim()) {
+                          handlePolishDraft();
+                        } else {
+                          toast.error('Type a draft message first to polish!');
+                        }
+                      } else {
+                        fetchAISuggestions(true, null);
+                      }
+                    }}
+                    disabled={loadingSuggestions}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 px-2 py-0.5 rounded-lg hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
+                    title={suggestionTab === 'draft' ? "Regenerate draft improvements" : "Regenerate smart customer replies"}
+                  >
+                    <RefreshCw className={`w-3 h-3 ${loadingSuggestions ? 'animate-spin' : ''}`} />
+                    <span>{loadingSuggestions ? 'Thinking...' : 'Regenerate'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowSuggestionsPanel(!showSuggestionsPanel)}
+                    className="p-1 rounded-lg text-wa-text-secondary hover:text-wa-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                    title={showSuggestionsPanel ? 'Minimize suggestions' : 'Expand suggestions'}
+                  >
+                    {showSuggestionsPanel ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Suggestions Cards (collapsible) */}
+              {showSuggestionsPanel && (
+                <div className="space-y-1.5">
+                  {loadingSuggestions ? (
+                    <div className="flex items-center justify-center gap-2 py-3 text-xs text-wa-text-secondary">
+                      <Loader2 className="w-4 h-4 animate-spin text-wa-green" />
+                      <span>
+                        {suggestionTab === 'draft'
+                          ? 'Polishing your draft into 3 better variations...'
+                          : 'Analyzing chat & drafting smart suggestions...'}
+                      </span>
+                    </div>
+                  ) : suggestionTab === 'draft' ? (
+                    /* DRAFT POLISH VIEW */
+                    draftSuggestions.length === 0 ? (
+                      <div className="flex flex-col sm:flex-row items-center justify-between p-2.5 rounded-xl bg-white/70 dark:bg-wa-dark-panel/70 border border-indigo-200 dark:border-indigo-900/40 text-xs gap-2">
+                        <div className="flex items-center gap-1.5 text-wa-text-secondary text-[11px]">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <span>
+                            {text.trim()
+                              ? `You have typed: "${text.length > 40 ? text.slice(0, 40) + '...' : text}". Click to get 3 improved versions!`
+                              : 'Type your reply in the message box below, then click "Polish Draft" to get better versions!'}
+                          </span>
+                        </div>
+                        {text.trim() && (
+                          <button
+                            type="button"
+                            onClick={handlePolishDraft}
+                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shrink-0 shadow-xs"
+                          >
+                            <Sparkles className="w-3 h-3" /> Polish My Draft
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between text-[11px] px-1 pb-1">
+                          <span className="flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400">
+                            <Sparkles className="w-3 h-3" /> 3 Improved versions of your draft:
+                          </span>
+                          {originalDraft && text !== originalDraft && (
+                            <button
+                              type="button"
+                              onClick={handleRestoreDraft}
+                              className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-0.5 font-bold"
+                              title={`Restore: "${originalDraft.slice(0, 30)}..."`}
+                            >
+                              ↩️ Restore original draft
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          {draftSuggestions.map((suggestion, idx) => {
+                            const badges = [
+                              { label: 'Polished & Direct', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300' },
+                              { label: 'Warm & Friendly', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' },
+                              { label: 'Action-Oriented', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' },
+                            ];
+                            const badge = badges[idx % badges.length];
+
+                            return (
+                              <div
+                                key={idx}
+                                className="group relative flex flex-col justify-between p-2.5 rounded-xl bg-white/80 dark:bg-wa-dark-panel/90 border border-indigo-200/80 dark:border-indigo-900/60 hover:border-indigo-500 hover:shadow-sm transition-all duration-150 text-left"
+                              >
+                                <div
+                                  onClick={() => handleUseSuggestion(suggestion, true)}
+                                  className="cursor-pointer flex-1"
+                                  title="Click to replace input with this version"
+                                >
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${badge.color}`}>
+                                      {badge.label}
+                                    </span>
+                                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+                                      Use version ✍️
+                                    </span>
+                                  </div>
+                                  <p className="text-[12px] text-wa-text-primary dark:text-white line-clamp-3 leading-snug font-sans">
+                                    {suggestion}
+                                  </p>
+                                </div>
+
+                                <div className="mt-2 pt-1.5 border-t border-wa-border/40 dark:border-wa-dark-border/40 flex items-center justify-between gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUseSuggestion(suggestion, true)}
+                                    className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium flex items-center gap-1 hover:underline"
+                                  >
+                                    <ArrowUpLeft className="w-3 h-3" /> Apply to input
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickSendSuggestion(suggestion)}
+                                    className="text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-0.5 rounded-md flex items-center gap-1 transition-all shadow-xs"
+                                    title="Send this reply immediately"
+                                  >
+                                    <Send className="w-2.5 h-2.5" /> Send
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )
+                  ) : (
+                    /* CUSTOMER CONTEXT SUGGESTIONS VIEW */
+                    aiSuggestions.length === 0 ? (
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-wa-dark-panel/70 border border-wa-border/40 text-xs">
+                        <span className="text-wa-text-secondary text-[11px]">No suggestions generated yet.</span>
+                        <button
+                          type="button"
+                          onClick={() => fetchAISuggestions(true, null)}
+                          className="text-xs font-bold text-wa-green hover:underline flex items-center gap-1"
+                        >
+                          <Sparkles className="w-3 h-3" /> Generate Suggestions
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        {aiSuggestions.map((suggestion, idx) => {
+                          const badges = [
+                            { label: 'Direct', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' },
+                            { label: 'Friendly', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300' },
+                            { label: 'Action', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' },
+                          ];
+                          const badge = badges[idx % badges.length];
+
+                          return (
+                            <div
+                              key={idx}
+                              className="group relative flex flex-col justify-between p-2.5 rounded-xl bg-white/80 dark:bg-wa-dark-panel/90 border border-wa-border/60 dark:border-wa-dark-border/60 hover:border-wa-green hover:shadow-sm transition-all duration-150 text-left"
+                            >
+                              <div
+                                onClick={() => handleUseSuggestion(suggestion, false)}
+                                className="cursor-pointer flex-1"
+                                title="Click to insert into input field"
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${badge.color}`}>
+                                    {badge.label}
+                                  </span>
+                                  <span className="text-[10px] text-wa-text-secondary opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+                                    Click to insert ✍️
+                                  </span>
+                                </div>
+                                <p className="text-[12px] text-wa-text-primary dark:text-white line-clamp-3 leading-snug font-sans">
+                                  {suggestion}
+                                </p>
+                              </div>
+
+                              <div className="mt-2 pt-1.5 border-t border-wa-border/40 dark:border-wa-dark-border/40 flex items-center justify-between gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUseSuggestion(suggestion, false)}
+                                  className="text-[10px] text-wa-text-secondary hover:text-wa-text-primary font-medium flex items-center gap-1 hover:underline"
+                                >
+                                  <ArrowUpLeft className="w-3 h-3 text-wa-green" /> Use text
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickSendSuggestion(suggestion)}
+                                  className="text-[10px] font-bold text-white bg-wa-green hover:bg-wa-green-hover px-2 py-0.5 rounded-md flex items-center gap-1 transition-all shadow-xs"
+                                  title="Send this reply immediately"
+                                >
+                                  <Send className="w-2.5 h-2.5" /> Send
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-end gap-2">
+            {/* AI Suggestion Button for Human Mode */}
+            {isHumanReplyMode && (
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  if (text.trim()) {
+                    handlePolishDraft();
+                  } else {
+                    fetchAISuggestions(true, null);
+                  }
+                }}
+                disabled={loadingSuggestions}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors shrink-0"
+                title={text.trim() ? "Polish typed message with AI" : "Generate AI Reply Suggestions"}
+              >
+                <Sparkles className={`w-5 h-5 ${loadingSuggestions ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+
             <button
               onMouseDown={(e) => e.stopPropagation()}
               onClick={toggleQuickReplies}
@@ -1458,22 +2192,38 @@ export default function ChatWindow({ conversation, messages, onBack }) {
               </div>
             ) : (
               <>
-                <textarea
-                  ref={textareaRef}
-                  rows={1}
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      if (!e.shiftKey && !e.ctrlKey) {
-                        e.preventDefault();
-                        handleSend();
+                <div className="relative flex-1 flex flex-col justify-end">
+                  {/* Floating 'Polish Draft' button when human mode is ON and user has typed >= 2 characters */}
+                  {isHumanReplyMode && text.trim().length >= 2 && (
+                    <button
+                      type="button"
+                      onClick={handlePolishDraft}
+                      disabled={loadingSuggestions}
+                      className="absolute right-2 -top-7 z-10 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-md hover:shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-60 animate-fade-in"
+                      title="Generate 3 better & improved versions of what you typed"
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 ${loadingSuggestions && suggestionTab === 'draft' ? 'animate-spin' : ''}`} />
+                      <span>{loadingSuggestions && suggestionTab === 'draft' ? 'Polishing...' : '✨ Polish Draft'}</span>
+                    </button>
+                  )}
+
+                  <textarea
+                    ref={textareaRef}
+                    rows={1}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (!e.shiftKey && !e.ctrlKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
                       }
-                    }
-                  }}
-                  className="flex-1 px-4 py-[9px] bg-wa-panel dark:bg-wa-dark-input rounded-xl text-[14.5px] text-wa-text-primary dark:text-white placeholder-wa-text-light focus:outline-none border border-transparent focus:border-wa-border resize-none leading-normal min-h-[42px] max-h-[140px]"
-                  placeholder="Type a message"
-                />
+                    }}
+                    className="w-full px-4 py-[9px] bg-wa-panel dark:bg-wa-dark-input rounded-xl text-[14.5px] text-wa-text-primary dark:text-white placeholder-wa-text-light focus:outline-none border border-transparent focus:border-wa-border resize-none leading-normal min-h-[42px] max-h-[140px]"
+                    placeholder="Type a message..."
+                  />
+                </div>
 
                 {text.trim() ? (
                   <button
@@ -1567,6 +2317,101 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                     <Phone className="w-3 h-3 text-wa-text-light" />
                     <span>{contact.phone}</span>
                   </div>
+                </div>
+              </div>
+
+              {/* AI Conversation Summary Card in CRM Sidebar */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between px-1">
+                  <span className="block text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-widest flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                    AI Chat Summary
+                  </span>
+                  {summaryData?.executiveSummary && (
+                    <button
+                      onClick={() => fetchConversationSummary(true)}
+                      disabled={loadingSummary}
+                      className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 disabled:opacity-50"
+                      title="Re-generate AI summary"
+                    >
+                      <RefreshCw className={`w-2.5 h-2.5 ${loadingSummary ? 'animate-spin' : ''}`} />
+                      <span>{loadingSummary ? 'Updating...' : 'Refresh'}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="bg-gradient-to-br from-teal-500/10 via-emerald-500/5 to-indigo-500/10 dark:from-teal-950/30 dark:via-emerald-950/20 dark:to-indigo-950/30 border border-teal-500/20 dark:border-teal-800/40 rounded-2xl p-3.5 space-y-2.5 shadow-xs">
+                  {loadingSummary ? (
+                    <div className="py-3 text-center text-xs text-wa-text-secondary flex items-center justify-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
+                      <span>Generating AI Summary...</span>
+                    </div>
+                  ) : summaryData?.executiveSummary ? (
+                    <>
+                      {/* Badges Row */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {summaryData.customerIntent && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md font-bold bg-teal-100 text-teal-800 dark:bg-teal-950/50 dark:text-teal-300">
+                            🎯 {summaryData.customerIntent}
+                          </span>
+                        )}
+                        {summaryData.sentiment && (
+                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold capitalize ${
+                            summaryData.sentiment === 'positive' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300' :
+                            summaryData.sentiment === 'frustrated' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300' :
+                            summaryData.sentiment === 'urgent' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300' :
+                            'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200'
+                          }`}>
+                            {summaryData.sentiment === 'positive' ? '😊 Positive' :
+                             summaryData.sentiment === 'frustrated' ? '😠 Frustrated' :
+                             summaryData.sentiment === 'urgent' ? '🚨 Urgent' : '😐 Neutral'}
+                          </span>
+                        )}
+                        {summaryData.resolutionStatus && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
+                            {summaryData.resolutionStatus}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Summary Body */}
+                      <p className="text-xs text-wa-text-primary dark:text-white leading-relaxed line-clamp-3 font-sans">
+                        {summaryData.executiveSummary}
+                      </p>
+
+                      {/* Footer Actions */}
+                      <div className="flex items-center justify-between pt-2 border-t border-teal-500/15 dark:border-teal-800/30 text-[11px]">
+                        <button
+                          onClick={() => setShowSummaryModal(true)}
+                          className="font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1"
+                        >
+                          View Full Details →
+                        </button>
+                        <button
+                          onClick={handleSaveSummaryAsNote}
+                          disabled={savingSummaryNote}
+                          className="text-[10px] px-2 py-0.5 rounded-md bg-white dark:bg-wa-dark-header border border-wa-border text-wa-text-secondary hover:text-wa-text-primary hover:border-wa-green transition-colors flex items-center gap-1"
+                          title="Save this summary to internal contact notes timeline"
+                        >
+                          <Save className="w-2.5 h-2.5 text-wa-green" />
+                          <span>{savingSummaryNote ? 'Saving...' : 'Save as Note'}</span>
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-2 space-y-2">
+                      <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                        No summary generated yet for this chat.
+                      </p>
+                      <button
+                        onClick={() => fetchConversationSummary(true)}
+                        disabled={loadingSummary}
+                        className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-xs inline-flex items-center gap-1.5 shadow-sm transition-all"
+                      >
+                        <Sparkles className="w-3 h-3" /> Generate AI Summary
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1994,6 +2839,345 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                   className="w-full h-full border-none rounded-xl bg-white shadow-inner"
                   title={previewPdfName || "PDF Preview"}
                 />
+              </div>
+            </div>
+          </div>
+        </Portal>
+      )}
+
+      {/* AI CONVERSATION SUMMARY MODAL */}
+      {showSummaryModal && (
+        <Portal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-up">
+              {/* Modal Header */}
+              <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-indigo-500/10 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-wa-text-primary dark:text-white leading-tight">
+                      Conversation Summary & Intelligence
+                    </h3>
+                    <p className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                      {contact.name || contact.phone || 'Customer'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowSummaryModal(false)}
+                  className="p-1.5 rounded-xl text-wa-text-secondary hover:text-wa-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                  title="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-thin">
+                {loadingSummary ? (
+                  <div className="py-12 flex flex-col items-center justify-center gap-3 text-wa-text-secondary">
+                    <Loader2 className="w-7 h-7 animate-spin text-teal-600" />
+                    <span className="text-sm font-semibold">Generating AI Conversation Summary...</span>
+                    <span className="text-xs text-wa-text-light">Reading recent messages and analyzing context...</span>
+                  </div>
+                ) : !summaryData?.executiveSummary ? (
+                  <div className="py-10 text-center space-y-3">
+                    <p className="text-sm text-wa-text-secondary">No summary has been generated for this conversation yet.</p>
+                    <button
+                      onClick={() => fetchConversationSummary(true)}
+                      className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-sm transition-all"
+                    >
+                      <Sparkles className="w-4 h-4" /> Generate Summary Now
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Badges Row */}
+                    <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800">
+                      {summaryData.customerIntent && (
+                        <div className="flex items-center gap-1 text-xs">
+                          <span className="text-slate-400 font-medium">Intent:</span>
+                          <span className="font-bold text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/30">
+                            🎯 {summaryData.customerIntent}
+                          </span>
+                        </div>
+                      )}
+                      {summaryData.sentiment && (
+                        <div className="flex items-center gap-1 text-xs">
+                          <span className="text-slate-400 font-medium">Sentiment:</span>
+                          <span className={`font-bold px-2 py-0.5 rounded capitalize ${
+                            summaryData.sentiment === 'positive' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300' :
+                            summaryData.sentiment === 'frustrated' ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300' :
+                            summaryData.sentiment === 'urgent' ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300' :
+                            'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                          }`}>
+                            {summaryData.sentiment === 'positive' ? '😊 Positive' :
+                             summaryData.sentiment === 'frustrated' ? '😠 Frustrated' :
+                             summaryData.sentiment === 'urgent' ? '🚨 Urgent' : '😐 Neutral'}
+                          </span>
+                        </div>
+                      )}
+                      {summaryData.resolutionStatus && (
+                        <div className="flex items-center gap-1 text-xs">
+                          <span className="text-slate-400 font-medium">Status:</span>
+                          <span className="font-bold text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/30">
+                            {summaryData.resolutionStatus}
+                          </span>
+                        </div>
+                      )}
+                      {summaryData.messageCountAtGeneration > 0 && (
+                        <div className="flex items-center gap-1 text-[11px] text-wa-text-secondary ml-auto">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          <span>{summaryData.messageCountAtGeneration} msgs analyzed</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Executive Summary */}
+                    <div className="space-y-1.5">
+                      <h4 className="text-xs font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-teal-600" /> Executive Overview
+                      </h4>
+                      <div className="p-3.5 rounded-xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200/60 dark:border-teal-800/40 text-xs sm:text-[13px] leading-relaxed text-wa-text-primary dark:text-white">
+                        {summaryData.executiveSummary}
+                      </div>
+                    </div>
+
+                    {/* Key Discussion Points */}
+                    {summaryData.keyPoints && summaryData.keyPoints.length > 0 && (
+                      <div className="space-y-1.5">
+                        <h4 className="text-xs font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Key Discussion Points
+                        </h4>
+                        <div className="p-3 rounded-xl bg-white dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border space-y-1.5">
+                          {summaryData.keyPoints.map((pt, idx) => (
+                            <div key={idx} className="flex items-start gap-2 text-xs text-wa-text-primary dark:text-white">
+                              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 mt-1.5 shrink-0" />
+                              <span className="leading-snug">{pt}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Next Steps & Action Items */}
+                    {summaryData.actionItems && summaryData.actionItems.length > 0 && (
+                      <div className="space-y-1.5">
+                        <h4 className="text-xs font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                          <Zap className="w-3.5 h-3.5 text-amber-500" /> Next Steps & Action Items
+                        </h4>
+                        <div className="p-3 rounded-xl bg-amber-50/30 dark:bg-amber-950/15 border border-amber-200/60 dark:border-amber-800/40 space-y-1.5">
+                          {summaryData.actionItems.map((act, idx) => (
+                            <div key={idx} className="flex items-start gap-2 text-xs text-wa-text-primary dark:text-white">
+                              <span className="text-amber-500 font-bold shrink-0">→</span>
+                              <span className="leading-snug font-medium">{act}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-5 py-3 border-t border-wa-border dark:border-wa-dark-border flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/30 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => fetchConversationSummary(true)}
+                  disabled={loadingSummary}
+                  className="px-3 py-1.5 text-xs font-bold text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingSummary ? 'animate-spin' : ''}`} />
+                  <span>{loadingSummary ? 'Re-analyzing...' : 'Regenerate'}</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopySummary}
+                    disabled={!summaryData?.executiveSummary}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-wa-border dark:border-wa-dark-border text-wa-text-primary dark:text-white hover:bg-wa-hover dark:hover:bg-wa-dark-hover flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveSummaryAsNote}
+                    disabled={savingSummaryNote || !summaryData?.executiveSummary}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-wa-green hover:bg-wa-green-hover text-white flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{savingSummaryNote ? 'Saving...' : 'Save as Note'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Portal>
+      )}
+
+      {/* AI TRANSLATION MODAL (130+ Google Translate Languages) */}
+      {translateModalMsg && (
+        <Portal>
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+            <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden animate-scale-up">
+              {/* Header */}
+              <div className="px-5 py-3.5 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-indigo-500/10 shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold shrink-0">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-sm text-wa-text-primary dark:text-white leading-tight flex items-center gap-1.5">
+                      <span>Translate Message</span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-700 dark:text-teal-300">
+                        133 Languages
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary truncate">
+                      Powered by AI & Google Translate
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTranslateModalMsg(null)}
+                  className="p-1.5 rounded-xl text-wa-text-secondary hover:text-wa-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Message Preview Quote */}
+              <div className="px-5 py-2.5 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-200/50 dark:border-slate-800/50 shrink-0">
+                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Translating Message
+                </span>
+                <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-2">
+                  &ldquo;{translateModalMsg.text}&rdquo;
+                </p>
+              </div>
+
+              {/* Search Bar */}
+              <div className="p-4 border-b border-wa-border dark:border-wa-dark-border space-y-3 shrink-0">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-wa-text-secondary absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={translateSearch}
+                    onChange={(e) => setTranslateSearch(e.target.value)}
+                    placeholder="Search languages (e.g. Hindi, Gujarati, Marathi, Spanish, Arabic...)"
+                    className="w-full pl-9 pr-8 py-2 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white placeholder-wa-text-secondary focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    autoFocus
+                  />
+                  {translateSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setTranslateSearch('')}
+                      className="absolute right-2.5 top-2.5 text-wa-text-secondary hover:text-wa-text-primary"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Tabs */}
+                {!translateSearch && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTranslateActiveTab('popular')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                        translateActiveTab === 'popular'
+                          ? 'bg-teal-600 text-white shadow-xs'
+                          : 'bg-wa-bg dark:bg-wa-dark-header text-wa-text-secondary hover:text-wa-text-primary'
+                      }`}
+                    >
+                      Popular ({POPULAR_LANGUAGES.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTranslateActiveTab('all')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                        translateActiveTab === 'all'
+                          ? 'bg-teal-600 text-white shadow-xs'
+                          : 'bg-wa-bg dark:bg-wa-dark-header text-wa-text-secondary hover:text-wa-text-primary'
+                      }`}
+                    >
+                      All Languages ({GOOGLE_TRANSLATE_LANGUAGES.length})
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Language List */}
+              <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
+                {/* Popular Grid when tab is popular and no search */}
+                {!translateSearch && translateActiveTab === 'popular' ? (
+                  <div className="space-y-3">
+                    <span className="block text-[10px] font-bold text-wa-text-secondary uppercase tracking-wider">
+                      Quick Access (Most Used)
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {POPULAR_LANGUAGES.map((lang) => (
+                        <button
+                          key={lang.code}
+                          type="button"
+                          onClick={() => {
+                            handleTranslateMessage(translateModalMsg.msgId, translateModalMsg.text, lang.code, lang.name);
+                            setTranslateModalMsg(null);
+                          }}
+                          className="flex flex-col items-start p-2.5 rounded-xl border border-wa-border dark:border-wa-dark-border hover:border-teal-500/50 bg-wa-bg/60 dark:bg-wa-dark-header/40 hover:bg-teal-500/10 dark:hover:bg-teal-950/30 transition-all text-left group"
+                        >
+                          <span className="text-xs font-bold text-wa-text-primary dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                            {lang.name}
+                          </span>
+                          <span className="text-[11px] text-teal-700 dark:text-teal-300 font-sans mt-0.5">
+                            {lang.native}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  // All Languages (Filtered by Search)
+                  <div className="space-y-1">
+                    {filteredLanguages.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-wa-text-secondary">
+                        No languages matching &ldquo;{translateSearch}&rdquo;
+                      </div>
+                    ) : (
+                      filteredLanguages.map((lang) => (
+                        <button
+                          key={lang.code}
+                          type="button"
+                          onClick={() => {
+                            handleTranslateMessage(translateModalMsg.msgId, translateModalMsg.text, lang.code, lang.name);
+                            setTranslateModalMsg(null);
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-teal-500/10 dark:hover:bg-teal-950/30 border border-transparent hover:border-teal-500/20 transition-all text-left group"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-wa-text-primary dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400">
+                              {lang.name}
+                            </span>
+                            <span className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                              ({lang.native})
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:text-teal-600">
+                            {lang.code}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

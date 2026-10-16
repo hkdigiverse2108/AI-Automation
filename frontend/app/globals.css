@@ -433,3 +433,78 @@ button:not(:disabled):active,
   animation: spinSlow 8s linear infinite;
 }
 
+/* ========== GEMINI AI ROTATING BORDER HIGHLIGHT ========== */
+@keyframes geminiBorderSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.gemini-border-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 1.5px;
+  overflow: hidden;
+  background: transparent;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+}
+
+.gemini-border-btn::before {
+  content: '';
+  position: absolute;
+  inset: -150%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 180deg,
+    #00a884 220deg,
+    #4285F4 260deg,
+    #9b72cb 300deg,
+    #d96570 340deg,
+    #00a884 360deg
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.gemini-border-btn:hover::before {
+  opacity: 1;
+  animation: geminiBorderSpin 1.4s linear infinite;
+}
+
+.gemini-border-btn-inner {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 2.5px 8px;
+  border-radius: 9999px;
+  background-color: #ffffff;
+  border: 1px solid rgba(20, 184, 166, 0.3);
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.dark .gemini-border-btn-inner {
+  background-color: #1e293b;
+  border-color: rgba(20, 184, 166, 0.35);
+  color: #5eead4;
+}
+
+.gemini-border-btn:hover .gemini-border-btn-inner {
+  border-color: transparent;
+}
+

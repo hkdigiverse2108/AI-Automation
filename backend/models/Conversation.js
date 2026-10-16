@@ -57,7 +57,19 @@ const conversationSchema = new mongoose.Schema(
     isPinned: { type: Boolean, default: false },
     pinnedAt: { type: Date },
     isStarred: { type: Boolean, default: false },
-    starredAt: { type: Date }
+    starredAt: { type: Date },
+    summary: {
+      executiveSummary: { type: String, default: null },
+      keyPoints: [{ type: String }],
+      customerIntent: { type: String, default: null },
+      actionItems: [{ type: String }],
+      sentiment: { type: String, default: null },
+      resolutionStatus: { type: String, default: null },
+      generatedAt: { type: Date, default: null },
+      messageCountAtGeneration: { type: Number, default: 0 },
+      isAIConfigured: { type: Boolean, default: false },
+      provider: { type: String, default: null }
+    }
   },
   { timestamps: true, strict: true }
 );

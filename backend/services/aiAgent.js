@@ -702,9 +702,370 @@ Customer phone: ${contact.phone || 'unknown'}`;
   }
 }
 
+/**
+ * Generate 3 smart AI reply suggestions for human agent when human mode is ON.
+ * Does not send messages, only returns suggestions for agent review.
+ */
+async function generateAIReplySuggestions({ conversation, contact, userId, org = null, draftText = '' }) {
+  try {
+    const rawHistory = await Message.find({ conversationId: conversation._id })
+      .sort({ createdAt: -1 })
+      .limit(10);
+    const { getOekForUser, decryptMessage } = require('./oekService');
+    const rawOek = await getOekForUser(userId);
+    const history = (rawHistory || []).map(m => {
+      try { return rawOek ? decryptMessage(m, rawOek) : m; } catch (_) { return m; }
+    }).reverse();
+
+    const lastInbound = [...history].reverse().find(m => m.direction === 'inbound');
+    const lastInboundText = (lastInbound?.content?.text || '').trim();
+    const contactName = contact?.name || 'Customer';
+
+    const config = resolveAIConfig(org);
+
+    if (config && config.apiKey) {
+      const orgName = org?.name || 'our company';
+      
+      let catalogSnippet = '';
+      try {
+        const Product = require('../models/Product');
+        const products = await Product.find({ userId, isArchived: { $ne: true } })
+          .select('name price discountPrice status')
+          .limit(8)
+          .lean();
+        if (products && products.length > 0) {
+          catalogSnippet = 'Available Products:\n' + products.map(p => `- ${p.name}: ₹${p.discountPrice || p.price}`).join('\n');
+        }
+      } catch (_) {}
+
+      const formattedHistory = history.map(m => {
+        const sender = m.direction === 'inbound' ? contactName : 'Agent';
+        return `${sender}: ${m.content?.text || `[${m.type}]`}`;
+      }).join('\n');
+
+      const isDraftEnhance = Boolean(draftText && draftText.trim());
+
+      const systemPrompt = isDraftEnhance
+        ? `You are an expert WhatsApp communication assistant for "${orgName}".
+The human support agent has typed a raw draft reply to a customer.
+Your job is to rewrite and enhance this draft into 3 BETTER, more professional, polite, and effective WhatsApp replies in the SAME language (English, Hindi, Hinglish, Gujarati, etc.).
+
+CUSTOMER: ${contactName} (${contact?.phone || ''})
+${catalogSnippet ? `\n${catalogSnippet}\n` : ''}
+CUSTOMER'S LAST MESSAGE: "${lastInboundText || 'Inquiry'}"
+AGENT'S RAW DRAFT: "${draftText.trim()}"
+
+TASK:
+Provide 3 improved variations of the agent's draft:
+1. Option 1: Polished & Direct (clean grammar, clear message, professional).
+2. Option 2: Warm & Friendly (enthusiastic, polite, with natural emoji).
+3. Option 3: Action-Oriented (confident, adds next step or booking/confirmation offer).
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON array of exactly 3 strings with no markdown code blocks or surrounding text.
+Example: ["Option 1", "Option 2", "Option 3"]`
+        : `You are an AI co-pilot assisting a human WhatsApp support agent for "${orgName}".
+Your goal is to suggest 3 distinct, professional, and natural WhatsApp replies to the customer.
+
+CUSTOMER:
+- Name: ${contactName}
+- Phone: ${contact?.phone || ''}
+${catalogSnippet ? `\n${catalogSnippet}\n` : ''}
+
+RECENT CHAT CONTEXT:
+${formattedHistory || 'No previous messages'}
+
+LATEST INBOUND MESSAGE FROM CUSTOMER:
+"${lastInboundText || 'Hello'}"
+
+CRITICAL RULES:
+1. Match the exact language & tone of the customer's last message (English, Hindi, Hinglish, or Gujarati).
+2. Option 1: Direct & Informative (directly addresses the customer's question or topic).
+3. Option 2: Warm & Friendly (positive, conversational, helpful with emoji).
+4. Option 3: Action-Oriented (provides next step, booking prompt, or clear call to action).
+5. Keep each suggestion concise (1 to 3 short sentences suitable for WhatsApp).
+6. Return ONLY a valid JSON array of exactly 3 strings. Do NOT wrap in markdown code blocks or add any other text.
+Example format:
+["First suggestion here", "Second suggestion here", "Third suggestion here"]`;
+
+      const userMessageContent = isDraftEnhance
+        ? `Improve and polish this agent draft: "${draftText.trim()}"`
+        : `Generate 3 reply suggestions for: "${lastInboundText || 'Inquiry'}"`;
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessageContent }
+      ];
+
+      try {
+        const rawRes = await callChatCompletions(config, messages, 0.7, 450);
+        let cleaned = (rawRes || '').trim();
+        cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+        
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return {
+            suggestions: parsed.slice(0, 3).map(s => String(s).trim()),
+            isDraftEnhancement: isDraftEnhance,
+            isAIConfigured: true,
+            provider: config.provider
+          };
+        }
+      } catch (llmErr) {
+        logger.warn('LLM reply suggestion parse failed, using smart fallback:', llmErr.message);
+      }
+    }
+
+    // Smart contextual fallback when LLM is unconfigured or failed
+    const isDraftEnhance = Boolean(draftText && draftText.trim());
+    if (isDraftEnhance) {
+      const trimmedDraft = draftText.trim();
+      const capitalized = trimmedDraft.charAt(0).toUpperCase() + trimmedDraft.slice(1);
+      return {
+        suggestions: [
+          `${capitalized}. Please feel free to ask if you have any questions! 👍`,
+          `Ji bilkul! ${capitalized} 😊 Let me know if you would like me to assist you further.`,
+          `Sure! ${capitalized}. Would you like to proceed or confirm this right now? ✨`
+        ],
+        isDraftEnhancement: true,
+        isAIConfigured: Boolean(config && config.apiKey),
+        provider: config?.provider || 'smart-rule'
+      };
+    }
+
+    const lowerInbound = lastInboundText.toLowerCase();
+    let fallbackSuggestions = [];
+
+    if (lowerInbound.includes('price') || lowerInbound.includes('cost') || lowerInbound.includes('rate') || lowerInbound.includes('ticket') || lowerInbound.includes('kitna') || lowerInbound.includes('charge')) {
+      fallbackSuggestions = [
+        `Hello ${contactName}! We have special packages and competitive pricing available. Would you like me to share our full pricing brochure with you? 📄`,
+        `Hi! We'd love to help you with the rates. How many people or which specific package are you planning for? 😊`,
+        `Sure! I can send you all ticket and package details right here on WhatsApp. Let me know if you would also like to check slot availability! 🎟️`
+      ];
+    } else if (lowerInbound.includes('hi') || lowerInbound.includes('hello') || lowerInbound.includes('hey') || lowerInbound.includes('namaste') || lowerInbound.includes('kem cho')) {
+      fallbackSuggestions = [
+        `Hello ${contactName}! Welcome. How can I assist you today? 😊`,
+        `Hi there! Thank you for reaching out to us. What information can I help you with? ✨`,
+        `Namaste! Glad to connect with you. Please feel free to let me know what you are looking for today! 🙏`
+      ];
+    } else if (lowerInbound.includes('book') || lowerInbound.includes('timing') || lowerInbound.includes('open') || lowerInbound.includes('location') || lowerInbound.includes('address')) {
+      fallbackSuggestions = [
+        `Hi ${contactName}! We are open and welcoming guests. What date would you like to visit or book? 📅`,
+        `Hello! I can share our exact location map and visiting hours with you right now. 📍`,
+        `Sure, I can assist you with booking right away. How many people will be joining? 👥`
+      ];
+    } else {
+      fallbackSuggestions = [
+        `Hello ${contactName}! Thank you for your message. I am looking into this for you right now. 👍`,
+        `Hi! Sure, I'd be happy to help you with that. Could you share a few more details so I can assist you best? 😊`,
+        `Thanks for contacting us! Would you prefer details here on WhatsApp, or would you like a quick callback? 📞`
+      ];
+    }
+
+    return {
+      suggestions: fallbackSuggestions,
+      isAIConfigured: Boolean(config && config.apiKey),
+      provider: config?.provider || 'smart-rule'
+    };
+  } catch (err) {
+    logger.error('generateAIReplySuggestions error:', err);
+    return {
+      suggestions: [
+        `Hello! Thank you for contacting us. How may I assist you today?`,
+        `Hi there! I am checking this for you right now.`,
+        `Sure, I can help you with that! Please let me know your requirements.`
+      ],
+      isAIConfigured: false,
+      provider: 'default'
+    };
+  }
+}
+
+/**
+ * Generate a structured conversation summary using AI (with smart contextual rule fallback).
+ */
+async function generateConversationSummary({ conversation, contact, userId, org }) {
+  try {
+    const history = await Message.find({ conversationId: conversation._id })
+      .sort({ createdAt: 1 })
+      .limit(60)
+      .lean();
+
+    const contactName = contact?.name || contact?.phone || 'Customer';
+    const orgName = org?.name || 'our company';
+
+    if (!history || history.length === 0) {
+      return {
+        executiveSummary: `No messages have been exchanged with ${contactName} in this conversation yet.`,
+        keyPoints: ['Conversation thread is newly opened.', 'Waiting for inbound or outbound interaction.'],
+        customerIntent: 'New Thread',
+        actionItems: ['Send a welcome message or template to start the interaction.'],
+        sentiment: 'neutral',
+        resolutionStatus: 'Awaiting Messages',
+        generatedAt: new Date(),
+        messageCountAtGeneration: 0,
+        isAIConfigured: false,
+        provider: 'none'
+      };
+    }
+
+    const config = resolveAIConfig(org);
+
+    // Format chat log
+    const formattedHistory = history.map(m => {
+      const sender = m.direction === 'inbound' ? contactName : (m.sentBy === 'ai' ? 'AI Bot' : 'Agent');
+      const text = m.content?.text || (m.type === 'image' ? '[Photo]' : m.type === 'document' ? '[Document]' : `[${m.type}]`);
+      return `${sender}: ${text}`;
+    }).join('\n');
+
+    if (config && config.apiKey) {
+      const systemPrompt = `You are an expert CRM and Customer Support Intelligence Assistant for "${orgName}".
+Analyze the following WhatsApp conversation between customer "${contactName}" and our support agent/bot.
+Generate a structured, professional, and actionable conversation summary.
+
+CRITICAL RULES:
+1. "executiveSummary": 2-3 crisp sentences capturing the core topic, what happened, and current state.
+2. "keyPoints": Array of 2 to 4 bullet points capturing specific facts, requirements, prices, or questions discussed.
+3. "customerIntent": Short phrase (2-4 words) describing intent, e.g. "Pricing Inquiry", "Booking Request", "Support / Complaint", "Product Information", "General Greeting".
+4. "actionItems": Array of 1 to 3 concrete next steps for the agent or customer.
+5. "sentiment": Strictly one of ["positive", "neutral", "frustrated", "urgent"].
+6. "resolutionStatus": Strictly one of ["Resolved", "In Progress", "Awaiting Customer Reply", "Awaiting Agent Action"].
+7. Match the language tone (English/Hinglish/Hindi).
+8. Return ONLY valid JSON with no markdown formatting or backticks.
+
+JSON SCHEMA:
+{
+  "executiveSummary": "string",
+  "keyPoints": ["string", "string"],
+  "customerIntent": "string",
+  "actionItems": ["string"],
+  "sentiment": "positive" | "neutral" | "frustrated" | "urgent",
+  "resolutionStatus": "Resolved" | "In Progress" | "Awaiting Customer Reply" | "Awaiting Agent Action"
+}`;
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Summarize this WhatsApp conversation:\n\n${formattedHistory}` }
+      ];
+
+      try {
+        const rawRes = await callChatCompletions(config, messages, 0.4, 750);
+        let cleaned = (rawRes || '').trim();
+        cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+
+        const parsed = JSON.parse(cleaned);
+        if (parsed && parsed.executiveSummary) {
+          const validSentiment = ['positive', 'neutral', 'frustrated', 'urgent'].includes(parsed.sentiment?.toLowerCase())
+            ? parsed.sentiment.toLowerCase()
+            : 'neutral';
+
+          return {
+            executiveSummary: String(parsed.executiveSummary).trim(),
+            keyPoints: Array.isArray(parsed.keyPoints) && parsed.keyPoints.length > 0
+              ? parsed.keyPoints.map(s => String(s).trim())
+              : ['Customer inquiry received and processed.'],
+            customerIntent: String(parsed.customerIntent || 'General Inquiry').trim(),
+            actionItems: Array.isArray(parsed.actionItems) && parsed.actionItems.length > 0
+              ? parsed.actionItems.map(s => String(s).trim())
+              : ['Continue ongoing conversation with customer.'],
+            sentiment: validSentiment,
+            resolutionStatus: parsed.resolutionStatus || (conversation.status === 'resolved' ? 'Resolved' : 'In Progress'),
+            generatedAt: new Date(),
+            messageCountAtGeneration: history.length,
+            isAIConfigured: true,
+            provider: config.provider
+          };
+        }
+      } catch (llmErr) {
+        logger.warn('LLM conversation summary failed, falling back to smart analyzer:', llmErr.message);
+      }
+    }
+
+    // Smart contextual fallback when LLM is unconfigured or failed
+    const inbounds = history.filter(m => m.direction === 'inbound');
+    const outbounds = history.filter(m => m.direction === 'outbound');
+    const lastInbound = [...inbounds].reverse()[0];
+    const lastInboundText = (lastInbound?.content?.text || '').trim();
+    const lastOutbound = [...outbounds].reverse()[0];
+    const lastOutboundText = (lastOutbound?.content?.text || '').trim();
+
+    let detectedIntent = 'General Inquiry';
+    let detectedSentiment = conversation.sentiment || 'neutral';
+    const lowerInbound = lastInboundText.toLowerCase();
+
+    if (lowerInbound.includes('price') || lowerInbound.includes('rate') || lowerInbound.includes('cost') || lowerInbound.includes('kitna') || lowerInbound.includes('charge')) {
+      detectedIntent = 'Pricing & Cost Inquiry';
+    } else if (lowerInbound.includes('book') || lowerInbound.includes('slot') || lowerInbound.includes('ticket') || lowerInbound.includes('reserve')) {
+      detectedIntent = 'Booking & Reservation';
+    } else if (lowerInbound.includes('location') || lowerInbound.includes('where') || lowerInbound.includes('address') || lowerInbound.includes('kaha')) {
+      detectedIntent = 'Location & Directions';
+    } else if (lowerInbound.includes('time') || lowerInbound.includes('timing') || lowerInbound.includes('open') || lowerInbound.includes('kab')) {
+      detectedIntent = 'Timings & Schedule';
+    } else if (lowerInbound.includes('problem') || lowerInbound.includes('issue') || lowerInbound.includes('not working') || lowerInbound.includes('complaint') || lowerInbound.includes('refund')) {
+      detectedIntent = 'Support & Complaint';
+      detectedSentiment = 'frustrated';
+    } else if (lowerInbound.includes('thank') || lowerInbound.includes('great') || lowerInbound.includes('awesome') || lowerInbound.includes('perfect')) {
+      detectedSentiment = 'positive';
+    }
+
+    const keyPoints = [];
+    keyPoints.push(`${history.length} messages exchanged (${inbounds.length} customer messages, ${outbounds.length} responses).`);
+    if (lastInboundText) {
+      keyPoints.push(`Latest inquiry from customer: "${lastInboundText.length > 80 ? lastInboundText.slice(0, 80) + '...' : lastInboundText}"`);
+    }
+    if (lastOutboundText) {
+      keyPoints.push(`Latest response sent: "${lastOutboundText.length > 80 ? lastOutboundText.slice(0, 80) + '...' : lastOutboundText}"`);
+    }
+
+    const actionItems = [];
+    if (conversation.status === 'resolved') {
+      actionItems.push('Conversation marked as resolved. No pending actions.');
+    } else if (conversation.status === 'human') {
+      actionItems.push('Human agent takeover active — respond to customer inquiry.');
+    } else {
+      actionItems.push('Automated bot or AI monitoring incoming questions.');
+    }
+
+    const resolutionStatus = conversation.status === 'resolved'
+      ? 'Resolved'
+      : (inbounds.length > 0 && outbounds.length === 0)
+        ? 'Awaiting Agent Action'
+        : 'In Progress';
+
+    return {
+      executiveSummary: `${contactName} is currently in a conversation involving ${history.length} messages. The conversation is primarily centered around "${detectedIntent}". Current thread status is ${conversation.status}.`,
+      keyPoints,
+      customerIntent: detectedIntent,
+      actionItems,
+      sentiment: detectedSentiment,
+      resolutionStatus,
+      generatedAt: new Date(),
+      messageCountAtGeneration: history.length,
+      isAIConfigured: Boolean(config && config.apiKey),
+      provider: config?.provider || 'smart-rule'
+    };
+  } catch (err) {
+    logger.error('generateConversationSummary error:', err);
+    return {
+      executiveSummary: 'Unable to generate summary at this time.',
+      keyPoints: ['Conversation active', 'Review message history manually'],
+      customerIntent: 'Active Inquiry',
+      actionItems: ['Check recent messages to assist customer'],
+      sentiment: 'neutral',
+      resolutionStatus: 'In Progress',
+      generatedAt: new Date(),
+      messageCountAtGeneration: 0,
+      isAIConfigured: false,
+      provider: 'error'
+    };
+  }
+}
+
 module.exports = {
   resolveAIConfig,
   generateAIResponse,
   triggerAIReply,
-  processWithAI
+  processWithAI,
+  generateAIReplySuggestions,
+  generateConversationSummary
 };

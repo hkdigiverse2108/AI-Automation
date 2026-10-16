@@ -153,6 +153,16 @@ export default function CampaignsPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {activeTab === 'campaigns' && (
+            <button
+              onClick={() => { setEditingCampaign(null); setIsFormOpen(true); }}
+              className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              New Campaign
+            </button>
+          )}
+
           {/* Toggle Switcher: Campaigns / Reports / Activity Logs */}
           <div className="bg-wa-search dark:bg-wa-dark-search p-1 rounded-xl flex items-center border border-wa-border/50 dark:border-wa-dark-border/50 shadow-inner">
             <button
@@ -192,16 +202,6 @@ export default function CampaignsPage() {
               Activity Logs
             </button>
           </div>
-
-          {activeTab === 'campaigns' && (
-            <button
-              onClick={() => { setEditingCampaign(null); setIsFormOpen(true); }}
-              className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm"
-            >
-              <Plus className="w-4 h-4" />
-              New Campaign
-            </button>
-          )}
         </div>
       </div>
 
