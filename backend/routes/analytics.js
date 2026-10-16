@@ -6,36 +6,90 @@ const Message = require('../models/Message');
 const Contact = require('../models/Contact');
 const Conversation = require('../models/Conversation');
 const Campaign = require('../models/Campaign');
+const Order = require('../models/Order');
+const User = require('../models/User');
+const Template = require('../models/Template');
 const checkFeatureAccess = require('../middleware/checkFeatureAccess');
 
-// GET /api/analytics/overview — Aggregated dashboard metrics
+// GET /api/analytics/overview — Aggregated dashboard metrics (all 9 dynamic KPI categories)
 router.get('/overview', verifyToken, checkFeatureAccess('analytics'), async (req, res) => {
   try {
     const userId = req.userId;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
     const now = new Date();
-    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
-    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const [
       totalContacts,
       newContacts30d,
       totalConversations,
+      activeConversations,
+      resolvedConversations,
       totalMessages,
       messagesSent7d,
       messagesReceived7d,
       deliveredCount,
       readCount,
       repliedCount,
+      leadsBySourceAgg,
+      campaignStatsAgg,
+      templatePerfAgg,
+      approvedTemplates,
     ] = await Promise.all([
+      // 1. Total Contacts
       Contact.countDocuments({ userId, isDeleted: { $ne: true } }),
       Contact.countDocuments({ userId, isDeleted: { $ne: true }, createdAt: { $gte: thirtyDaysAgo } }),
+      // 2. Active Conversations vs Total
       Conversation.countDocuments({ userId }),
+      Conversation.countDocuments({ userId, status: { $ne: 'resolved' } }),
+      Conversation.countDocuments({ userId, status: 'resolved' }),
+      // Message volume metrics
       Message.countDocuments({ userId }),
       Message.countDocuments({ userId, direction: 'outbound', createdAt: { $gte: sevenDaysAgo } }),
       Message.countDocuments({ userId, direction: 'inbound', createdAt: { $gte: sevenDaysAgo } }),
       Message.countDocuments({ userId, direction: 'outbound', status: { $in: ['delivered', 'read'] } }),
       Message.countDocuments({ userId, direction: 'outbound', status: 'read' }),
       Message.countDocuments({ userId, direction: 'inbound' }),
+      // 3. New Leads by Source
+      Contact.aggregate([
+        { $match: { userId: userObjectId, isDeleted: { $ne: true } } },
+        { $group: { _id: '$source', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+      // 4. Broadcast Performance Aggregate
+      Campaign.aggregate([
+        { $match: { userId: userObjectId } },
+        {
+          $group: {
+            _id: null,
+            totalCampaigns: { $sum: 1 },
+            sent: { $sum: '$stats.sent' },
+            delivered: { $sum: '$stats.delivered' },
+            read: { $sum: '$stats.read' },
+            replied: { $sum: '$stats.replied' },
+            failed: { $sum: '$stats.failed' }
+          }
+        }
+      ]),
+      // 9. Top Performing Templates from Campaigns
+      Campaign.aggregate([
+        { $match: { userId: userObjectId, templateName: { $exists: true, $ne: '' } } },
+        {
+          $group: {
+            _id: '$templateName',
+            campaignsCount: { $sum: 1 },
+            sent: { $sum: '$stats.sent' },
+            delivered: { $sum: '$stats.delivered' },
+            read: { $sum: '$stats.read' },
+            replied: { $sum: '$stats.replied' }
+          }
+        },
+        { $sort: { sent: -1 } },
+        { $limit: 5 }
+      ]),
+      // Live Templates fallback if no campaign stats
+      Template.find({ userId: userObjectId }).select('name category language status').limit(5).lean(),
     ]);
 
     const totalSent = await Message.countDocuments({ userId, direction: 'outbound' });
@@ -43,12 +97,240 @@ router.get('/overview', verifyToken, checkFeatureAccess('analytics'), async (req
     const readRate = totalSent > 0 ? Math.round((readCount / totalSent) * 100) : 0;
     const replyRate = totalSent > 0 ? Math.round((repliedCount / totalSent) * 100) : 0;
 
+    // 4. Broadcast performance metrics
+    const cStats = campaignStatsAgg[0] || {
+      totalCampaigns: 0,
+      sent: 0,
+      delivered: 0,
+      read: 0,
+      replied: 0,
+      failed: 0
+    };
+    const broadcastStats = {
+      totalCampaigns: cStats.totalCampaigns || 0,
+      sent: cStats.sent || 0,
+      delivered: cStats.delivered || 0,
+      read: cStats.read || 0,
+      replied: cStats.replied || 0,
+      failed: cStats.failed || 0,
+      deliveryRate: cStats.sent > 0 ? Math.round((cStats.delivered / cStats.sent) * 100) : 0,
+      readRate: cStats.delivered > 0 ? Math.round((cStats.read / cStats.delivered) * 100) : 0,
+      replyRate: cStats.delivered > 0 ? Math.round((cStats.replied / cStats.delivered) * 100) : 0,
+    };
+
+    // 5 & 6. Conversion Rate & Sales Revenue from Orders
+    let salesRevenue = 0;
+    let orderCount = 0;
+    let avgOrderValue = 0;
+    let payingContactsCount = 0;
+
+    const orgId = req.organizationId || req.user?.organizationId;
+    if (orgId) {
+      const orderAgg = await Order.aggregate([
+        {
+          $match: {
+            organizationId: new mongoose.Types.ObjectId(orgId),
+            status: { $in: ['Payment Verified', 'Confirmed', 'Processing', 'Shipped', 'Delivered'] }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: '$totalAmount' },
+            count: { $sum: 1 },
+            avgValue: { $avg: '$totalAmount' }
+          }
+        }
+      ]);
+
+      if (orderAgg.length > 0) {
+        salesRevenue = orderAgg[0].totalRevenue || 0;
+        orderCount = orderAgg[0].count || 0;
+        avgOrderValue = Math.round(orderAgg[0].avgValue || 0);
+      }
+
+      const payingContactIds = await Order.distinct('contactId', {
+        organizationId: new mongoose.Types.ObjectId(orgId),
+        status: { $in: ['Payment Verified', 'Confirmed', 'Processing', 'Shipped', 'Delivered'] }
+      });
+      payingContactsCount = payingContactIds.length;
+    }
+
+    // Engagement conversion (contacts with multiple messages or hot/warm segment)
+    const engagedContactsCount = await Contact.countDocuments({
+      userId,
+      isDeleted: { $ne: true },
+      $or: [
+        { segment: { $in: ['hot', 'warm'] } },
+        { totalMessages: { $gt: 1 } },
+        { engagementScore: { $gte: 40 } }
+      ]
+    });
+
+    const salesConversionRate = totalContacts > 0 ? Number(((payingContactsCount / totalContacts) * 100).toFixed(1)) : 0;
+    const engagementConversionRate = totalContacts > 0 ? Number(((engagedContactsCount / totalContacts) * 100).toFixed(1)) : 0;
+
+    // 7. Team Performance: query agents/members in organization
+    const teamQuery = orgId
+      ? { organizationId: orgId, isDeleted: false }
+      : { $or: [{ _id: userId }, { ownerId: userId }], isDeleted: false };
+    const teamUsers = await User.find(teamQuery).select('_id name email role avatar').lean();
+
+    const teamConvAgg = await Conversation.aggregate([
+      {
+        $match: {
+          userId: userObjectId,
+          $or: [
+            { assignedAgent: { $exists: true, $ne: null } },
+            { assigned_agent_id: { $exists: true, $ne: null } }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: { $ifNull: ['$assignedAgent', '$assigned_agent_id'] },
+          assignedTotal: { $sum: 1 },
+          resolvedTotal: {
+            $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] }
+          },
+          activeTotal: {
+            $sum: { $cond: [{ $ne: ['$status', 'resolved'] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    const teamPerformance = teamUsers.map(member => {
+      const stats = teamConvAgg.find(c => c._id && c._id.toString() === member._id.toString()) || {
+        assignedTotal: 0,
+        resolvedTotal: 0,
+        activeTotal: 0
+      };
+      const resolutionRate = stats.assignedTotal > 0
+        ? Math.round((stats.resolvedTotal / stats.assignedTotal) * 100)
+        : 0;
+
+      return {
+        id: member._id,
+        name: member.name,
+        email: member.email,
+        role: member.role,
+        avatar: member.avatar || '',
+        assigned: stats.assignedTotal,
+        resolved: stats.resolvedTotal,
+        active: stats.activeTotal,
+        resolutionRate,
+      };
+    });
+
+    // 8. Response Time Calculation (Average turnaround)
+    const messagesForResp = await Message.find({
+      userId: userObjectId,
+      createdAt: { $gte: thirtyDaysAgo }
+    })
+      .select('conversationId direction createdAt')
+      .sort({ conversationId: 1, createdAt: 1 })
+      .limit(1000)
+      .lean();
+
+    let totalResponseTimeSec = 0;
+    let responseCount = 0;
+    const lastInboundTimeByConv = {};
+
+    for (const msg of messagesForResp) {
+      const convId = msg.conversationId?.toString();
+      if (!convId) continue;
+      const msgTime = new Date(msg.createdAt).getTime();
+
+      if (msg.direction === 'inbound') {
+        lastInboundTimeByConv[convId] = msgTime;
+      } else if (msg.direction === 'outbound' && lastInboundTimeByConv[convId]) {
+        const diffSec = (msgTime - lastInboundTimeByConv[convId]) / 1000;
+        if (diffSec >= 0 && diffSec <= 86400) {
+          totalResponseTimeSec += diffSec;
+          responseCount++;
+        }
+        delete lastInboundTimeByConv[convId];
+      }
+    }
+
+    const avgResponseSec = responseCount > 0 ? Math.round(totalResponseTimeSec / responseCount) : 0;
+    const formatDuration = (sec) => {
+      if (!sec || sec <= 0) return responseCount === 0 ? 'Instant (Bot)' : '< 1m';
+      if (sec < 60) return `${sec}s`;
+      const mins = Math.floor(sec / 60);
+      const remSec = sec % 60;
+      if (mins < 60) return remSec > 0 ? `${mins}m ${remSec}s` : `${mins}m`;
+      const hrs = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      return `${hrs}h ${remMins}m`;
+    };
+    const formattedResponseTime = formatDuration(avgResponseSec);
+
+    // 9. Top Performing Templates
+    let topTemplates = templatePerfAgg.map(t => {
+      const readRate = t.delivered > 0 ? Math.round((t.read / t.delivered) * 100) : 0;
+      const replyRate = t.delivered > 0 ? Math.round((t.replied / t.delivered) * 100) : 0;
+      return {
+        name: t._id,
+        campaignsCount: t.campaignsCount,
+        sent: t.sent,
+        delivered: t.delivered,
+        read: t.read,
+        replied: t.replied,
+        readRate,
+        replyRate,
+      };
+    });
+
+    // If no campaign template stats yet, list approved templates
+    if (topTemplates.length === 0 && approvedTemplates.length > 0) {
+      topTemplates = approvedTemplates.map(t => ({
+        name: t.name,
+        category: t.category || 'MARKETING',
+        campaignsCount: 0,
+        sent: 0,
+        delivered: 0,
+        read: 0,
+        replied: 0,
+        readRate: 0,
+        replyRate: 0,
+      }));
+    }
+
     res.json({
       success: true,
       data: {
+        // 1. Total Contacts & Growth
         totalContacts,
         newContacts30d,
+        // 2. Active Conversations vs Total
         totalConversations,
+        activeConversations,
+        resolvedConversations,
+        // 3. New Leads & Breakdown
+        newLeads: newContacts30d,
+        leadsBySource: leadsBySourceAgg.map(s => ({ source: s._id || 'manual', count: s.count })),
+        engagedContactsCount,
+        // 4. Broadcast Performance
+        broadcastStats,
+        // 5. Conversion Rate
+        salesConversionRate,
+        engagementConversionRate,
+        payingContactsCount,
+        // 6. Sales Revenue
+        salesRevenue,
+        orderCount,
+        avgOrderValue,
+        // 7. Team Performance
+        teamPerformance,
+        // 8. Response Time
+        avgResponseSec,
+        formattedResponseTime,
+        responseCount,
+        // 9. Top Performing Templates
+        topTemplates,
+        // Base counts
         totalMessages,
         messagesSent7d,
         messagesReceived7d,

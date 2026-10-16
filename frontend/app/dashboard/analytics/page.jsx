@@ -1,11 +1,12 @@
 'use client';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   BarChart3, TrendingUp, Users, MessageSquare, Target, Zap,
   Calendar, ArrowUpRight, ArrowDownRight, Loader2, RefreshCw,
   Send, Eye, Reply, Activity, Clock, Flame, FileText, CheckCheck,
-  XCircle, Download, FileSpreadsheet, AlertTriangle, ShieldCheck
+  XCircle, Download, FileSpreadsheet, AlertTriangle, ShieldCheck,
+  Sparkles, Award, UserCheck, Radio, CheckCircle2
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -349,13 +350,47 @@ export default function AnalyticsPage() {
     }
   };
 
-  // Heatmap helper
+  // Peak Activity: View Mode ('heatmap' | 'trend' | 'both') & Trending Insights
+  const [peakViewMode, setPeakViewMode] = useState('heatmap');
+
+  const hourlyTrendData = useMemo(() => {
+    return Array.from({ length: 24 }).map((_, h) => {
+      const totalInHour = (heatmap || [])
+        .filter(d => d.hour === h)
+        .reduce((sum, item) => sum + (item.count || 0), 0);
+      const label = h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
+      return {
+        hour: h,
+        label,
+        messages: totalInHour,
+      };
+    });
+  }, [heatmap]);
+
+  const peakStats = useMemo(() => {
+    if (!hourlyTrendData.length) return { peakHour: null, peakDay: null, totalMsgs: 0 };
+    const maxHour = hourlyTrendData.reduce((prev, curr) => (curr.messages > prev.messages ? curr : prev), hourlyTrendData[0]);
+
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dayTotals = days.map(day => {
+      const count = (heatmap || [])
+        .filter(d => d.day === day)
+        .reduce((sum, item) => sum + (item.count || 0), 0);
+      return { day, count };
+    });
+    const maxDay = dayTotals.reduce((prev, curr) => (curr.count > prev.count ? curr : prev), dayTotals[0]);
+    const totalMsgs = hourlyTrendData.reduce((sum, h) => sum + h.messages, 0);
+
+    return { peakHour: maxHour, peakDay: maxDay, totalMsgs };
+  }, [hourlyTrendData, heatmap]);
+
+  // Enhanced Heatmap color grading
   const getHeatmapColor = (count) => {
-    if (count === 0) return 'bg-gray-100 dark:bg-gray-800';
-    if (count < 5) return 'bg-emerald-100 dark:bg-emerald-900/30';
-    if (count < 20) return 'bg-emerald-300 dark:bg-emerald-700/50';
-    if (count < 50) return 'bg-emerald-500 dark:bg-emerald-600/70';
-    return 'bg-emerald-700 dark:bg-emerald-500';
+    if (count === 0) return 'bg-slate-100 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/40 text-transparent';
+    if (count < 5) return 'bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-200/60 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-300';
+    if (count < 15) return 'bg-emerald-300 dark:bg-emerald-700/60 border border-emerald-400/50 text-emerald-950 dark:text-emerald-100';
+    if (count < 35) return 'bg-emerald-500 dark:bg-emerald-500 border border-emerald-600/50 text-white';
+    return 'bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-400 border border-emerald-400 text-white shadow-xs';
   };
 
   if (loading && !overview && pageTab === 'analytics') {
@@ -369,14 +404,80 @@ export default function AnalyticsPage() {
     );
   }
 
-  // 6 Analytics default stat cards
+  // 8 Analytics dynamic primary KPI cards covering user's core requests
   const analyticsStatCards = [
-    { label: 'Total Contacts', value: overview?.totalContacts || 0, icon: Users, color: '#3b82f6', change: `+${overview?.newContacts30d || 0} this month`, up: true },
-    { label: 'Total Messages', value: overview?.totalMessages || 0, icon: MessageSquare, color: '#00a884', change: `${overview?.messagesSent7d || 0} sent 7d`, up: true },
-    { label: 'Delivery Rate', value: `${overview?.deliveryRate || 0}%`, icon: Send, color: '#8b5cf6', change: 'Outbound', up: overview?.deliveryRate > 80 },
-    { label: 'Read Rate', value: `${overview?.readRate || 0}%`, icon: Eye, color: '#f59e0b', change: 'Of delivered', up: overview?.readRate > 50 },
-    { label: 'Reply Rate', value: `${overview?.replyRate || 0}%`, icon: Reply, color: '#ec4899', change: 'Engagement', up: overview?.replyRate > 20 },
-    { label: 'Conversations', value: overview?.totalConversations || 0, icon: Activity, color: '#06b6d4', change: 'All time', up: true },
+    {
+      label: 'Total Contacts',
+      value: overview?.totalContacts || 0,
+      icon: Users,
+      color: '#3b82f6',
+      change: `+${overview?.newContacts30d || 0} this mo`,
+      subtext: 'Audience database',
+      up: true
+    },
+    {
+      label: 'Active Conversations',
+      value: overview?.activeConversations ?? 0,
+      icon: Activity,
+      color: '#10b981',
+      change: `${overview?.resolvedConversations || 0} resolved`,
+      subtext: 'Ongoing customer chats',
+      up: true
+    },
+    {
+      label: 'New Leads (30d)',
+      value: overview?.newLeads || 0,
+      icon: Sparkles,
+      color: '#8b5cf6',
+      change: `${overview?.engagedContactsCount || 0} engaged`,
+      subtext: 'Acquired last 30 days',
+      up: true
+    },
+    {
+      label: 'Avg Response Time',
+      value: overview?.formattedResponseTime || '< 1m',
+      icon: Clock,
+      color: '#f59e0b',
+      change: overview?.responseCount ? `${overview.responseCount} replies` : 'AI Bot instant',
+      subtext: 'Reply turnaround speed',
+      up: true
+    },
+    {
+      label: 'Conversion Rate',
+      value: `${overview?.salesConversionRate || 0}%`,
+      icon: Target,
+      color: '#ec4899',
+      change: `Engage: ${overview?.engagementConversionRate || 0}%`,
+      subtext: `${overview?.payingContactsCount || 0} buyers`,
+      up: (overview?.salesConversionRate || 0) > 0
+    },
+    {
+      label: 'Sales Revenue',
+      value: `₹${(overview?.salesRevenue || 0).toLocaleString()}`,
+      icon: Zap,
+      color: '#059669',
+      change: overview?.avgOrderValue ? `Avg ₹${overview.avgOrderValue}` : `${overview?.orderCount || 0} orders`,
+      subtext: 'Verified store sales',
+      up: (overview?.salesRevenue || 0) > 0
+    },
+    {
+      label: 'Broadcast Reach',
+      value: (overview?.broadcastStats?.sent || 0).toLocaleString(),
+      icon: Radio,
+      color: '#6366f1',
+      change: `${overview?.broadcastStats?.readRate || 0}% read`,
+      subtext: `${overview?.broadcastStats?.totalCampaigns || 0} campaigns run`,
+      up: true
+    },
+    {
+      label: 'Delivery Rate',
+      value: `${overview?.deliveryRate || 0}%`,
+      icon: CheckCheck,
+      color: '#00a884',
+      change: `${overview?.readRate || 0}% read rate`,
+      subtext: `${(overview?.totalMessages || 0).toLocaleString()} total msgs`,
+      up: (overview?.deliveryRate || 0) >= 80
+    },
   ];
 
   // 7 Reports requested metrics:
@@ -594,32 +695,127 @@ export default function AnalyticsPage() {
       {/* ============================================================ */}
       {pageTab === 'analytics' && (
         <div className="space-y-6">
-          {/* Stat Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {/* Primary Dynamic Stat Cards (Items 1, 2, 3, 5, 6, 8) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {analyticsStatCards.map((card, i) => (
               <div
                 key={i}
-                className="glass-card animate-card-in p-4 group hover:shadow-wa-md transition-all duration-300 hover:-translate-y-1 cursor-default"
-                style={{ animationDelay: `${i * 50}ms` }}
+                className="glass-card animate-card-in p-5 group hover:shadow-wa-md transition-all duration-300 hover:-translate-y-1 cursor-default flex flex-col justify-between min-h-[145px]"
+                style={{ animationDelay: `${i * 40}ms` }}
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
                   <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center"
-                    style={{ backgroundColor: card.color + '15' }}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs"
+                    style={{ backgroundColor: card.color + '18' }}
                   >
-                    <card.icon className="w-4.5 h-4.5" style={{ color: card.color }} />
+                    <card.icon className="w-5 h-5" style={{ color: card.color }} />
                   </div>
-                  <div className={`flex items-center gap-0.5 text-[10px] font-semibold ${card.up ? 'text-wa-green' : 'text-red-400'}`}>
-                    {card.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                    <span className="hidden sm:inline">{card.change}</span>
-                  </div>
+                  {card.change && (
+                    <div className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-white/[0.06] border border-slate-200/60 dark:border-white/10 text-wa-text-secondary shrink-0">
+                      {card.up ? <ArrowUpRight className="w-3.5 h-3.5 text-wa-green shrink-0" /> : null}
+                      <span className="truncate max-w-[130px]">{card.change}</span>
+                    </div>
+                  )}
                 </div>
-                <p className="text-xl font-extrabold text-wa-text-primary dark:text-wa-dark-text-primary tabular-nums">
-                  {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
-                </p>
-                <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary mt-0.5 font-medium">{card.label}</p>
+
+                <div className="my-1.5">
+                  <p className="text-2xl sm:text-3xl font-extrabold text-wa-text-primary dark:text-wa-dark-text-primary tabular-nums tracking-tight leading-none">
+                    {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
+                  </p>
+                </div>
+
+                <div className="flex items-baseline justify-between gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.06]">
+                  <span className="text-xs font-bold text-wa-text-primary dark:text-white truncate">
+                    {card.label}
+                  </span>
+                  {card.subtext && (
+                    <span className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary truncate text-right shrink-0">
+                      {card.subtext}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
+          </div>
+
+          {/* Broadcast Performance Engine Showcase (Item 4) */}
+          <div className="glass-card p-5 border border-indigo-500/20 bg-gradient-to-r from-indigo-500/5 via-purple-500/5 to-teal-500/5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-wa-border/50 dark:border-wa-dark-border/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
+                  <Radio className="w-4 h-4 animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
+                    Broadcast Performance
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold border border-indigo-500/20">
+                      Live Campaigns Engine
+                    </span>
+                  </h4>
+                  <p className="text-xs text-wa-text-secondary">
+                    Aggregated WhatsApp broadcast metrics across all user campaigns
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-semibold text-wa-text-secondary">Total Broadcasts:</span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2.5 py-0.5 rounded-lg border border-indigo-500/20 font-mono">
+                  {overview?.broadcastStats?.totalCampaigns || 0} Campaigns
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+              <div className="bg-white/70 dark:bg-black/25 p-3.5 sm:p-4 rounded-xl border border-wa-border/50 dark:border-wa-dark-border/50 flex flex-col justify-between min-h-[95px]">
+                <span className="text-[11px] text-wa-text-secondary font-medium">Broadcast Sent</span>
+                <p className="text-xl font-extrabold text-wa-text-primary dark:text-white tabular-nums my-1">
+                  {(overview?.broadcastStats?.sent || 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-wa-text-secondary">Dispatched outbox</span>
+              </div>
+
+              <div className="bg-white/70 dark:bg-black/25 p-3.5 sm:p-4 rounded-xl border border-wa-border/50 dark:border-wa-dark-border/50 flex flex-col justify-between min-h-[95px]">
+                <span className="text-[11px] text-wa-text-secondary font-medium">Delivered</span>
+                <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums my-1">
+                  {(overview?.broadcastStats?.delivered || 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                  {overview?.broadcastStats?.deliveryRate || 0}% delivery rate
+                </span>
+              </div>
+
+              <div className="bg-white/70 dark:bg-black/25 p-3.5 sm:p-4 rounded-xl border border-wa-border/50 dark:border-wa-dark-border/50 flex flex-col justify-between min-h-[95px]">
+                <span className="text-[11px] text-wa-text-secondary font-medium">Read / Opened</span>
+                <p className="text-xl font-extrabold text-blue-600 dark:text-blue-400 tabular-nums my-1">
+                  {(overview?.broadcastStats?.read || 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                  {overview?.broadcastStats?.readRate || 0}% read rate
+                </span>
+              </div>
+
+              <div className="bg-white/70 dark:bg-black/25 p-3.5 sm:p-4 rounded-xl border border-wa-border/50 dark:border-wa-dark-border/50 flex flex-col justify-between min-h-[95px]">
+                <span className="text-[11px] text-wa-text-secondary font-medium">Customer Replies</span>
+                <p className="text-xl font-extrabold text-pink-600 dark:text-pink-400 tabular-nums my-1">
+                  {(overview?.broadcastStats?.replied || 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-pink-600 dark:text-pink-400 font-semibold">
+                  {overview?.broadcastStats?.replyRate || 0}% reply rate
+                </span>
+              </div>
+
+              <div className="bg-white/70 dark:bg-black/25 p-3.5 sm:p-4 rounded-xl border border-wa-border/50 dark:border-wa-dark-border/50 flex flex-col justify-between min-h-[95px] col-span-2 sm:col-span-1">
+                <span className="text-[11px] text-wa-text-secondary font-medium">Failed</span>
+                <p className="text-xl font-extrabold text-rose-500 tabular-nums my-1">
+                  {(overview?.broadcastStats?.failed || 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-rose-500 font-semibold">
+                  {overview?.broadcastStats?.sent > 0
+                    ? `${Math.round(((overview?.broadcastStats?.failed || 0) / overview.broadcastStats.sent) * 100)}% failure rate`
+                    : '0% failure'}
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Charts Row 1: Message Trends + Conversation Status */}
@@ -690,63 +886,435 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Charts Row 2: Contact Growth + Activity Heatmap */}
+          {/* Row: Top Performing Templates (Item 9) & Team Performance (Item 7) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Contact Acquisition Growth */}
-            <div className="glass-card p-6">
-              <h3 className="text-sm font-bold text-wa-text-primary dark:text-wa-dark-text-primary mb-4 flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-500" />
-                Cumulative Contact Growth
-              </h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={contactGrowth}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
-                  <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={10} tickFormatter={v => v?.slice(5)} />
-                  <YAxis stroke="var(--text-secondary)" fontSize={10} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Line type="monotone" dataKey="total" name="Total Contacts" stroke="#3b82f6" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
-                  <Line type="monotone" dataKey="newContacts" name="New Daily" stroke="#10b981" strokeWidth={1.5} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
+            {/* 9. Top Performing Templates Leaderboard */}
+            <div className="glass-card p-6 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-wa-border dark:border-wa-dark-border">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                      <Award className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-wa-text-primary dark:text-wa-dark-text-primary">
+                        Top Performing Templates
+                      </h3>
+                      <p className="text-[11px] text-wa-text-secondary">
+                        Broadcast engagement, open & reply rates by template
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold border border-amber-500/20">
+                    Live Rankings
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {(overview?.topTemplates?.length > 0) ? (
+                    overview.topTemplates.slice(0, 5).map((tmpl, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-wa-border/50 dark:border-wa-dark-border/50 hover:border-amber-500/30 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-5 h-5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center justify-center shrink-0">
+                              {idx + 1}
+                            </span>
+                            <span className="font-semibold text-xs text-wa-text-primary dark:text-white truncate font-mono">
+                              {tmpl.name}
+                            </span>
+                            {tmpl.category && (
+                              <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-wa-text-secondary font-bold">
+                                {tmpl.category}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                              {tmpl.readRate}% Read
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Progress bar and metrics footer */}
+                        <div className="space-y-1.5">
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-gradient-to-r from-amber-500 to-emerald-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${Math.max(5, Math.min(100, tmpl.readRate || 0))}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-wa-text-secondary">
+                            <span>Sent: <strong className="text-wa-text-primary dark:text-white font-mono">{(tmpl.sent || 0).toLocaleString()}</strong></span>
+                            <span>Delivered: <strong className="text-wa-text-primary dark:text-white font-mono">{(tmpl.delivered || 0).toLocaleString()}</strong></span>
+                            <span>Replies: <strong className="text-pink-600 dark:text-pink-400 font-mono">{tmpl.replyRate}%</strong></span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center text-xs text-wa-text-secondary">
+                      No templates broadcasted yet. Send campaigns to see template rankings.
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Hourly Activity Heatmap */}
-            <div className="glass-card p-6">
-              <h3 className="text-sm font-bold text-wa-text-primary dark:text-wa-dark-text-primary mb-4 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500" />
-                Peak Activity Hours
-              </h3>
-              <div className="space-y-2">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => {
-                  const dayData = heatmap.filter(h => h.day === day);
-                  return (
-                    <div key={day} className="flex items-center gap-1.5">
-                      <span className="w-8 text-[10px] font-bold text-wa-text-secondary">{day}</span>
-                      <div className="flex-1 grid grid-cols-24 gap-0.5">
-                        {Array.from({ length: 24 }).map((_, h) => {
-                          const cell = dayData.find(d => d.hour === h);
-                          const count = cell?.count || 0;
-                          return (
+            {/* 7. Team Performance */}
+            <div className="glass-card p-6 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-wa-border dark:border-wa-dark-border">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-600 flex items-center justify-center">
+                      <UserCheck className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-wa-text-primary dark:text-wa-dark-text-primary">
+                        Team Performance
+                      </h3>
+                      <p className="text-[11px] text-wa-text-secondary">
+                        Agent workload, conversation resolution & efficiency
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-300 font-semibold border border-teal-500/20">
+                    {overview?.teamPerformance?.length || 0} Members
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {(overview?.teamPerformance?.length > 0) ? (
+                    overview.teamPerformance.map((member, idx) => (
+                      <div
+                        key={member.id || idx}
+                        className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-wa-border/50 dark:border-wa-dark-border/50 hover:border-teal-500/30 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                              {member.name ? member.name.charAt(0).toUpperCase() : 'U'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-wa-text-primary dark:text-white truncate">
+                                {member.name}
+                              </p>
+                              <span className="text-[10px] text-wa-text-secondary capitalize">
+                                {member.role || 'Agent'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="text-xs font-bold text-teal-600 dark:text-teal-400 font-mono">
+                              {member.resolutionRate}% Resolved
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Progress bar & load details */}
+                        <div className="space-y-1.5">
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden">
                             <div
-                              key={h}
-                              className={`h-4 rounded-[2px] transition-all hover:scale-125 cursor-pointer ${getHeatmapColor(count)}`}
-                              title={`${day} ${h}:00 — ${count} messages`}
+                              className="bg-gradient-to-r from-teal-500 to-cyan-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${Math.max(5, Math.min(100, member.resolutionRate || 0))}%` }}
                             />
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-wa-text-secondary">
+                            <span>Assigned: <strong className="text-wa-text-primary dark:text-white font-mono">{member.assigned}</strong></span>
+                            <span>Active Chats: <strong className="text-amber-600 dark:text-amber-400 font-mono">{member.active}</strong></span>
+                            <span>Resolved: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{member.resolved}</strong></span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center text-xs text-wa-text-secondary">
+                      No team members registered yet. Add agents in Team Settings.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Charts Row 2: Contact Growth + Activity Heatmap */}
+          {/* Cumulative Contact Growth */}
+          <div className="glass-card p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
+                  <Users className="w-4 h-4 text-blue-500" />
+                  Cumulative Contact Growth & Lead Acquisition
+                </h3>
+                <p className="text-xs text-wa-text-secondary mt-0.5">
+                  Total contact acquisition and daily new additions ({period} Days)
+                </p>
+              </div>
+              {overview?.newLeads > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 text-xs font-semibold">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                  <span>+{overview.newLeads} new leads in 30 days</span>
+                </div>
+              )}
+            </div>
+
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={contactGrowth}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={10} tickFormatter={v => v?.slice(5)} />
+                <YAxis stroke="var(--text-secondary)" fontSize={10} />
+                <Tooltip content={<CustomTooltip />} />
+                <Line type="monotone" dataKey="total" name="Total Contacts" stroke="#3b82f6" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="newContacts" name="New Daily" stroke="#10b981" strokeWidth={1.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+
+            {/* Leads Acquisition by Channel / Source Breakdown (Item 3) */}
+            {overview?.leadsBySource?.length > 0 && (
+              <div className="pt-3 border-t border-wa-border dark:border-wa-dark-border flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold text-wa-text-secondary uppercase tracking-wider">
+                  Lead Sources:
+                </span>
+                {overview.leadsBySource.map((s, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/[0.05] border border-wa-border/60 dark:border-wa-dark-border/60 text-xs font-medium text-wa-text-primary dark:text-white capitalize"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    <span>{s.source}:</span>
+                    <strong className="font-bold font-mono">{s.count}</strong>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Peak Activity Hours (Full Width Horizontal Trending Showcase) */}
+          <div className="glass-card p-6 w-full space-y-6">
+            {/* Header with Title, Insights, and View Toggle */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-wa-border dark:border-wa-dark-border">
+              <div>
+                <h3 className="text-base font-bold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <span>Peak Activity Hours & Customer Engagement</span>
+                </h3>
+                <p className="text-xs text-wa-text-secondary mt-0.5">
+                  Hourly traffic heatmap & trending message volume across all 7 days of the week
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Insights Badges */}
+                {peakStats.peakHour && peakStats.peakHour.messages > 0 && (
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 text-xs font-semibold">
+                    <Flame className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span>Peak Time: <strong className="font-bold">{peakStats.peakHour.label}</strong> ({peakStats.peakHour.messages} msgs)</span>
+                  </div>
+                )}
+                {peakStats.peakDay && peakStats.peakDay.count > 0 && (
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-xs font-semibold">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span>Top Day: <strong className="font-bold">{peakStats.peakDay.day}</strong></span>
+                  </div>
+                )}
+
+                {/* View Mode Toggle Pill */}
+                <div className="flex items-center gap-1 bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-black/5 dark:border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setPeakViewMode('heatmap')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      peakViewMode === 'heatmap'
+                        ? 'bg-white dark:bg-wa-dark-panel text-emerald-700 dark:text-emerald-300 shadow-xs'
+                        : 'text-wa-text-secondary hover:text-wa-text-primary'
+                    }`}
+                  >
+                    🔥 Heatmap Grid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPeakViewMode('trend')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      peakViewMode === 'trend'
+                        ? 'bg-white dark:bg-wa-dark-panel text-teal-700 dark:text-teal-300 shadow-xs'
+                        : 'text-wa-text-secondary hover:text-wa-text-primary'
+                    }`}
+                  >
+                    📈 24h Trend Curve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPeakViewMode('both')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      peakViewMode === 'both'
+                        ? 'bg-white dark:bg-wa-dark-panel text-indigo-700 dark:text-indigo-300 shadow-xs'
+                        : 'text-wa-text-secondary hover:text-wa-text-primary'
+                    }`}
+                  >
+                    ⚡ Combined
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* View Mode 1: 24-Hour Trending Area Curve */}
+            {(peakViewMode === 'trend' || peakViewMode === 'both') && (
+              <div className="space-y-2 animate-fade-in">
+                <div className="flex items-center justify-between text-xs px-1">
+                  <span className="font-bold text-wa-text-secondary uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-teal-600" /> 24-Hour Volume Curve (Aggregated)
+                  </span>
+                  <span className="text-wa-text-secondary text-[11px]">
+                    Identifies peak traffic spikes across the day
+                  </span>
+                </div>
+                <div className="h-[200px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={hourlyTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="hourlyTrendGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#00a884" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.6} />
+                      <XAxis
+                        dataKey="label"
+                        stroke="var(--text-secondary)"
+                        fontSize={10}
+                        interval={1}
+                      />
+                      <YAxis stroke="var(--text-secondary)" fontSize={10} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area
+                        type="monotone"
+                        dataKey="messages"
+                        name="Messages"
+                        stroke="#00a884"
+                        strokeWidth={2.5}
+                        fill="url(#hourlyTrendGrad)"
+                        activeDot={{ r: 5, fill: '#00a884', stroke: '#fff', strokeWidth: 2 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* View Mode 2: Horizontal 7-Day × 24-Hour Heatmap Grid */}
+            {(peakViewMode === 'heatmap' || peakViewMode === 'both') && (
+              <div className="space-y-3 animate-fade-in">
+                <div className="overflow-x-auto scrollbar-thin pb-2">
+                  <div className="min-w-[800px] space-y-2">
+                    {/* Time of Day Zones Row */}
+                    <div className="flex items-center gap-2 pl-12 text-[10px] font-bold text-wa-text-secondary uppercase tracking-wider">
+                      <div className="flex-1 text-center py-1 rounded-md bg-slate-100/70 dark:bg-slate-800/40 border border-slate-200/50 dark:border-slate-800/50">
+                        🌙 Night (12 AM – 5 AM)
+                      </div>
+                      <div className="flex-1 text-center py-1 rounded-md bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 border border-amber-200/50 dark:border-amber-900/30">
+                        🌅 Morning (6 AM – 11 AM)
+                      </div>
+                      <div className="flex-1 text-center py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-900/30">
+                        ☀️ Afternoon (12 PM – 4 PM)
+                      </div>
+                      <div className="flex-1 text-center py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-900/30">
+                        🌆 Evening (5 PM – 11 PM)
+                      </div>
+                    </div>
+
+                    {/* Hour Column Labels (0 to 23) */}
+                    <div className="flex items-center gap-1.5 pl-12 text-[10px] font-mono text-wa-text-secondary">
+                      <div className="flex-1 grid grid-cols-24 gap-1" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
+                        {Array.from({ length: 24 }).map((_, h) => {
+                          const hShort = h === 0 ? '12A' : h < 12 ? `${h}A` : h === 12 ? '12P' : `${h - 12}P`;
+                          return (
+                            <div key={h} className="text-center font-bold text-[9px] truncate" title={`${h}:00`}>
+                              {hShort}
+                            </div>
                           );
                         })}
                       </div>
                     </div>
-                  );
-                })}
-                <div className="flex items-center justify-between pt-2 text-[9px] text-wa-text-secondary">
-                  <span>12 AM</span>
-                  <span>6 AM</span>
-                  <span>12 PM</span>
-                  <span>6 PM</span>
-                  <span>11 PM</span>
+
+                    {/* 7 Days Matrix Rows */}
+                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => {
+                      const dayData = heatmap.filter(h => h.day === day);
+                      const dayTotal = dayData.reduce((acc, curr) => acc + (curr.count || 0), 0);
+
+                      return (
+                        <div key={day} className="flex items-center gap-2 group/row">
+                          {/* Day Label with Total Counter */}
+                          <div className="w-10 text-left shrink-0">
+                            <span className="text-[11px] font-bold text-wa-text-primary dark:text-white group-hover/row:text-wa-green transition-colors">
+                              {day}
+                            </span>
+                          </div>
+
+                          {/* 24 Horizontal Column Cells */}
+                          <div
+                            className="flex-1 grid grid-cols-24 gap-1"
+                            style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}
+                          >
+                            {Array.from({ length: 24 }).map((_, h) => {
+                              const cell = dayData.find(d => d.hour === h);
+                              const count = cell?.count || 0;
+                              const hLabel = h === 0 ? '12:00 AM' : h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`;
+
+                              return (
+                                <div
+                                  key={h}
+                                  className={`h-7 sm:h-8 rounded-md transition-all duration-150 hover:scale-110 hover:z-20 hover:shadow-lg hover:ring-2 hover:ring-teal-400 cursor-pointer relative group/cell ${getHeatmapColor(count)}`}
+                                >
+                                  {/* Floating Hover Tooltip */}
+                                  <div className="hidden group-hover/cell:flex flex-col items-center absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none animate-fade-in">
+                                    <div className="bg-slate-900 text-white text-[10px] rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap border border-slate-700 text-center leading-tight">
+                                      <div className="font-bold text-emerald-400">{day} • {hLabel}</div>
+                                      <div className="text-white font-semibold mt-0.5">{count.toLocaleString()} message{count !== 1 ? 's' : ''}</div>
+                                      {count > 0 && dayTotal > 0 && (
+                                        <div className="text-slate-400 text-[9px] mt-0.5">
+                                          {Math.round((count / dayTotal) * 100)}% of {day}&apos;s volume
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 -mt-1" />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Heatmap Legend and Guidance */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-wa-border/50 dark:border-wa-dark-border/50 text-xs">
+                  <div className="flex items-center gap-2 text-wa-text-secondary text-[11px]">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Hover over any hour block to view exact traffic volume</span>
+                  </div>
+
+                  {/* Gradient scale legend */}
+                  <div className="flex items-center gap-2 text-[11px] text-wa-text-secondary font-medium">
+                    <span>Less</span>
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700" title="0 messages" />
+                      <div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-200" title="1-4 messages" />
+                      <div className="w-4 h-4 rounded bg-emerald-300 dark:bg-emerald-700/60" title="5-14 messages" />
+                      <div className="w-4 h-4 rounded bg-emerald-500 text-white" title="15-34 messages" />
+                      <div className="w-4 h-4 rounded bg-gradient-to-r from-emerald-600 to-teal-500 shadow-xs" title="35+ messages (Peak)" />
+                    </div>
+                    <span>More (Peak)</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Campaign Performance Table */}

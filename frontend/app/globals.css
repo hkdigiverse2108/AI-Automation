@@ -508,3 +508,8 @@ button:not(:disabled):active,
   border-color: transparent;
 }
 
+/* ========== 24-COLUMN GRID UTILITY FOR HORIZONTAL HEATMAP ========== */
+.grid-cols-24 {
+  grid-template-columns: repeat(24, minmax(0, 1fr)) !important;
+}
+
