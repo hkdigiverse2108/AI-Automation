@@ -65,6 +65,7 @@ const invoiceSchema = new mongoose.Schema(
     unroundedTotal: { type: Number, default: 0 },
     roundOffAmount: { type: Number, default: 0 },
     grandTotal: { type: Number, default: 0 },
+    amountInWords: { type: String, default: '' },
     // Status
     status: {
       type: String,

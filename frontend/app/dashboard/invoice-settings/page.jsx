@@ -22,6 +22,70 @@ const INDIAN_STATES = [
   'Uttarakhand', 'West Bengal'
 ];
 
+function convertNumberToWords(num) {
+  if (num === null || num === undefined || isNaN(num)) return 'Zero Rupees Only';
+  const rounded = Math.round(Number(num));
+  if (rounded === 0) return 'Zero Rupees Only';
+  if (rounded === 1) return 'One Rupee Only';
+  if (rounded < 0) return 'Minus ' + convertNumberToWords(Math.abs(rounded));
+
+  const ones = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen'
+  ];
+
+  const tens = [
+    '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'
+  ];
+
+  function convertBelowThousand(n) {
+    let str = '';
+    if (n >= 100) {
+      str += ones[Math.floor(n / 100)] + ' Hundred ';
+      n %= 100;
+    }
+    if (n >= 20) {
+      str += tens[Math.floor(n / 10)] + ' ';
+      n %= 10;
+    }
+    if (n > 0) {
+      str += ones[n] + ' ';
+    }
+    return str.trim();
+  }
+
+  let words = '';
+  let n = rounded;
+
+  const crore = Math.floor(n / 10000000);
+  n %= 10000000;
+
+  const lakh = Math.floor(n / 100000);
+  n %= 100000;
+
+  const thousand = Math.floor(n / 1000);
+  n %= 1000;
+
+  const hundred = n;
+
+  if (crore > 0) {
+    words += convertBelowThousand(crore) + ' Crore ';
+  }
+  if (lakh > 0) {
+    words += convertBelowThousand(lakh) + ' Lakh ';
+  }
+  if (thousand > 0) {
+    words += convertBelowThousand(thousand) + ' Thousand ';
+  }
+  if (hundred > 0) {
+    words += convertBelowThousand(hundred) + ' ';
+  }
+
+  words = words.trim();
+  return words ? `${words} Rupees Only` : 'Zero Rupees Only';
+}
+
 export default function InvoiceSettingsPage() {
   const [activeTab, setActiveTab] = useState('settings'); // 'settings' | 'generate' | 'history'
   const [loading, setLoading] = useState(true);
@@ -753,6 +817,14 @@ export default function InvoiceSettingsPage() {
   const roundedGrandTotal = Math.round(unroundedTotal);
   const roundOffAmount = Number((roundedGrandTotal - unroundedTotal).toFixed(2));
 
+  // Amount in Words (Indian Currency Standard)
+  const amountInWords = useMemo(() => {
+    if (selectedInvoiceForView?.amountInWords) {
+      return selectedInvoiceForView.amountInWords;
+    }
+    return convertNumberToWords(roundedGrandTotal);
+  }, [selectedInvoiceForView, roundedGrandTotal]);
+
   // Active Bank Details (Primary vs Other Account based on paymentMode)
   const activeBankDetails = useMemo(() => {
     if (invoiceForm.paymentMode === 'other_account') {
@@ -929,6 +1001,7 @@ export default function InvoiceSettingsPage() {
         unroundedTotal,
         roundOffAmount,
         grandTotal: roundedGrandTotal,
+        amountInWords,
         companyState: settings.state,
         companySnapshot: {
           companyName: settings.companyName,
@@ -2820,6 +2893,16 @@ export default function InvoiceSettingsPage() {
                     <span className="text-slate-900 font-mono text-base font-black">₹{roundedGrandTotal.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Amount in Words (Full Line Below Total Due) */}
+              <div className="py-1 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex flex-wrap items-baseline gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Amount in Words:
+                </span>
+                <span className="font-bold text-slate-900 capitalize font-sans">
+                  {amountInWords}
+                </span>
               </div>
 
               {/* Bank Details & Terms Footer */}
