@@ -1,12 +1,15 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../../lib/api';
 import { toast } from 'react-hot-toast';
 import { 
   Search, Users, RefreshCw, MessageSquare, Eye, Sparkles, Filter, 
   MapPin, DollarSign, Calendar, Briefcase, ChevronLeft, ChevronRight, 
-  Bookmark, ArrowRight, Edit2, Trash2, X, Loader2, Save
+  Bookmark, ArrowRight, Edit2, Trash2, X, Loader2, Save,
+  ChevronDown, Award, FileText, CreditCard, XCircle, CheckCircle2, UserCheck, Check,
+  List, LayoutGrid, GripVertical, Receipt
 } from 'lucide-react';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
 const LeadDetailsModal = dynamic(() => import('../../../components/LeadDetailsModal'), {
@@ -17,19 +20,110 @@ import { useConfirmStore } from '../../../lib/store';
 import { getFastCache, setFastCache } from '../../../lib/usePageData';
 import Portal from '../../../components/Portal';
 
+const STATUS_OPTIONS = [
+  { value: 'new', label: 'New Lead', emoji: '🟡' },
+  { value: 'qualified', label: 'Qualified', emoji: '🟢' },
+  { value: 'proposal_sent', label: 'Proposal Sent', emoji: '🔵' },
+  { value: 'invoice_generated', label: 'Invoice Generated', emoji: '🔷' },
+  { value: 'payment_due', label: 'Payment Due', emoji: '🟠' },
+  { value: 'won', label: 'Lead Won', emoji: '🏆' },
+  { value: 'lost', label: 'Lead Lost', emoji: '❌' },
+  { value: 'closed', label: 'Closed / Won', emoji: '🟣' },
+];
+
+const KANBAN_COLUMNS = [
+  {
+    key: 'new',
+    label: 'New Lead',
+    emoji: '🟡',
+    color: 'border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10',
+    headerBg: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+    badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+    desc: 'Newly captured inquiries'
+  },
+  {
+    key: 'qualified',
+    label: 'Qualified',
+    emoji: '🟢',
+    color: 'border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10',
+    headerBg: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+    badge: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
+    desc: 'Requirements & budget fit'
+  },
+  {
+    key: 'proposal_sent',
+    label: 'Proposal Sent',
+    emoji: '🔵',
+    color: 'border-blue-500/30 bg-blue-500/5 dark:bg-blue-500/10',
+    headerBg: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
+    badge: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
+    desc: 'Quotation sent, reviewing'
+  },
+  {
+    key: 'invoice_generated',
+    label: 'Invoice Generated',
+    emoji: '🔷',
+    color: 'border-cyan-500/30 bg-cyan-500/5 dark:bg-cyan-500/10',
+    headerBg: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/20',
+    badge: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400',
+    desc: 'Bill raised, awaiting pay'
+  },
+  {
+    key: 'payment_due',
+    label: 'Payment Due',
+    emoji: '🟠',
+    color: 'border-orange-500/30 bg-orange-500/5 dark:bg-orange-500/10',
+    headerBg: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
+    badge: 'bg-orange-500/15 text-orange-700 dark:text-orange-400',
+    desc: 'Follow-up for payment'
+  },
+  {
+    key: 'won',
+    label: 'Lead Won',
+    emoji: '🏆',
+    color: 'border-emerald-600/30 bg-emerald-600/5 dark:bg-emerald-600/10',
+    headerBg: 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border-emerald-600/30',
+    badge: 'bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 font-bold',
+    desc: 'Deal closed & converted'
+  },
+  {
+    key: 'lost',
+    label: 'Lead Lost',
+    emoji: '❌',
+    color: 'border-rose-500/30 bg-rose-500/5 dark:bg-rose-500/10',
+    headerBg: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20',
+    badge: 'bg-rose-500/15 text-rose-700 dark:text-rose-400',
+    desc: 'Not interested / dropped'
+  },
+];
+
 export default function LeadsPage() {
   const confirm = useConfirmStore((state) => state.confirm);
 
-  const cachedLeads = getFastCache('leads_page_1', null);
-  const [leads, setLeads] = useState(cachedLeads?.leads || []);
-  const [total, setTotal] = useState(cachedLeads?.total || 0);
-  const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(cachedLeads?.pages || 1);
-  const [limit] = useState(10);
+  const cachedLeads = getFastCache('leads_all_cache', null);
+  const [allLeads, setAllLeads] = useState(cachedLeads?.leads || []);
+  const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(!cachedLeads?.leads?.length);
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
   
+  // View mode: 'list' (Table) vs 'kanban' (Drag and Drop Board)
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('leads_view_mode') || 'list';
+    }
+    return 'list';
+  });
+
+  // Drag and drop states for Kanban
+  const [draggedLeadId, setDraggedLeadId] = useState(null);
+  const [dragOverCol, setDragOverCol] = useState(null);
+
+  // Active inline popover dropdown: { id: string, type: 'status' | 'assign' } | null
+  const [activeDropdown, setActiveDropdown] = useState(null);
+
   // Modal states
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -41,6 +135,8 @@ export default function LeadsPage() {
     name: '',
     phone: '',
     email: '',
+    status: 'new',
+    assignedAgent: 'unassigned',
     serviceRequired: '',
     budget: '',
     timeline: '',
@@ -49,50 +145,234 @@ export default function LeadsPage() {
     notes: ''
   });
 
-  const fetchLeads = async () => {
-    if (leads.length === 0) {
-      setLoading(true);
+  const handleToggleView = (mode) => {
+    setViewMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leads_view_mode', mode);
     }
+  };
+
+  // Listen for clicks outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('[data-dropdown-container]')) {
+        setActiveDropdown(null);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setActiveDropdown(null);
+    };
+    window.addEventListener('click', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const fetchAgents = useCallback(async () => {
     try {
-      const params = {
-        page,
-        limit,
-        search: debouncedSearch || undefined
-      };
-      const { data } = await api.get('/leads', { params });
+      const { data } = await api.get('/leads/agents');
+      if (data.success) {
+        setAgents(data.data.agents || []);
+      }
+    } catch (_) {}
+  }, []);
+
+  const fetchLeads = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/leads', { params: { all: 'true', limit: 1000 } });
       if (data.success) {
         const fetchedLeads = data.data.leads || [];
-        const fetchedTotal = data.data.total || 0;
-        const fetchedPages = data.data.pages || 1;
-        setLeads(fetchedLeads);
-        setTotal(fetchedTotal);
-        setPages(fetchedPages);
-        if (page === 1 && !debouncedSearch) {
-          setFastCache('leads_page_1', {
-            leads: fetchedLeads,
-            total: fetchedTotal,
-            pages: fetchedPages
-          });
-        }
+        setAllLeads(fetchedLeads);
+        setFastCache('leads_all_cache', {
+          leads: fetchedLeads,
+          total: fetchedLeads.length
+        });
       }
     } catch (err) {
       toast.error('Failed to load leads data');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [search]);
+  }, []);
 
   useEffect(() => {
     fetchLeads();
-  }, [page, debouncedSearch]);
+    fetchAgents();
+  }, [fetchLeads, fetchAgents]);
+
+  // Inline Quick Assign Handler
+  const handleAssignAgent = async (leadId, agentId) => {
+    const selectedAgent = agents.find((a) => a._id === agentId);
+    const previousLeads = [...allLeads];
+
+    // Optimistic UI Update
+    setAllLeads((prev) =>
+      prev.map((lead) => {
+        if (lead._id === leadId) {
+          return {
+            ...lead,
+            assignedAgent: agentId && agentId !== 'unassigned' ? selectedAgent || { _id: agentId, name: 'Assigned Agent' } : null
+          };
+        }
+        return lead;
+      })
+    );
+
+    try {
+      const { data } = await api.put(`/leads/${leadId}`, {
+        assignedAgent: agentId === 'unassigned' ? '' : agentId
+      });
+      if (data.success) {
+        const agentName = selectedAgent?.name || (agentId === 'unassigned' ? 'Unassigned' : 'Assigned Member');
+        toast.success(`Assigned to ${agentName}`);
+        setFastCache('leads_all_cache', {
+          leads: allLeads.map((l) => (l._id === leadId ? data.data.lead : l)),
+          total: allLeads.length
+        });
+      } else {
+        setAllLeads(previousLeads);
+        toast.error('Failed to update assignment');
+      }
+    } catch (err) {
+      setAllLeads(previousLeads);
+      toast.error(err.response?.data?.error || 'Failed to update lead assignment');
+    }
+  };
+
+  // Inline Quick Status Handler (Also used for Kanban Drag and Drop)
+  const handleUpdateStatus = async (leadId, newStatus) => {
+    const previousLeads = [...allLeads];
+
+    // Optimistic UI Update
+    setAllLeads((prev) =>
+      prev.map((lead) => {
+        if (lead._id === leadId) {
+          return { ...lead, status: newStatus };
+        }
+        return lead;
+      })
+    );
+
+    try {
+      const { data } = await api.put(`/leads/${leadId}`, { status: newStatus });
+      if (data.success) {
+        toast.success(`Moved to ${getStatusLabel(newStatus)}`);
+        setFastCache('leads_all_cache', {
+          leads: allLeads.map((l) => (l._id === leadId ? data.data.lead : l)),
+          total: allLeads.length
+        });
+      } else {
+        setAllLeads(previousLeads);
+        toast.error('Failed to update status');
+      }
+    } catch (err) {
+      setAllLeads(previousLeads);
+      toast.error(err.response?.data?.error || 'Failed to update status');
+    }
+  };
+
+  // Kanban Drag & Drop Drop Handler
+  const handleDropLead = async (targetStatus) => {
+    if (!draggedLeadId) return;
+    const lead = allLeads.find((l) => l._id === draggedLeadId);
+    if (!lead) return;
+    
+    const currentStatus = lead.status || 'new';
+    if (currentStatus === targetStatus || (targetStatus === 'won' && currentStatus === 'closed')) {
+      setDraggedLeadId(null);
+      setDragOverCol(null);
+      return;
+    }
+
+    await handleUpdateStatus(draggedLeadId, targetStatus);
+    setDraggedLeadId(null);
+    setDragOverCol(null);
+  };
+
+  // Status Counts for Pill Filters
+  const counts = useMemo(() => {
+    return {
+      all: allLeads.length,
+      new: allLeads.filter((l) => !l.status || l.status === 'new').length,
+      qualified: allLeads.filter((l) => l.status === 'qualified').length,
+      proposal_sent: allLeads.filter((l) => l.status === 'proposal_sent').length,
+      invoice_generated: allLeads.filter((l) => l.status === 'invoice_generated').length,
+      payment_due: allLeads.filter((l) => l.status === 'payment_due').length,
+      won: allLeads.filter((l) => l.status === 'won' || l.status === 'closed').length,
+      lost: allLeads.filter((l) => l.status === 'lost').length,
+    };
+  }, [allLeads]);
+
+  // Instant Live Filtering on EVERY Keystroke across ALL fields + Status Pill Filter
+  const filteredLeads = useMemo(() => {
+    let result = allLeads;
+
+    // 1. Status Filter (active in table view or if user filters)
+    if (statusFilter !== 'ALL') {
+      result = result.filter((l) => {
+        if (statusFilter === 'won') {
+          return l.status === 'won' || l.status === 'closed';
+        }
+        return (l.status || 'new') === statusFilter;
+      });
+    }
+
+    // 2. Search Text
+    if (!search || !search.trim()) return result;
+    const cleanSearch = search.trim().toLowerCase();
+    const tokens = cleanSearch.split(/\s+/).filter(Boolean);
+    const digitsOnly = cleanSearch.replace(/\D/g, '');
+
+    return result.filter((lead) => {
+      const nameStr = (lead.name || '').toLowerCase();
+      const phoneStr = (lead.phone || '').toString();
+      const phoneClean = phoneStr.replace(/\D/g, '');
+      const emailStr = (lead.email || '').toLowerCase();
+      const serviceStr = (lead.serviceRequired || '').toLowerCase();
+      const descStr = (lead.projectDescription || '').toLowerCase();
+      const budgetStr = (lead.budget || '').toString().toLowerCase();
+      const timelineStr = (lead.timeline || '').toString().toLowerCase();
+      const statusStr = (lead.status || '').toLowerCase();
+      const segmentStr = (lead.segment || '').toLowerCase();
+      const cityStr = (lead.customFields?.city || '').toLowerCase();
+      const notesStr = (lead.notes || '').toLowerCase();
+      const agentName = (lead.assignedAgent?.name || lead.assignedAgent?.email || '').toLowerCase();
+      const idStr = (lead._id || '').toString().toLowerCase();
+
+      // 1. Partial ID match
+      if (idStr.includes(cleanSearch)) return true;
+
+      // 2. Partial phone match if user enters numbers
+      if (digitsOnly && digitsOnly.length >= 2 && phoneClean.includes(digitsOnly)) {
+        return true;
+      }
+
+      // 3. Partial substring search across all fields (tokens match)
+      const fullBlob = `${nameStr} ${phoneStr} ${emailStr} ${serviceStr} ${descStr} ${budgetStr} ${timelineStr} ${statusStr} ${segmentStr} ${cityStr} ${notesStr} ${agentName}`;
+      if (tokens.every((tok) => fullBlob.includes(tok))) {
+        return true;
+      }
+
+      // 4. Custom fields partial match
+      if (lead.customFields && typeof lead.customFields === 'object') {
+        const fieldsObj = lead.customFields instanceof Map ? Object.fromEntries(lead.customFields) : lead.customFields;
+        for (const val of Object.values(fieldsObj)) {
+          if (val && typeof val === 'string' && val.toLowerCase().includes(cleanSearch)) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    });
+  }, [allLeads, search, statusFilter]);
+
+  const total = filteredLeads.length;
+  const pages = Math.max(1, Math.ceil(total / limit));
+  const paginatedLeads = filteredLeads.slice((page - 1) * limit, page * limit);
 
   const handleOpenLead = (leadId) => {
     setSelectedLeadId(leadId);
@@ -105,6 +385,8 @@ export default function LeadsPage() {
       name: lead.name || '',
       phone: lead.phone || '',
       email: lead.email || '',
+      status: lead.status || 'new',
+      assignedAgent: lead.assignedAgent?._id || (typeof lead.assignedAgent === 'string' ? lead.assignedAgent : 'unassigned'),
       serviceRequired: lead.serviceRequired || '',
       budget: lead.budget || '',
       timeline: lead.timeline || '',
@@ -118,7 +400,11 @@ export default function LeadsPage() {
     e.preventDefault();
     setSavingLead(true);
     try {
-      const { data } = await api.put(`/leads/${editingLead._id}`, editForm);
+      const payload = {
+        ...editForm,
+        assignedAgent: editForm.assignedAgent === 'unassigned' ? '' : editForm.assignedAgent
+      };
+      const { data } = await api.put(`/leads/${editingLead._id}`, payload);
       if (data.success) {
         toast.success('Lead updated successfully in the database.');
         setEditingLead(null);
@@ -149,12 +435,28 @@ export default function LeadsPage() {
     }
   };
 
+  const getStatusLabel = (s) => {
+    switch (s) {
+      case 'qualified': return 'Qualified';
+      case 'proposal_sent': return 'Proposal Sent';
+      case 'invoice_generated': return 'Invoice Generated';
+      case 'payment_due': return 'Payment Due';
+      case 'won': return 'Lead Won';
+      case 'lost': return 'Lead Lost';
+      case 'closed': return 'Closed / Won';
+      default: return 'New Lead';
+    }
+  };
+
   const getStatusColor = (s) => {
     switch (s) {
-      case 'qualified': return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20';
-      case 'proposal_sent': return 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/20';
-      case 'closed': return 'bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/20';
-      default: return 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20';
+      case 'qualified': return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25';
+      case 'proposal_sent': return 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/25';
+      case 'invoice_generated': return 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border border-cyan-500/25';
+      case 'payment_due': return 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25';
+      case 'won': case 'closed': return 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border border-emerald-600/30 font-bold';
+      case 'lost': return 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/25';
+      default: return 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25';
     }
   };
 
@@ -175,31 +477,67 @@ export default function LeadsPage() {
     }
   };
 
-  // Calculate metrics
-  const totalCount = total;
-  const hotCount = leads.filter(l => l.segment === 'hot').length;
-  const warmCount = leads.filter(l => l.segment === 'warm').length;
-  const closedCount = leads.filter(l => l.status === 'closed').length;
+  // Metrics Counters
+  const totalCount = allLeads.length;
+  const wonCount = counts.won;
+  const financeCount = counts.invoice_generated + counts.payment_due;
+  const activeLeadsCount = counts.qualified + counts.proposal_sent;
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
-      {/* Header section */}
+      {/* Header section with View Toggle (Table vs Kanban) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-wa-border dark:border-wa-dark-border pb-4">
         <div>
           <h2 className="text-xl font-bold text-wa-text-primary dark:text-wa-dark-text-primary flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-wa-green animate-pulse" /> Customer Inquiries & Leads
+            <Sparkles className="w-5 h-5 text-wa-green animate-pulse" /> Customer Inquiries & Lead Pipeline
           </h2>
           <p className="text-sm text-wa-text-secondary dark:text-wa-dark-text-secondary mt-0.5">
-            Real-time inquiries captured from active Bot flows, custom fields, and qualifications.
+            Real-time inquiries captured from active Bot flows, qualifications, drag & drop pipeline, and billing.
           </p>
         </div>
-        <button 
-          onClick={fetchLeads}
-          className="flex items-center gap-1.5 px-4 py-2 bg-wa-panel-header dark:bg-wa-dark-panel-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs font-semibold text-wa-text-primary dark:text-white hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-all duration-200"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+
+        <div className="flex items-center gap-2.5">
+          {/* Table vs Kanban View Mode Toggle */}
+          <div className="flex items-center p-1 bg-wa-panel-header dark:bg-wa-dark-panel-header border border-wa-border dark:border-wa-dark-border rounded-xl shadow-xs">
+            <button
+              type="button"
+              onClick={() => handleToggleView('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-wa-dark-panel text-wa-green shadow-xs'
+                  : 'text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white'
+              }`}
+              title="Table View"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>Table</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleView('kanban')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
+                viewMode === 'kanban'
+                  ? 'bg-white dark:bg-wa-dark-panel text-wa-green shadow-xs'
+                  : 'text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white'
+              }`}
+              title="Kanban Drag & Drop Board"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Kanban</span>
+            </button>
+          </div>
+
+          <button 
+            onClick={() => {
+              fetchLeads();
+              fetchAgents();
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-wa-panel-header dark:bg-wa-dark-panel-header border border-wa-border dark:border-wa-dark-border rounded-xl text-xs font-semibold text-wa-text-primary dark:text-white hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-all duration-200"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Metrics Cards */}
@@ -218,40 +556,40 @@ export default function LeadsPage() {
         </div>
 
         <div className="glass-card p-5 flex items-center gap-4 relative overflow-hidden">
-          <div className="p-3 bg-red-500/10 text-red-500 rounded-xl">
-            <Sparkles className="w-6 h-6 text-red-500" />
+          <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl">
+            <Award className="w-6 h-6 text-emerald-600" />
           </div>
           <div>
-            <span className="block text-[10px] uppercase font-bold text-wa-text-secondary tracking-wider">Hot Leads</span>
-            <span className="text-2xl font-black text-red-500">{hotCount}</span>
+            <span className="block text-[10px] uppercase font-bold text-wa-text-secondary tracking-wider">Leads Won / Closed</span>
+            <span className="text-2xl font-black text-emerald-600">{wonCount}</span>
           </div>
-          <div className="absolute right-0 bottom-0 opacity-5 text-red-500 pointer-events-none">
-            <Sparkles className="w-32 h-32 -mr-8 -mb-8" />
+          <div className="absolute right-0 bottom-0 opacity-5 text-emerald-500 pointer-events-none">
+            <Award className="w-32 h-32 -mr-8 -mb-8" />
           </div>
         </div>
 
         <div className="glass-card p-5 flex items-center gap-4 relative overflow-hidden">
-          <div className="p-3 bg-orange-500/10 text-orange-500 rounded-xl">
-            <Bookmark className="w-6 h-6 text-orange-500" />
+          <div className="p-3 bg-cyan-500/10 text-cyan-600 rounded-xl">
+            <CreditCard className="w-6 h-6 text-cyan-600" />
           </div>
           <div>
-            <span className="block text-[10px] uppercase font-bold text-wa-text-secondary tracking-wider">Warm Leads</span>
-            <span className="text-2xl font-black text-orange-500">{warmCount}</span>
+            <span className="block text-[10px] uppercase font-bold text-wa-text-secondary tracking-wider">Invoice / Payment Due</span>
+            <span className="text-2xl font-black text-cyan-600">{financeCount}</span>
           </div>
-          <div className="absolute right-0 bottom-0 opacity-5 text-orange-500 pointer-events-none">
-            <Bookmark className="w-32 h-32 -mr-8 -mb-8" />
+          <div className="absolute right-0 bottom-0 opacity-5 text-cyan-500 pointer-events-none">
+            <CreditCard className="w-32 h-32 -mr-8 -mb-8" />
           </div>
         </div>
 
         <div className="glass-card p-5 flex items-center gap-4 relative overflow-hidden">
-          <div className="p-3 bg-purple-500/10 text-purple-500 rounded-xl">
-            <MessageSquare className="w-6 h-6" />
+          <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl">
+            <MessageSquare className="w-6 h-6 text-blue-500" />
           </div>
           <div>
-            <span className="block text-[10px] uppercase font-bold text-wa-text-secondary tracking-wider">Closed Deals</span>
-            <span className="text-2xl font-black text-purple-500">{closedCount}</span>
+            <span className="block text-[10px] uppercase font-bold text-wa-text-secondary tracking-wider">In Negotiation</span>
+            <span className="text-2xl font-black text-blue-500">{activeLeadsCount}</span>
           </div>
-          <div className="absolute right-0 bottom-0 opacity-5 text-purple-500 pointer-events-none">
+          <div className="absolute right-0 bottom-0 opacity-5 text-blue-500 pointer-events-none">
             <MessageSquare className="w-32 h-32 -mr-8 -mb-8" />
           </div>
         </div>
@@ -259,179 +597,688 @@ export default function LeadsPage() {
 
       {/* Main Content Card */}
       <div className="glass-card overflow-hidden flex flex-col">
-        {/* Table Filters */}
-        <div className="p-4 border-b border-wa-border dark:border-wa-dark-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-wa-panel-header dark:bg-wa-dark-panel-header/50">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-wa-text-secondary" />
-            <input
-              type="text"
-              placeholder="Search by name, phone..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="input-field pl-10 pr-4 py-2 text-xs"
-            />
+        {/* Table Filters & Search */}
+        <div className="p-4 border-b border-wa-border dark:border-wa-dark-border flex flex-col gap-3.5 bg-wa-panel-header dark:bg-wa-dark-panel-header/50">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-wa-text-secondary" />
+              <input
+                type="text"
+                placeholder="Live search by name, phone, agent, city, status..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="input-field pl-10 pr-9 py-2 text-xs"
+              />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch('');
+                    setPage(1);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white p-0.5 rounded transition-colors"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              ) : null}
+            </div>
+
+            <div className="flex items-center gap-2 text-xs font-medium text-wa-text-secondary">
+              <Filter className="w-3.5 h-3.5" />
+              <span>
+                {search.trim() || statusFilter !== 'ALL'
+                  ? `Showing ${total} of ${allLeads.length} leads`
+                  : `Showing ${viewMode === 'list' ? paginatedLeads.length : allLeads.length} of ${allLeads.length} leads`}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-xs font-medium text-wa-text-secondary">
-            <Filter className="w-3.5 h-3.5" />
-            <span>Showing {leads.length} of {total} leads</span>
+
+          {/* Status Quick Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 scrollbar-thin">
+            <span className="text-[10px] font-bold uppercase text-wa-text-secondary mr-1 shrink-0">Status:</span>
+            {[
+              { id: 'ALL', label: 'All', count: counts.all },
+              { id: 'new', label: 'New', count: counts.new },
+              { id: 'qualified', label: 'Qualified', count: counts.qualified },
+              { id: 'proposal_sent', label: 'Proposal Sent', count: counts.proposal_sent },
+              { id: 'invoice_generated', label: 'Invoice Generated', count: counts.invoice_generated },
+              { id: 'payment_due', label: 'Payment Due', count: counts.payment_due },
+              { id: 'won', label: 'Lead Won', count: counts.won },
+              { id: 'lost', label: 'Lead Lost', count: counts.lost },
+            ].map((tab) => {
+              const active = statusFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setStatusFilter(tab.id);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all duration-150 flex items-center gap-1.5 border cursor-pointer ${
+                    active
+                      ? 'bg-wa-green text-white border-wa-green shadow-sm shadow-wa-green/20'
+                      : 'bg-white dark:bg-wa-dark-panel border-wa-border dark:border-wa-dark-border text-wa-text-secondary hover:border-wa-green/40'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      active ? 'bg-white/20 text-white' : 'bg-wa-bg dark:bg-wa-dark-header text-wa-text-secondary'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Leads Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-wa-border dark:border-wa-dark-border bg-wa-panel-header dark:bg-wa-dark-panel-header/35 text-[10px] uppercase tracking-wider font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary">
-                <th className="px-6 py-4">Lead / Customer</th>
-                <th className="px-6 py-4">Inquiry Summary</th>
-                <th className="px-6 py-4">Budget & Timeline</th>
-                <th className="px-6 py-4">Interest / Status</th>
-                <th className="px-6 py-4">Last Activity</th>
-                <th className="px-6 py-4 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-wa-border/50 dark:divide-wa-dark-border/40 text-xs">
-              {leads.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-wa-text-secondary">
-                    {loading ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <RefreshCw className="w-4 h-4 animate-spin text-wa-green" />
-                        <span>Loading leads...</span>
-                      </div>
-                    ) : (
-                      <span>No bot flow leads found. Ensure bot flows are active and customers are interacting.</span>
-                    )}
-                  </td>
-                </tr>
-              ) : (
-                leads.map((lead) => (
-                  <tr key={lead._id} className="hover:bg-wa-hover/40 dark:hover:bg-wa-dark-hover/10 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-wa-green/10 text-wa-green font-bold flex items-center justify-center shadow-inner">
-                          {lead.name ? lead.name.substring(0, 2).toUpperCase() : 'LD'}
-                        </div>
-                        <div>
-                          <span className="font-bold text-wa-text-primary dark:text-white block hover:underline cursor-pointer" onClick={() => handleOpenLead(lead._id)}>
-                            {lead.name || 'Anonymous User'}
-                          </span>
-                          <span className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono block mt-0.5">
-                            {lead.phone}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1.5 max-w-xs">
-                        {lead.serviceRequired && (
-                          <div className="flex items-center gap-1">
-                            <Briefcase className="w-3.5 h-3.5 text-wa-text-light shrink-0" />
-                            <span className="font-semibold truncate text-[11px] text-wa-text-primary dark:text-wa-dark-text-primary">
-                              {lead.serviceRequired}
-                            </span>
-                          </div>
-                        )}
-                        {lead.projectDescription && (
-                          <span className="text-[10px] text-wa-text-secondary line-clamp-1">
-                            {lead.projectDescription}
-                          </span>
-                        )}
-                        {lead.customFields?.city && (
-                          <div className="flex items-center gap-1 text-[10px] text-wa-text-secondary">
-                            <MapPin className="w-3 h-3 text-red-400" />
-                            <span>{lead.customFields.city}</span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        {lead.budget && (
-                          <div className="flex items-center text-wa-green font-bold text-[11px]">
-                            <DollarSign className="w-3 h-3" />
-                            <span>{lead.budget}</span>
-                          </div>
-                        )}
-                        {lead.timeline && (
-                          <div className="flex items-center gap-1 text-[10px] text-wa-text-secondary">
-                            <Calendar className="w-3 h-3" />
-                            <span>{lead.timeline}</span>
-                          </div>
-                        )}
-                        {!lead.budget && !lead.timeline && (
-                          <span className="text-wa-text-secondary italic text-[10px]">No info collected</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1.5 w-fit">
-                        {lead.segment && (
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold text-center uppercase tracking-wider ${getSegmentColor(lead.segment)}`}>
-                            {lead.segment}
-                          </span>
-                        )}
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold text-center uppercase tracking-wider ${getStatusColor(lead.status)}`}>
-                          {lead.status === 'qualified' ? 'Qualified' : lead.status === 'proposal_sent' ? 'Proposal Sent' : lead.status === 'closed' ? 'Closed' : 'New'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-wa-text-secondary text-[11px] font-medium">
-                      {getRelativeTime(lead.lastMessageAt || lead.updatedAt)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => handleOpenLead(lead._id)}
-                          className="p-1.5 bg-wa-green/10 hover:bg-wa-green text-wa-green hover:text-white rounded-lg transition-all duration-200"
-                          title="View Details & Chat"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenEdit(lead)}
-                          className="p-1.5 bg-blue-500/10 hover:bg-blue-500 text-blue-500 hover:text-white rounded-lg transition-all duration-200"
-                          title="Edit Lead Database"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteLead(lead._id, lead.name)}
-                          className="p-1.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-all duration-200"
-                          title="Delete Lead Database"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+        {/* VIEW 1: TABLE VIEW */}
+        {viewMode === 'list' && (
+          <>
+            <div className="overflow-x-auto min-h-[380px]">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-wa-border dark:border-wa-dark-border bg-wa-panel-header dark:bg-wa-dark-panel-header/35 text-[10px] uppercase tracking-wider font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                    <th className="px-6 py-4">Lead / Customer</th>
+                    <th className="px-6 py-4">Inquiry Summary</th>
+                    <th className="px-6 py-4">Budget & Timeline</th>
+                    <th className="px-6 py-4">Assigned To</th>
+                    <th className="px-6 py-4">Lead Status</th>
+                    <th className="px-6 py-4">Last Activity</th>
+                    <th className="px-6 py-4 text-center">Actions</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody className="divide-y divide-wa-border/50 dark:divide-wa-dark-border/40 text-xs">
+                  {paginatedLeads.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="px-6 py-12 text-center text-wa-text-secondary">
+                        {loading ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <RefreshCw className="w-4 h-4 animate-spin text-wa-green" />
+                            <span>Loading leads...</span>
+                          </div>
+                        ) : search.trim() || statusFilter !== 'ALL' ? (
+                          <div className="space-y-2 py-4 max-w-sm mx-auto">
+                            <p className="text-sm font-semibold text-wa-text-primary dark:text-white">
+                              No leads matching current filters
+                            </p>
+                            <p className="text-xs text-wa-text-secondary">
+                              Try adjusting your search terms or status filter.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSearch('');
+                                setStatusFilter('ALL');
+                                setPage(1);
+                              }}
+                              className="mt-2 px-3 py-1.5 bg-wa-green/10 text-wa-green hover:bg-wa-green hover:text-white rounded-lg text-xs font-semibold transition-colors"
+                            >
+                              Clear Filters
+                            </button>
+                          </div>
+                        ) : (
+                          <span>No bot flow leads found. Ensure bot flows are active and customers are interacting.</span>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedLeads.map((lead, index) => {
+                      const assignedAgentObj = lead.assignedAgent && typeof lead.assignedAgent === 'object' ? lead.assignedAgent : null;
+                      const isNearBottom = index >= paginatedLeads.length - 2 && paginatedLeads.length > 3;
 
-        {/* Pagination Footer */}
-        {pages > 1 && (
-          <div className="p-4 border-t border-wa-border dark:border-wa-dark-border flex items-center justify-between bg-wa-panel-header dark:bg-wa-dark-panel-header/20">
-            <span className="text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase">
-              Page {page} of {pages}
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                disabled={page === 1}
-                onClick={() => setPage(page - 1)}
-                className="p-1.5 rounded-lg border border-wa-border dark:border-wa-dark-border hover:bg-wa-hover dark:hover:bg-wa-dark-hover disabled:opacity-40 disabled:hover:bg-transparent text-wa-text-primary dark:text-white transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                disabled={page === pages}
-                onClick={() => setPage(page + 1)}
-                className="p-1.5 rounded-lg border border-wa-border dark:border-wa-dark-border hover:bg-wa-hover dark:hover:bg-wa-dark-hover disabled:opacity-40 disabled:hover:bg-transparent text-wa-text-primary dark:text-white transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+                      return (
+                        <tr key={lead._id} className="hover:bg-wa-hover/40 dark:hover:bg-wa-dark-hover/10 transition-colors">
+                          {/* Customer / Name */}
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-wa-green/10 text-wa-green font-bold flex items-center justify-center shadow-inner">
+                                {lead.name ? lead.name.substring(0, 2).toUpperCase() : 'LD'}
+                              </div>
+                              <div>
+                                <span 
+                                  className="font-bold text-wa-text-primary dark:text-white block hover:underline cursor-pointer" 
+                                  onClick={() => handleOpenLead(lead._id)}
+                                >
+                                  {lead.name || 'Anonymous User'}
+                                </span>
+                                <span className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono block mt-0.5">
+                                  {lead.phone}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Inquiry Summary */}
+                          <td className="px-6 py-4">
+                            <div className="space-y-1.5 max-w-xs">
+                              {lead.serviceRequired && (
+                                <div className="flex items-center gap-1">
+                                  <Briefcase className="w-3.5 h-3.5 text-wa-text-light shrink-0" />
+                                  <span className="font-semibold truncate text-[11px] text-wa-text-primary dark:text-wa-dark-text-primary">
+                                    {lead.serviceRequired}
+                                  </span>
+                                </div>
+                              )}
+                              {lead.projectDescription && (
+                                <span className="text-[10px] text-wa-text-secondary line-clamp-1">
+                                  {lead.projectDescription}
+                                </span>
+                              )}
+                              {lead.customFields?.city && (
+                                <div className="flex items-center gap-1 text-[10px] text-wa-text-secondary">
+                                  <MapPin className="w-3 h-3 text-red-400" />
+                                  <span>{lead.customFields.city}</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Budget & Timeline */}
+                          <td className="px-6 py-4">
+                            <div className="space-y-1">
+                              {lead.budget && (
+                                <div className="flex items-center text-wa-green font-bold text-[11px]">
+                                  <DollarSign className="w-3 h-3" />
+                                  <span>{lead.budget}</span>
+                                </div>
+                              )}
+                              {lead.timeline && (
+                                <div className="flex items-center gap-1 text-[10px] text-wa-text-secondary">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{lead.timeline}</span>
+                                </div>
+                              )}
+                              {!lead.budget && !lead.timeline && (
+                                <span className="text-wa-text-secondary italic text-[10px]">No info collected</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Lead Assigned (Default: clean agent name/avatar badge, Click: interactive dropdown) */}
+                          <td className="px-6 py-4">
+                            <div className="relative inline-block" data-dropdown-container>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActiveDropdown(
+                                    activeDropdown?.id === lead._id && activeDropdown?.type === 'assign'
+                                      ? null
+                                      : { id: lead._id, type: 'assign' }
+                                  )
+                                }
+                                className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-wa-hover/60 dark:hover:bg-wa-dark-hover/40 border border-transparent hover:border-wa-border dark:hover:border-wa-dark-border transition-all duration-150 group cursor-pointer text-left"
+                                title="Click to reassign agent"
+                              >
+                                {assignedAgentObj ? (
+                                  <>
+                                    <div className="w-6 h-6 rounded-full bg-wa-green/15 text-wa-green font-bold text-[10px] flex items-center justify-center shrink-0 border border-wa-green/20 shadow-xs">
+                                      {assignedAgentObj.name ? assignedAgentObj.name.substring(0, 2).toUpperCase() : 'AG'}
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="text-xs font-semibold text-wa-text-primary dark:text-white truncate max-w-[130px] group-hover:text-wa-green transition-colors">
+                                        {assignedAgentObj.name || assignedAgentObj.email}
+                                      </span>
+                                      <span className="text-[9px] text-wa-text-secondary capitalize">
+                                        {assignedAgentObj.role || 'Agent'}
+                                      </span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 text-wa-text-secondary group-hover:text-wa-text-primary dark:group-hover:text-white text-xs">
+                                    <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-wa-text-secondary flex items-center justify-center text-[10px]">
+                                      👤
+                                    </div>
+                                    <span className="italic text-xs font-normal">Unassigned</span>
+                                  </div>
+                                )}
+                                <ChevronDown
+                                  className={`w-3 h-3 text-wa-text-secondary group-hover:text-wa-text-primary dark:group-hover:text-white transition-transform duration-150 ${
+                                    activeDropdown?.id === lead._id && activeDropdown?.type === 'assign' ? 'rotate-180' : 'opacity-50'
+                                  }`}
+                                />
+                              </button>
+
+                              {/* Assign Dropdown Menu */}
+                              {activeDropdown?.id === lead._id && activeDropdown?.type === 'assign' && (
+                                <div
+                                  className={`absolute z-50 left-0 w-56 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-2xl py-1.5 animate-scale-in text-xs font-medium ${
+                                    isNearBottom ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                                  }`}
+                                >
+                                  <div className="px-3 py-1.5 text-[10px] font-bold uppercase text-wa-text-secondary tracking-wider border-b border-wa-border/50 dark:border-wa-dark-border/40 flex items-center justify-between">
+                                    <span>Assign Agent</span>
+                                    <Users className="w-3 h-3 opacity-60" />
+                                  </div>
+                                  <div className="max-h-60 overflow-y-auto scrollbar-thin py-1">
+                                    {/* Option: Unassigned */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handleAssignAgent(lead._id, 'unassigned');
+                                        setActiveDropdown(null);
+                                      }}
+                                      className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors ${
+                                        !assignedAgentObj
+                                          ? 'bg-wa-green/10 text-wa-green font-bold'
+                                          : 'text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[11px]">
+                                          👤
+                                        </span>
+                                        <span className="italic text-wa-text-secondary">Unassigned (None)</span>
+                                      </div>
+                                      {!assignedAgentObj && <Check className="w-3.5 h-3.5 text-wa-green shrink-0" />}
+                                    </button>
+
+                                    {agents.length > 0 && <div className="h-px bg-wa-border/40 dark:bg-wa-dark-border/30 my-1" />}
+
+                                    {/* Agent Options */}
+                                    {agents.map((ag) => {
+                                      const isSelected = assignedAgentObj && (assignedAgentObj._id === ag._id || assignedAgentObj === ag._id);
+                                      return (
+                                        <button
+                                          key={ag._id}
+                                          type="button"
+                                          onClick={() => {
+                                            handleAssignAgent(lead._id, ag._id);
+                                            setActiveDropdown(null);
+                                          }}
+                                          className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors ${
+                                            isSelected
+                                              ? 'bg-wa-green/10 text-wa-green font-bold'
+                                              : 'text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <div className="w-6 h-6 rounded-full bg-wa-green/15 text-wa-green font-bold text-[10px] flex items-center justify-center shrink-0 border border-wa-green/20">
+                                              {ag.name ? ag.name.substring(0, 2).toUpperCase() : 'AG'}
+                                            </div>
+                                            <div className="flex flex-col min-w-0">
+                                              <span className="truncate font-semibold text-xs leading-tight">
+                                                {ag.name || ag.email}
+                                              </span>
+                                              <span className="text-[9px] text-wa-text-secondary capitalize">
+                                                {ag.role || 'Agent'}
+                                              </span>
+                                            </div>
+                                          </div>
+                                          {isSelected && <Check className="w-3.5 h-3.5 text-wa-green shrink-0 ml-1.5" />}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Lead Status (Default: clean status badge pill, Click: interactive dropdown) */}
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-1.5 items-start">
+                              {lead.segment && (
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold text-center uppercase tracking-wider w-fit ${getSegmentColor(lead.segment)}`}>
+                                  {lead.segment}
+                                </span>
+                              )}
+                              <div className="relative inline-block" data-dropdown-container>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setActiveDropdown(
+                                      activeDropdown?.id === lead._id && activeDropdown?.type === 'status'
+                                        ? null
+                                        : { id: lead._id, type: 'status' }
+                                    )
+                                  }
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-sm hover:scale-[1.02] active:scale-[0.98] ${getStatusColor(lead.status)}`}
+                                  title="Click to update status"
+                                >
+                                  <span>{STATUS_OPTIONS.find((o) => o.value === (lead.status || 'new'))?.emoji || '🟡'}</span>
+                                  <span>{getStatusLabel(lead.status)}</span>
+                                  <ChevronDown
+                                    className={`w-3 h-3 transition-transform duration-150 ${
+                                      activeDropdown?.id === lead._id && activeDropdown?.type === 'status' ? 'rotate-180' : 'opacity-60'
+                                    }`}
+                                  />
+                                </button>
+
+                                {/* Status Dropdown Menu */}
+                                {activeDropdown?.id === lead._id && activeDropdown?.type === 'status' && (
+                                  <div
+                                    className={`absolute z-50 left-0 w-52 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-2xl py-1.5 animate-scale-in text-xs font-medium ${
+                                      isNearBottom ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                                    }`}
+                                  >
+                                    <div className="px-3 py-1.5 text-[10px] font-bold uppercase text-wa-text-secondary tracking-wider border-b border-wa-border/50 dark:border-wa-dark-border/40">
+                                      Select Lead Status
+                                    </div>
+                                    <div className="max-h-60 overflow-y-auto scrollbar-thin py-1">
+                                      {STATUS_OPTIONS.map((opt) => {
+                                        const isSelected = (lead.status || 'new') === opt.value;
+                                        return (
+                                          <button
+                                            key={opt.value}
+                                            type="button"
+                                            onClick={() => {
+                                              handleUpdateStatus(lead._id, opt.value);
+                                              setActiveDropdown(null);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-3 py-1.5 text-left text-xs transition-colors ${
+                                              isSelected
+                                                ? 'bg-wa-green/10 text-wa-green font-bold'
+                                                : 'text-wa-text-primary dark:text-wa-dark-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-sm">{opt.emoji}</span>
+                                              <span>{opt.label}</span>
+                                            </div>
+                                            {isSelected && <Check className="w-3.5 h-3.5 text-wa-green shrink-0" />}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Last Activity */}
+                          <td className="px-6 py-4 text-wa-text-secondary text-[11px] font-medium">
+                            {getRelativeTime(lead.lastMessageAt || lead.updatedAt)}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleOpenLead(lead._id)}
+                                className="p-1.5 bg-wa-green/10 hover:bg-wa-green text-wa-green hover:text-white rounded-lg transition-all duration-200"
+                                title="View Details & Chat"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleOpenEdit(lead)}
+                                className="p-1.5 bg-blue-500/10 hover:bg-blue-500 text-blue-500 hover:text-white rounded-lg transition-all duration-200"
+                                title="Edit Lead Database"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <Link
+                                href={`/dashboard/invoice-settings?tab=generate&customerId=${lead._id}`}
+                                className="p-1.5 bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white rounded-lg transition-all duration-200"
+                                title="Generate Invoice for Lead"
+                              >
+                                <Receipt className="w-3.5 h-3.5" />
+                              </Link>
+                              <button
+                                onClick={() => handleDeleteLead(lead._id, lead.name)}
+                                className="p-1.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-all duration-200"
+                                title="Delete Lead Database"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Footer */}
+            {pages > 1 && (
+              <div className="p-4 border-t border-wa-border dark:border-wa-dark-border flex items-center justify-between bg-wa-panel-header dark:bg-wa-dark-panel-header/20">
+                <span className="text-[10px] font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase">
+                  Page {page} of {pages}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={page === 1}
+                    onClick={() => setPage(page - 1)}
+                    className="p-1.5 rounded-lg border border-wa-border dark:border-wa-dark-border hover:bg-wa-hover dark:hover:bg-wa-dark-hover disabled:opacity-40 disabled:hover:bg-transparent text-wa-text-primary dark:text-white transition-colors cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    disabled={page === pages}
+                    onClick={() => setPage(page + 1)}
+                    className="p-1.5 rounded-lg border border-wa-border dark:border-wa-dark-border hover:bg-wa-hover dark:hover:bg-wa-dark-hover disabled:opacity-40 disabled:hover:bg-transparent text-wa-text-primary dark:text-white transition-colors cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* VIEW 2: KANBAN DRAG & DROP BOARD */}
+        {viewMode === 'kanban' && (
+          <div className="p-4 overflow-x-auto min-h-[620px] scrollbar-thin">
+            <div className="flex gap-4 items-start pb-4 min-w-[1750px]">
+              {KANBAN_COLUMNS.map((col) => {
+                const colLeads = filteredLeads.filter((l) => {
+                  const s = l.status || 'new';
+                  if (col.key === 'won') {
+                    return s === 'won' || s === 'closed';
+                  }
+                  return s === col.key;
+                });
+
+                const isDragOver = dragOverCol === col.key;
+
+                return (
+                  <div
+                    key={col.key}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverCol !== col.key) setDragOverCol(col.key);
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget)) return;
+                      setDragOverCol(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDropLead(col.key);
+                    }}
+                    className={`w-72 shrink-0 rounded-2xl border transition-all duration-200 flex flex-col bg-slate-50/80 dark:bg-wa-dark-header/30 shadow-xs ${
+                      isDragOver
+                        ? 'ring-2 ring-wa-green border-wa-green bg-wa-green/10 scale-[1.01]'
+                        : 'border-wa-border dark:border-wa-dark-border'
+                    }`}
+                  >
+                    {/* Column Header */}
+                    <div className="p-3.5 border-b border-wa-border/70 dark:border-wa-dark-border/60 bg-white/90 dark:bg-wa-dark-panel/90 rounded-t-2xl flex items-center justify-between sticky top-0 z-10 backdrop-blur-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base select-none">{col.emoji}</span>
+                        <div>
+                          <h3 className="text-xs font-bold text-wa-text-primary dark:text-white uppercase tracking-wider">
+                            {col.label}
+                          </h3>
+                          <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary leading-tight mt-0.5">
+                            {col.desc}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${col.headerBg}`}>
+                        {colLeads.length}
+                      </span>
+                    </div>
+
+                    {/* Column Drop Zone / Cards List */}
+                    <div className="p-3 space-y-3 overflow-y-auto flex-1 min-h-[420px] max-h-[calc(100vh-320px)] scrollbar-thin">
+                      {colLeads.length === 0 ? (
+                        <div className="h-44 border-2 border-dashed border-wa-border/70 dark:border-wa-dark-border/60 rounded-xl flex flex-col items-center justify-center text-center p-4 text-wa-text-secondary dark:text-wa-dark-text-secondary bg-white/30 dark:bg-wa-dark-panel/20 select-none">
+                          <span className="text-2xl mb-1 opacity-50">{col.emoji}</span>
+                          <span className="text-xs font-semibold">No leads in this stage</span>
+                          <span className="text-[10px] opacity-75 mt-0.5">Drag & drop cards here</span>
+                        </div>
+                      ) : (
+                        colLeads.map((lead) => {
+                          const isBeingDragged = draggedLeadId === lead._id;
+                          const assignedAgentObj = lead.assignedAgent && typeof lead.assignedAgent === 'object' ? lead.assignedAgent : null;
+
+                          return (
+                            <div
+                              key={lead._id}
+                              draggable
+                              onDragStart={(e) => {
+                                setDraggedLeadId(lead._id);
+                                e.dataTransfer.setData('text/plain', lead._id);
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              onDragEnd={() => {
+                                setDraggedLeadId(null);
+                                setDragOverCol(null);
+                              }}
+                              className={`group bg-white dark:bg-wa-dark-panel border rounded-xl p-3.5 shadow-xs hover:shadow-md transition-all duration-150 cursor-grab active:cursor-grabbing select-none ${
+                                isBeingDragged
+                                  ? 'opacity-40 border-dashed border-wa-green scale-95 shadow-inner'
+                                  : 'border-wa-border dark:border-wa-dark-border hover:border-wa-green/60'
+                              }`}
+                            >
+                              {/* Card Top: Customer Avatar, Name, Segment & Grip */}
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <div className="w-8 h-8 rounded-xl bg-wa-green/10 text-wa-green font-bold text-xs flex items-center justify-center shrink-0 shadow-inner">
+                                    {lead.name ? lead.name.substring(0, 2).toUpperCase() : 'LD'}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <h4
+                                      onClick={() => handleOpenLead(lead._id)}
+                                      className="text-xs font-bold text-wa-text-primary dark:text-white truncate hover:text-wa-green cursor-pointer"
+                                      title={lead.name || 'Anonymous User'}
+                                    >
+                                      {lead.name || 'Anonymous User'}
+                                    </h4>
+                                    <span className="text-[10px] font-mono text-wa-text-secondary dark:text-wa-dark-text-secondary block mt-0.2">
+                                      {lead.phone}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {lead.segment && (
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[8px] font-bold uppercase tracking-wider ${getSegmentColor(lead.segment)}`}>
+                                      {lead.segment}
+                                    </span>
+                                  )}
+                                  <GripVertical className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-500 shrink-0" />
+                                </div>
+                              </div>
+
+                              {/* Inquiry info */}
+                              {(lead.serviceRequired || lead.projectDescription) && (
+                                <div className="space-y-1 mb-2.5 py-1.5 px-2 bg-wa-bg/50 dark:bg-wa-dark-header/40 rounded-lg border border-wa-border/40 dark:border-wa-dark-border/30 text-[11px]">
+                                  {lead.serviceRequired && (
+                                    <div className="flex items-center gap-1 text-wa-text-primary dark:text-wa-dark-text-primary font-semibold truncate">
+                                      <Briefcase className="w-3 h-3 text-wa-text-light shrink-0" />
+                                      <span className="truncate">{lead.serviceRequired}</span>
+                                    </div>
+                                  )}
+                                  {lead.projectDescription && (
+                                    <p className="text-[10px] text-wa-text-secondary line-clamp-2">
+                                      {lead.projectDescription}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Budget & Timeline & City Chips */}
+                              <div className="flex flex-wrap items-center gap-1.5 mb-2.5 text-[10px]">
+                                {lead.budget && (
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 font-bold flex items-center gap-0.5 border border-emerald-500/20">
+                                    <DollarSign className="w-2.5 h-2.5" />
+                                    <span>{lead.budget}</span>
+                                  </span>
+                                )}
+                                {lead.timeline && (
+                                  <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 font-medium flex items-center gap-0.5 border border-blue-500/20">
+                                    <Calendar className="w-2.5 h-2.5" />
+                                    <span>{lead.timeline}</span>
+                                  </span>
+                                )}
+                                {lead.customFields?.city && (
+                                  <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 font-medium flex items-center gap-0.5 border border-red-500/20">
+                                    <MapPin className="w-2.5 h-2.5" />
+                                    <span>{lead.customFields.city}</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Card Bottom: Assigned Agent, Time & Actions */}
+                              <div className="flex items-center justify-between pt-2 border-t border-wa-border/50 dark:border-wa-dark-border/40 text-[10px]">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {assignedAgentObj ? (
+                                    <div className="flex items-center gap-1 text-wa-text-primary dark:text-white font-medium truncate" title={assignedAgentObj.name}>
+                                      <div className="w-4.5 h-4.5 rounded-full bg-wa-green/15 text-wa-green text-[8px] font-bold flex items-center justify-center shrink-0 border border-wa-green/20">
+                                        {assignedAgentObj.name ? assignedAgentObj.name.substring(0, 2).toUpperCase() : 'AG'}
+                                      </div>
+                                      <span className="truncate max-w-[90px]">{assignedAgentObj.name}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-wa-text-secondary italic flex items-center gap-1 text-[10px]">
+                                      <UserCheck className="w-3 h-3 opacity-60" /> Unassigned
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => handleOpenLead(lead._id)}
+                                    className="p-1 rounded-md text-wa-text-secondary hover:text-wa-green hover:bg-wa-green/10 transition-colors"
+                                    title="View Chat & Details"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenEdit(lead)}
+                                    className="p-1 rounded-md text-wa-text-secondary hover:text-blue-500 hover:bg-blue-500/10 transition-colors"
+                                    title="Edit Lead"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <Link
+                                    href={`/dashboard/invoice-settings?tab=generate&customerId=${lead._id}`}
+                                    className="p-1 rounded-md text-wa-text-secondary hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+                                    title="Generate Invoice"
+                                  >
+                                    <Receipt className="w-3.5 h-3.5" />
+                                  </Link>
+                                  <button
+                                    onClick={() => handleDeleteLead(lead._id, lead.name)}
+                                    className="p-1 rounded-md text-wa-text-secondary hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                    title="Delete Lead"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -441,6 +1288,7 @@ export default function LeadsPage() {
       {isDetailsOpen && selectedLeadId && (
         <LeadDetailsModal
           leadId={selectedLeadId}
+          agents={agents}
           onClose={() => {
             setIsDetailsOpen(false);
             setSelectedLeadId(null);
@@ -523,6 +1371,44 @@ export default function LeadsPage() {
                     className="input-field py-2 text-xs"
                     placeholder="Enter email"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Lead Pipeline Status */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Lead Status</label>
+                    <select
+                      value={editForm.status}
+                      onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                      className="input-field py-2 text-xs font-semibold"
+                    >
+                      <option value="new">🟡 New Lead</option>
+                      <option value="qualified">🟢 Qualified</option>
+                      <option value="proposal_sent">🔵 Proposal Sent</option>
+                      <option value="invoice_generated">🔷 Invoice Generated</option>
+                      <option value="payment_due">🟠 Payment Due</option>
+                      <option value="won">🏆 Lead Won</option>
+                      <option value="lost">❌ Lead Lost</option>
+                      <option value="closed">🟣 Closed / Won</option>
+                    </select>
+                  </div>
+
+                  {/* Assigned Agent */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Assigned Agent</label>
+                    <select
+                      value={editForm.assignedAgent}
+                      onChange={(e) => setEditForm({ ...editForm, assignedAgent: e.target.value })}
+                      className="input-field py-2 text-xs font-semibold"
+                    >
+                      <option value="unassigned">👤 Unassigned</option>
+                      {agents.map((ag) => (
+                        <option key={ag._id} value={ag._id}>
+                          {ag.name || ag.email} ({ag.role || 'Agent'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="h-px bg-wa-border dark:bg-wa-dark-border opacity-50 my-2" />
@@ -609,22 +1495,32 @@ export default function LeadsPage() {
                 </div>
 
                 {/* Actions Footer */}
-                <div className="pt-4 border-t border-wa-border dark:border-wa-dark-border flex justify-end gap-2.5 shrink-0">
-                  <button
-                    type="button"
+                <div className="pt-4 border-t border-wa-border dark:border-wa-dark-border flex items-center justify-between gap-2.5 shrink-0">
+                  <Link
+                    href={`/dashboard/invoice-settings?tab=generate&customerId=${editingLead?._id}`}
                     onClick={() => setEditingLead(null)}
-                    className="px-4 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl text-xs font-semibold text-wa-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                    className="px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500 text-amber-700 dark:text-amber-400 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border border-amber-500/20"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={savingLead}
-                    className="px-4 py-2 bg-wa-green hover:bg-wa-green-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md shadow-wa-green/15"
-                  >
-                    {savingLead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                    Save Lead Data
-                  </button>
+                    <Receipt className="w-3.5 h-3.5" />
+                    Create Invoice
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingLead(null)}
+                      className="px-4 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl text-xs font-semibold text-wa-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingLead}
+                      className="px-4 py-2 bg-wa-green hover:bg-wa-green-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md shadow-wa-green/15 cursor-pointer"
+                    >
+                      {savingLead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                      Save Lead Data
+                    </button>
+                  </div>
                 </div>
 
               </form>

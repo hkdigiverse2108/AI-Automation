@@ -9,15 +9,27 @@ import api from '../lib/api';
 import { formatDateOnly, formatTime } from '../lib/utils';
 import Portal from './Portal';
 
-export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess }) {
+export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess, agents = [] }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lead, setLead] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [teamAgents, setTeamAgents] = useState(agents || []);
   
   // Editable fields
   const [status, setStatus] = useState('new');
   const [notes, setNotes] = useState('');
+  const [assignedAgent, setAssignedAgent] = useState('unassigned');
+
+  useEffect(() => {
+    if (agents && agents.length > 0) {
+      setTeamAgents(agents);
+    } else {
+      api.get('/leads/agents').then(({ data }) => {
+        if (data.success) setTeamAgents(data.data.agents || []);
+      }).catch(() => {});
+    }
+  }, [agents]);
 
   useEffect(() => {
     async function loadLeadDetails() {
@@ -25,10 +37,13 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess }) {
       try {
         const { data } = await api.get(`/leads/${leadId}`);
         if (data.success) {
-          setLead(data.data.lead);
+          const l = data.data.lead;
+          setLead(l);
           setMessages(data.data.messages || []);
-          setStatus(data.data.lead.status || 'new');
-          setNotes(data.data.lead.notes || '');
+          setStatus(l.status || 'new');
+          setNotes(l.notes || '');
+          const currentAgentId = l.assignedAgent?._id || (typeof l.assignedAgent === 'string' ? l.assignedAgent : 'unassigned');
+          setAssignedAgent(currentAgentId || 'unassigned');
         }
       } catch (err) {
         toast.error('Failed to load lead details');
@@ -40,13 +55,17 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess }) {
     if (leadId) {
       loadLeadDetails();
     }
-  }, [leadId]);
+  }, [leadId, onClose]);
 
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const { data } = await api.put(`/leads/${leadId}`, { status, notes });
+      const { data } = await api.put(`/leads/${leadId}`, { 
+        status, 
+        notes,
+        assignedAgent: assignedAgent === 'unassigned' ? '' : assignedAgent
+      });
       if (data.success) {
         toast.success('Lead updated successfully');
         onUpdateSuccess();
@@ -62,6 +81,10 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess }) {
     switch (s) {
       case 'qualified': return 'Qualified';
       case 'proposal_sent': return 'Proposal Sent';
+      case 'invoice_generated': return 'Invoice Generated';
+      case 'payment_due': return 'Payment Due';
+      case 'won': return 'Lead Won';
+      case 'lost': return 'Lead Lost';
       case 'closed': return 'Closed / Won';
       default: return 'New Lead';
     }
@@ -69,10 +92,13 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess }) {
 
   const getStatusColor = (s) => {
     switch (s) {
-      case 'qualified': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-450 border border-emerald-200 dark:border-emerald-900/30';
-      case 'proposal_sent': return 'bg-blue-500/10 text-blue-600 dark:text-blue-450 border border-blue-200 dark:border-blue-900/30';
-      case 'closed': return 'bg-purple-500/10 text-purple-650 dark:text-purple-400 border border-purple-200 dark:border-purple-900/30';
-      default: return 'bg-amber-500/10 text-amber-600 dark:text-amber-450 border border-amber-200 dark:border-amber-900/30';
+      case 'qualified': return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25';
+      case 'proposal_sent': return 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/25';
+      case 'invoice_generated': return 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border border-cyan-500/25';
+      case 'payment_due': return 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25';
+      case 'won': case 'closed': return 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border border-emerald-600/30 font-bold';
+      case 'lost': return 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/25';
+      default: return 'bg-slate-500/15 text-slate-700 dark:text-slate-400 border border-slate-500/25';
     }
   };
 
@@ -244,12 +270,32 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess }) {
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="input-field py-2 text-xs"
+                  className="input-field py-2 text-xs font-semibold"
                 >
-                  <option value="new">New Lead</option>
-                  <option value="qualified">Qualified</option>
-                  <option value="proposal_sent">Proposal Sent</option>
-                  <option value="closed">Closed / Won</option>
+                  <option value="new">🟡 New Lead</option>
+                  <option value="qualified">🟢 Qualified</option>
+                  <option value="proposal_sent">🔵 Proposal Sent</option>
+                  <option value="invoice_generated">🔷 Invoice Generated</option>
+                  <option value="payment_due">🟠 Payment Due</option>
+                  <option value="won">🏆 Lead Won</option>
+                  <option value="lost">❌ Lead Lost</option>
+                  <option value="closed">🟣 Closed / Won</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Assigned Agent / Team Member</label>
+                <select
+                  value={assignedAgent}
+                  onChange={(e) => setAssignedAgent(e.target.value)}
+                  className="input-field py-2 text-xs font-semibold"
+                >
+                  <option value="unassigned">👤 Unassigned (None)</option>
+                  {teamAgents.map((ag) => (
+                    <option key={ag._id} value={ag._id}>
+                      {ag.name || ag.email} ({ag.role || 'Agent'})
+                    </option>
+                  ))}
                 </select>
               </div>
 

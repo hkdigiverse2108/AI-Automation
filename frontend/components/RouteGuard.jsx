@@ -9,6 +9,7 @@ const routeToSlugMap = {
   '/dashboard/inbox': 'inbox',
   '/dashboard/contacts': 'contacts',
   '/dashboard/catalog': 'catalog',
+  '/dashboard/invoice-settings': 'settings',
   '/dashboard/contacts/groups': 'groups',
   '/dashboard/follow-ups': 'follow-ups',
   '/dashboard/tasks': 'tasks',

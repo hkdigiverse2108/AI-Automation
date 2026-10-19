@@ -7,7 +7,7 @@ import {
   Settings, LogOut, Sun, Moon, MessageCircle, Shield,
   Users2, Clock, Zap, Terminal, PanelLeftClose, PanelLeft,
   Building, Activity, Globe, Lock, X, BarChart3, CreditCard,
-  FolderOpen, Calendar, ClipboardList, ShoppingBag
+  FolderOpen, Calendar, ClipboardList, ShoppingBag, Receipt
 } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 
@@ -19,6 +19,7 @@ const navSections = [
       { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, badge: true },
       { href: '/dashboard/contacts', label: 'Contacts', icon: Users },
       { href: '/dashboard/catalog', label: 'Catalog', icon: ShoppingBag },
+      { href: '/dashboard/invoice-settings', label: 'Invoice Settings', icon: Receipt },
       { href: '/dashboard/follow-ups', label: 'Follow-Ups', icon: Calendar },
       { href: '/dashboard/tasks', label: 'Tasks', icon: ClipboardList },
       { href: '/dashboard/call-logs', label: 'Call Logs', icon: Clock },
@@ -64,6 +65,7 @@ const routeToSlugMap = {
   '/dashboard/contacts': 'contacts',
   '/dashboard/leads': 'contacts',
   '/dashboard/catalog': 'catalog',
+  '/dashboard/invoice-settings': 'settings',
   '/dashboard/contacts/groups': 'groups',
   '/dashboard/follow-ups': 'follow-ups',
   '/dashboard/tasks': 'tasks',
@@ -105,6 +107,7 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/team', label: 'Telecallers', icon: Users2 },
             { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle },
             { href: '/dashboard/catalog', label: 'Catalog', icon: ShoppingBag },
+            { href: '/dashboard/invoice-settings', label: 'Invoice Settings', icon: Receipt },
             { href: '/dashboard/inbox', label: 'Conversations', icon: MessageSquare, badge: true },
             { href: '/dashboard/unofficial-campaigns', label: 'Unofficial Campaigns', icon: Zap },
             { href: '/dashboard/follow-ups', label: 'Follow-Ups', icon: Calendar },

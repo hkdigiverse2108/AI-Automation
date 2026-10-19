@@ -27,48 +27,20 @@ router.get('/', async (req, res) => {
       ]
     };
 
-    if (search && search.trim()) {
-      const cleanSearch = search.trim();
-      const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const escapedSearch = escapeRegex(cleanSearch);
-      const digitsOnly = cleanSearch.replace(/\D/g, '');
-
-      const { getOekForUser, generateHMAC } = require('../services/oekService');
-      const rawOek = await getOekForUser(req.userId);
-
-      const searchConditions = [
-        { name: { $regex: escapedSearch, $options: 'i' } },
-        { phone: { $regex: escapedSearch, $options: 'i' } }
-      ];
-
-      if (digitsOnly && digitsOnly.length >= 2) {
-        searchConditions.push({ phone: { $regex: digitsOnly } });
-      }
-
-      if (rawOek) {
-        const hmacSearch = generateHMAC(cleanSearch, rawOek);
-        searchConditions.push({ nameHash: hmacSearch }, { phoneHash: hmacSearch });
-        if (digitsOnly) {
-          searchConditions.push({ phoneHash: generateHMAC(digitsOnly, rawOek) });
-        }
-      }
-
-      query.$and = [{ $or: searchConditions }];
-    }
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [contacts, total] = await Promise.all([
-      Contact.find(query).sort({ lastMessageAt: -1, createdAt: -1 }).skip(skip).limit(parseInt(limit)).lean(),
-      Contact.countDocuments(query)
-    ]);
-
     const { getOekForUser, decryptContact } = require('../services/oekService');
     const rawOek = await getOekForUser(req.userId);
-    
-    const leads = contacts.map(c => {
+    const cleanSearch = (search || '').trim();
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.max(1, parseInt(limit) || 20);
+
+    let leads = [];
+    let total = 0;
+
+    const transformLead = (c) => {
       const decrypted = decryptContact(c, rawOek);
       return {
         ...decrypted,
+        assignedAgent: c.assignedAgent || null,
         status: decrypted.customFields?.status || 'new',
         serviceRequired: decrypted.customFields?.selectedService || decrypted.customFields?.service || decrypted.customFields?.businessCategory || '',
         projectDescription: decrypted.customFields?.subService || decrypted.customFields?.description || '',
@@ -77,15 +49,105 @@ router.get('/', async (req, res) => {
         preferredTechnology: decrypted.customFields?.meetingPreference || '',
         specialRequirements: decrypted.customFields?.companySize || ''
       };
-    });
+    };
+
+    if ((req.query.all === 'true' || limitNum >= 500) && !cleanSearch) {
+      const allContacts = await Contact.find(query)
+        .populate('assignedAgent', 'name email role avatar')
+        .sort({ lastMessageAt: -1, createdAt: -1 })
+        .lean();
+      leads = allContacts.map(transformLead);
+      return res.json({
+        success: true,
+        data: {
+          leads,
+          total: leads.length,
+          page: 1,
+          pages: 1
+        }
+      });
+    }
+
+    if (!cleanSearch) {
+      const skip = (pageNum - 1) * limitNum;
+      const [contacts, totalCount] = await Promise.all([
+        Contact.find(query)
+          .populate('assignedAgent', 'name email role avatar')
+          .sort({ lastMessageAt: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(limitNum)
+          .lean(),
+        Contact.countDocuments(query)
+      ]);
+
+      leads = contacts.map(transformLead);
+      total = totalCount;
+    } else {
+      // Live smart search:
+      // Fetch user's candidate lead contacts, decrypt, and perform full search across all fields
+      const allCandidates = await Contact.find(query)
+        .populate('assignedAgent', 'name email role avatar')
+        .sort({ lastMessageAt: -1, createdAt: -1 })
+        .lean();
+      const searchTokens = cleanSearch.toLowerCase().split(/\s+/).filter(Boolean);
+      const digitsOnly = cleanSearch.replace(/\D/g, '');
+
+      const decryptedAll = allCandidates.map(transformLead);
+
+      const matchedLeads = decryptedAll.filter((lead) => {
+        const nameStr = (lead.name || '').toLowerCase();
+        const phoneStr = (lead.phone || '').toString();
+        const phoneClean = phoneStr.replace(/\D/g, '');
+        const emailStr = (lead.email || '').toLowerCase();
+        const serviceStr = (lead.serviceRequired || '').toLowerCase();
+        const descStr = (lead.projectDescription || '').toLowerCase();
+        const budgetStr = (lead.budget || '').toString().toLowerCase();
+        const timelineStr = (lead.timeline || '').toString().toLowerCase();
+        const statusStr = (lead.status || '').toLowerCase();
+        const segmentStr = (lead.segment || '').toLowerCase();
+        const cityStr = (lead.customFields?.city || '').toLowerCase();
+        const notesStr = (lead.notes || '').toLowerCase();
+        const assignedAgentStr = (lead.assignedAgent?.name || '').toLowerCase();
+        const idStr = (lead._id || '').toString().toLowerCase();
+
+        // Match ID
+        if (idStr.includes(cleanSearch.toLowerCase())) return true;
+
+        // Match phone digits (e.g. partial phone digits like last 4 digits)
+        if (digitsOnly && digitsOnly.length >= 2 && phoneClean.includes(digitsOnly)) {
+          return true;
+        }
+
+        // Match search tokens across combined string
+        const textBlob = `${nameStr} ${phoneStr} ${emailStr} ${serviceStr} ${descStr} ${budgetStr} ${timelineStr} ${statusStr} ${segmentStr} ${cityStr} ${notesStr} ${assignedAgentStr}`;
+        if (searchTokens.every(tok => textBlob.includes(tok))) {
+          return true;
+        }
+
+        // Search in custom fields values
+        if (lead.customFields && typeof lead.customFields === 'object') {
+          for (const val of Object.values(lead.customFields)) {
+            if (val && typeof val === 'string' && val.toLowerCase().includes(cleanSearch.toLowerCase())) {
+              return true;
+            }
+          }
+        }
+
+        return false;
+      });
+
+      total = matchedLeads.length;
+      const skip = (pageNum - 1) * limitNum;
+      leads = matchedLeads.slice(skip, skip + limitNum);
+    }
 
     res.json({ 
       success: true, 
       data: { 
         leads, 
         total, 
-        page: parseInt(page), 
-        pages: Math.ceil(total / parseInt(limit)) 
+        page: pageNum, 
+        pages: Math.max(1, Math.ceil(total / limitNum)) 
       } 
     });
   } catch (error) {
@@ -93,10 +155,35 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /leads/agents - list assignable team agents/members
+router.get('/agents', async (req, res) => {
+  try {
+    const User = require('../models/User');
+    const ownerId = req.userId;
+    const orConditions = [
+      { _id: ownerId },
+      { ownerId: ownerId }
+    ];
+    if (req.user && req.user.organizationId) {
+      orConditions.push({ organizationId: req.user.organizationId });
+    }
+    const query = {
+      isDeleted: { $ne: true },
+      $or: orConditions
+    };
+    const agents = await User.find(query).select('name email role avatar').sort({ name: 1 }).lean();
+    res.json({ success: true, data: { agents } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch agents', details: error.message });
+  }
+});
+
 // GET /leads/:id - get single lead
 router.get('/:id', async (req, res) => {
   try {
-    const contact = await Contact.findOne({ _id: req.params.id, userId: req.userId, isDeleted: { $ne: true } }).lean();
+    const contact = await Contact.findOne({ _id: req.params.id, userId: req.userId, isDeleted: { $ne: true } })
+      .populate('assignedAgent', 'name email role avatar')
+      .lean();
     if (!contact) {
       return res.status(404).json({ success: false, error: 'Lead not found', code: 'NOT_FOUND' });
     }
@@ -107,6 +194,7 @@ router.get('/:id', async (req, res) => {
 
     const lead = {
       ...decrypted,
+      assignedAgent: contact.assignedAgent || null,
       status: decrypted.customFields?.status || 'new',
       serviceRequired: decrypted.customFields?.selectedService || decrypted.customFields?.service || decrypted.customFields?.businessCategory || '',
       projectDescription: decrypted.customFields?.subService || decrypted.customFields?.description || '',
@@ -132,10 +220,10 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PUT /leads/:id - update lead status, notes, and bot flow details
+// PUT /leads/:id - update lead status, notes, assignedAgent, and bot flow details
 router.put('/:id', async (req, res) => {
   try {
-    const { name, phone, email, notes, status, serviceRequired, budget, timeline, city, specialRequirements } = req.body;
+    const { name, phone, email, notes, status, serviceRequired, budget, timeline, city, specialRequirements, assignedAgent } = req.body;
     
     // Find the contact
     const contact = await Contact.findOne({ _id: req.params.id, userId: req.userId, isDeleted: { $ne: true } });
@@ -164,8 +252,26 @@ router.put('/:id', async (req, res) => {
       contact.customFields.set('specialRequirements', specialRequirements);
     }
 
+    if (assignedAgent !== undefined) {
+      if (!assignedAgent || assignedAgent === 'unassigned' || assignedAgent === '') {
+        contact.assignedAgent = null;
+      } else if (require('mongoose').Types.ObjectId.isValid(assignedAgent)) {
+        contact.assignedAgent = assignedAgent;
+      }
+      // Also update conversation assignment if exists
+      const Conversation = require('../models/Conversation');
+      await Conversation.updateMany(
+        { contactId: contact._id, userId: req.userId },
+        { 
+          assignedAgent: contact.assignedAgent, 
+          assigned_agent_id: contact.assignedAgent 
+        }
+      );
+    }
+
     contact.markModified('customFields');
     await contact.save();
+    await contact.populate('assignedAgent', 'name email role avatar');
 
     const { getOekForUser, decryptContact } = require('../services/oekService');
     const rawOek = await getOekForUser(req.userId);
@@ -173,6 +279,7 @@ router.put('/:id', async (req, res) => {
 
     const lead = {
       ...decrypted,
+      assignedAgent: contact.assignedAgent || null,
       status: decrypted.customFields?.status || 'new',
       serviceRequired: decrypted.customFields?.selectedService || decrypted.customFields?.service || decrypted.customFields?.businessCategory || '',
       projectDescription: decrypted.customFields?.subService || decrypted.customFields?.description || '',

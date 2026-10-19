@@ -210,6 +210,7 @@ const categoriesRoute = require('./routes/categories');
 const productsRoute = require('./routes/products');
 const cartRoute = require('./routes/cart');
 const ordersRoute = require('./routes/orders');
+const invoicesRoute = require('./routes/invoices');
 const myoperatorRoute = require('./routes/myoperator');
 const telephonyAdminRoute = require('./routes/telephonyAdmin');
 
@@ -220,6 +221,7 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/messages`, messagesRoute);
   app.use(`${prefix}/contacts`, contactsRoute);
   app.use(`${prefix}/leads`, leadsRoute);
+  app.use(`${prefix}/invoices`, invoicesRoute);
   app.use(`${prefix}/campaigns`, campaignsRoute);
   app.use(`${prefix}/flows`, flowsRoute);
   app.use(`${prefix}/templates`, templatesRoute);
@@ -366,4 +368,5 @@ process.on('uncaughtException', (err) => { logger.error('Uncaught exception:', e
 
 startServer();
 
+// Reload trigger: smart search routes updated
 module.exports = { app, server };
