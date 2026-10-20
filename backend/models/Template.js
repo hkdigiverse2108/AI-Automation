@@ -14,10 +14,13 @@ const templateSchema = new mongoose.Schema(
         type: { type: String, enum: ['HEADER', 'BODY', 'FOOTER', 'BUTTONS'] },
         format: { type: String, enum: ['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT'] },
         text: { type: String },
+        add_security_recommendation: { type: Boolean },
+        code_expiration_minutes: { type: Number },
         example: { type: mongoose.Schema.Types.Mixed },
         buttons: [
           {
-            type: { type: String, enum: ['QUICK_REPLY', 'URL', 'PHONE_NUMBER'] },
+            type: { type: String, enum: ['QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'OTP'] },
+            otp_type: { type: String },
             text: { type: String },
             url: { type: String },
             phone_number: { type: String },

@@ -41,6 +41,9 @@ export default function TemplatesPage() {
     bodyText: '',
     footerText: '',
     buttonText: '',
+    codeExpirationMinutes: 10,
+    addSecurityRecommendation: true,
+    copyCodeText: 'Copy Code',
     isCustom: false,
     isCarousel: false,
     carouselCards: [
@@ -135,7 +138,7 @@ export default function TemplatesPage() {
       return;
     }
 
-    if (!newTemplate.isCarousel && !newTemplate.bodyText) {
+    if (!newTemplate.isCarousel && newTemplate.category !== 'AUTHENTICATION' && !newTemplate.bodyText) {
       toast.error('Body text is required for standard templates');
       return;
     }
@@ -148,7 +151,7 @@ export default function TemplatesPage() {
       }
     }
 
-    if (newTemplate.buttonText) {
+    if (newTemplate.buttonText && newTemplate.category !== 'AUTHENTICATION') {
       const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
       if (emojiRegex.test(newTemplate.buttonText)) {
         toast.error('Meta does not allow emojis in template buttons. Please remove emojis from button text.');
@@ -182,6 +185,33 @@ export default function TemplatesPage() {
             ...(newTemplate.buttonText ? [{ type: 'BUTTONS', buttons: [{ type: 'QUICK_REPLY', text: newTemplate.buttonText }] }] : [])
           ],
           carouselCards: newTemplate.isCarousel ? newTemplate.carouselCards : null
+        };
+      } else if (newTemplate.category === 'AUTHENTICATION') {
+        // Meta Official Authentication Template Builder
+        payload = {
+          name: newTemplate.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
+          category: 'AUTHENTICATION',
+          language: newTemplate.language || 'en_US',
+          components: [
+            {
+              type: 'BODY',
+              add_security_recommendation: newTemplate.addSecurityRecommendation !== false
+            },
+            ...(newTemplate.codeExpirationMinutes ? [{
+              type: 'FOOTER',
+              code_expiration_minutes: Number(newTemplate.codeExpirationMinutes) || 10
+            }] : []),
+            {
+              type: 'BUTTONS',
+              buttons: [
+                {
+                  type: 'OTP',
+                  otp_type: 'COPY_CODE',
+                  text: newTemplate.copyCodeText || 'Copy Code'
+                }
+              ]
+            }
+          ]
         };
       } else {
         // Meta template builder — HEADER must always precede BODY per Meta schema
@@ -247,6 +277,7 @@ export default function TemplatesPage() {
     const headerComp = tmpl.components?.find(c => c.type === 'HEADER') || {};
     const footerComp = tmpl.components?.find(c => c.type === 'FOOTER') || {};
     const btnComp = tmpl.components?.find(c => c.type === 'BUTTONS') || {};
+    const otpBtn = btnComp.buttons?.find(b => b.type === 'OTP');
 
     setNewTemplate({
       name: tmpl.name,
@@ -259,6 +290,9 @@ export default function TemplatesPage() {
       bodyText: bodyComp.text || '',
       footerText: footerComp.text || '',
       buttonText: btnComp.buttons?.[0]?.text || '',
+      codeExpirationMinutes: footerComp.code_expiration_minutes || 10,
+      addSecurityRecommendation: bodyComp.add_security_recommendation !== false,
+      copyCodeText: otpBtn?.text || 'Copy Code',
       isCustom: !!tmpl.isCustom,
       isCarousel: !!tmpl.isCarousel,
       carouselCards: tmpl.carouselCards && tmpl.carouselCards.length 
@@ -288,6 +322,9 @@ export default function TemplatesPage() {
       bodyText: '',
       footerText: '',
       buttonText: '',
+      codeExpirationMinutes: 10,
+      addSecurityRecommendation: true,
+      copyCodeText: 'Copy Code',
       isCustom: false,
       isCarousel: false,
       carouselCards: [{ headerMediaId: '', headerMediaUrl: '', bodyText: '', buttonText: '' }]
@@ -344,6 +381,7 @@ export default function TemplatesPage() {
   };
 
   const getMediaType = (template) => {
+    if (template.category === 'AUTHENTICATION') return 'OTP / CODE';
     if (template.isCarousel) return 'CAROUSEL';
     const header = template.components?.find(c => c.type === 'HEADER');
     if (header) {
@@ -734,18 +772,27 @@ export default function TemplatesPage() {
                             <div className="font-bold text-xs text-wa-text-primary dark:text-wa-dark-text-primary pb-1 border-b border-wa-border/30 dark:border-wa-dark-border/30 mb-1.5">{headerComponent.text}</div>
                           )}
                           <div className="text-[12.5px] text-wa-text-primary dark:text-wa-dark-text-primary whitespace-pre-wrap leading-relaxed">
-                            {bodyComponent.text || '[No body]'}
+                            {bodyComponent.text || (template.category === 'AUTHENTICATION' ? (
+                              <span>
+                                <span className="font-bold text-wa-green">{"{{1}}"}</span> is your verification code.
+                                {bodyComponent.add_security_recommendation !== false && (
+                                  <span className="block mt-1 text-[11px] text-wa-text-secondary">For your security, do not share this code.</span>
+                                )}
+                              </span>
+                            ) : '[No body]')}
                           </div>
-                          {footerComponent.text && (
+                          {footerComponent.text ? (
                             <div className="text-[10px] text-wa-text-light mt-1">{footerComponent.text}</div>
-                          )}
+                          ) : footerComponent.code_expiration_minutes ? (
+                            <div className="text-[10px] text-wa-text-light mt-1">This code expires in {footerComponent.code_expiration_minutes} minutes.</div>
+                          ) : null}
                         </div>
                       )}
                       {!template.isCarousel && buttonsComponent.buttons?.length > 0 && (
                         <div className="flex flex-col gap-1">
                           {buttonsComponent.buttons.map((b, bIdx) => (
-                            <div key={bIdx} className="py-1.5 bg-wa-panel dark:bg-wa-dark-panel rounded-lg border border-wa-border dark:border-wa-dark-border text-center text-wa-green font-medium text-xs">
-                              {b.text}
+                            <div key={bIdx} className="py-1.5 bg-wa-panel dark:bg-wa-dark-panel rounded-lg border border-wa-border dark:border-wa-dark-border text-center text-wa-green font-medium text-xs flex items-center justify-center gap-1.5">
+                              {b.type === 'OTP' ? '📋 ' : ''}{b.text || 'Copy Code'}
                             </div>
                           ))}
                         </div>
@@ -935,11 +982,19 @@ export default function TemplatesPage() {
                       <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Category</label>
                       <select
                         value={newTemplate.category}
-                        onChange={(e) => setNewTemplate({ ...newTemplate, category: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewTemplate(prev => ({
+                            ...prev,
+                            category: val,
+                            ...(val === 'AUTHENTICATION' ? { isCustom: false, isCarousel: false, headerType: 'NONE' } : {})
+                          }));
+                        }}
                         className="input-field py-2 text-xs"
                       >
                         <option value="MARKETING">Marketing</option>
                         <option value="UTILITY">Utility</option>
+                        <option value="AUTHENTICATION">Authentication (OTP / Verification)</option>
                       </select>
                     </div>
                   </div>
@@ -962,8 +1017,77 @@ export default function TemplatesPage() {
                     </div>
                   )}
 
-                  {/* Standard Templates Form fields */}
-                  {!newTemplate.isCarousel ? (
+                  {/* Category-Specific Form fields */}
+                  {newTemplate.category === 'AUTHENTICATION' ? (
+                    <div className="space-y-4 animate-fade-in bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-800/40 p-4 rounded-xl">
+                      <div className="flex items-start gap-2.5">
+                        <span className="text-base">🔐</span>
+                        <div>
+                          <h4 className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase">Meta Official Authentication Format</h4>
+                          <p className="text-[11px] text-amber-800/80 dark:text-amber-400/80 mt-0.5 leading-relaxed">
+                            Meta strictly enforces standardized OTP text (e.g. <b>{"{{1}}"} is your verification code.</b>) with a <b>Copy Code</b> button. No media headers or links are allowed.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Language</label>
+                        <select
+                          value={newTemplate.language}
+                          onChange={(e) => setNewTemplate({ ...newTemplate, language: e.target.value })}
+                          className="input-field py-2 text-xs bg-white dark:bg-wa-dark-header"
+                        >
+                          <option value="en_US">English (en_US)</option>
+                          <option value="en">English (en)</option>
+                          <option value="hi">Hindi (hi)</option>
+                          <option value="gu">Gujarati (gu)</option>
+                          <option value="es">Spanish (es)</option>
+                          <option value="pt_BR">Portuguese (pt_BR)</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 bg-white dark:bg-wa-dark-header rounded-xl border border-wa-border dark:border-wa-dark-border">
+                        <div>
+                          <span className="block text-xs font-bold text-wa-text-primary dark:text-white">Security Recommendation</span>
+                          <span className="block text-[10px] text-wa-text-secondary">&ldquo;For your security, do not share this code.&rdquo;</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={newTemplate.addSecurityRecommendation}
+                          onChange={(e) => setNewTemplate({ ...newTemplate, addSecurityRecommendation: e.target.checked })}
+                          className="w-4 h-4 accent-wa-green cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Code Expiry (Minutes)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="90"
+                            value={newTemplate.codeExpirationMinutes}
+                            onChange={(e) => setNewTemplate({ ...newTemplate, codeExpirationMinutes: e.target.value })}
+                            className="input-field py-2 text-xs bg-white dark:bg-wa-dark-header"
+                            placeholder="10"
+                          />
+                          <p className="text-[10px] text-wa-text-light mt-1">Between 1 to 90 min (e.g. 5 or 10)</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">OTP Button Label</label>
+                          <input
+                            type="text"
+                            maxLength={25}
+                            value={newTemplate.copyCodeText}
+                            onChange={(e) => setNewTemplate({ ...newTemplate, copyCodeText: e.target.value })}
+                            className="input-field py-2 text-xs bg-white dark:bg-wa-dark-header"
+                            placeholder="Copy Code"
+                          />
+                          <p className="text-[10px] text-wa-text-light mt-1">Default &ldquo;Copy Code&rdquo; (Max 25 chars)</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : !newTemplate.isCarousel ? (
                     <>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -1222,6 +1346,30 @@ export default function TemplatesPage() {
                             </div>
                           ))}
                         </div>
+                      ) : newTemplate.category === 'AUTHENTICATION' ? (
+                        /* Meta Official Authentication Bubble Preview */
+                        <>
+                          <div className="chat-bubble-in !max-w-full !rounded-lg bg-white dark:bg-[#202c33] border border-white dark:border-[#202c33] shadow-sm p-3 space-y-1.5 select-text">
+                            <div className="text-[12px] text-wa-text-primary dark:text-white leading-relaxed">
+                              <span className="font-bold text-wa-green">492018</span> is your verification code.
+                              {newTemplate.addSecurityRecommendation !== false && (
+                                <span className="block mt-1 text-[10.5px] text-wa-text-secondary">
+                                  For your security, do not share this code.
+                                </span>
+                              )}
+                            </div>
+                            {newTemplate.codeExpirationMinutes && (
+                              <div className="text-[9.5px] text-wa-text-light mt-1 select-none">
+                                This code expires in {newTemplate.codeExpirationMinutes} minutes.
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="py-2 bg-white dark:bg-[#202c33] rounded-lg border border-white dark:border-[#202c33] text-center text-wa-green dark:text-[#53bdeb] font-semibold text-[11px] shadow-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-[#233138] transition-colors flex items-center justify-center gap-1.5">
+                            <span>📋</span>
+                            <span>{newTemplate.copyCodeText || 'Copy Code'}</span>
+                          </div>
+                        </>
                       ) : (
                         /* Standard bubble preview layout */
                         <>
