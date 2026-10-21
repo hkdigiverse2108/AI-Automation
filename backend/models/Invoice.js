@@ -77,6 +77,13 @@ const invoiceSchema = new mongoose.Schema(
     // Snapshots of company and bank details at the time of creation
     companySnapshot: { type: Object, default: {} },
     bankSnapshot: { type: Object, default: {} },
+    // WhatsApp Automation Tracking
+    reminderSent: { type: Boolean, default: false },
+    reminderSentAt: { type: Date },
+    pendingSent: { type: Boolean, default: false },
+    pendingSentAt: { type: Date },
+    receivedSent: { type: Boolean, default: false },
+    receivedSentAt: { type: Date },
   },
   { timestamps: true }
 );

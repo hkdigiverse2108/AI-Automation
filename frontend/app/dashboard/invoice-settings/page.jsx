@@ -9,7 +9,8 @@ import {
   Search, Users, RefreshCw, Eye, CheckCircle2, Clock, AlertCircle, 
   ExternalLink, ArrowRight, Sparkles, MapPin, Phone, Mail, Globe, 
   ShieldCheck, CreditCard, ChevronDown, Check, X, Loader2, Upload,
-  Image as ImageIcon, Percent, Calculator, CalendarDays, Download, Pencil
+  Image as ImageIcon, Percent, Calculator, CalendarDays, Download, Pencil,
+  MessageSquare, Send, Bell
 } from 'lucide-react';
 
 const INDIAN_STATES = [
@@ -172,6 +173,9 @@ export default function InvoiceSettingsPage() {
   const [invoices, setInvoices] = useState([]);
   const [historySearch, setHistorySearch] = useState('');
   const [selectedInvoiceForView, setSelectedInvoiceForView] = useState(null);
+  const [runningAutomation, setRunningAutomation] = useState(false);
+  const [sendingTemplateInvId, setSendingTemplateInvId] = useState(null);
+  const [activeTemplateMenuId, setActiveTemplateMenuId] = useState(null);
 
   // 5. Form Inline Validation Errors State
   const [errors, setErrors] = useState({});
@@ -1057,11 +1061,53 @@ export default function InvoiceSettingsPage() {
     try {
       const { data } = await api.put(`/invoices/${invId}/status`, { status: newStatus });
       if (data.success) {
-        toast.success(`Invoice status updated to ${newStatus}`);
+        if (newStatus === 'paid') {
+          toast.success(`Invoice marked as Paid! "Payment Received" template triggered on WhatsApp 💰`);
+        } else if (newStatus === 'payment_due') {
+          toast.success(`Invoice marked as Payment Due! "Payment Pending" template triggered on WhatsApp ⚠️`);
+        } else {
+          toast.success(`Invoice status updated to ${newStatus}`);
+        }
         setInvoices((prev) => prev.map((inv) => (inv._id === invId ? data.data.invoice : inv)));
+        fetchInvoices();
       }
     } catch (err) {
       toast.error('Failed to update status');
+    }
+  };
+
+  // Trigger WhatsApp Template on-demand (reminder, pending, received)
+  const handleSendTemplate = async (invId, templateType) => {
+    setSendingTemplateInvId(invId);
+    try {
+      const { data } = await api.post(`/invoices/${invId}/send-template`, { templateType });
+      if (data.success) {
+        toast.success(data.message || 'WhatsApp message sent!');
+        fetchInvoices();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to send WhatsApp template');
+    } finally {
+      setSendingTemplateInvId(null);
+      setActiveTemplateMenuId(null);
+    }
+  };
+
+  // Run scheduled automation scan manually
+  const handleRunAutomationCheck = async () => {
+    setRunningAutomation(true);
+    try {
+      const { data } = await api.post('/invoices/run-automation-check');
+      if (data.success) {
+        const rCount = data.data?.reminderCount || 0;
+        const pCount = data.data?.pendingCount || 0;
+        toast.success(`Automation check complete! Reminders sent: ${rCount}, Pending alerts sent: ${pCount}`);
+        fetchInvoices();
+      }
+    } catch (err) {
+      toast.error('Failed to run automation check');
+    } finally {
+      setRunningAutomation(false);
     }
   };
 
@@ -2954,12 +3000,23 @@ export default function InvoiceSettingsPage() {
                 className="input-field pl-9 py-2 text-xs"
               />
             </div>
-            <button
-              onClick={() => setActiveTab('generate')}
-              className="btn-primary px-4 py-2 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" /> Create New Invoice
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRunAutomationCheck}
+                disabled={runningAutomation}
+                className="px-3 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer bg-wa-green/10 text-wa-green hover:bg-wa-green/20 border border-wa-green/30 transition-colors disabled:opacity-50"
+                title="Trigger automated check for 2-day reminder and overdue pending alerts"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${runningAutomation ? 'animate-spin' : ''}`} />
+                <span>Run WhatsApp Check</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('generate')}
+                className="btn-primary px-4 py-2 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Create New Invoice
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -2968,7 +3025,7 @@ export default function InvoiceSettingsPage() {
                 <tr className="border-b border-wa-border dark:border-wa-dark-border bg-wa-panel-header dark:bg-wa-dark-panel-header/35 text-[10px] uppercase font-bold text-wa-text-secondary">
                   <th className="py-3 px-4">Invoice No</th>
                   <th className="py-3 px-4">Type</th>
-                  <th className="py-3 px-4">Customer Name</th>
+                  <th className="py-3 px-4">Customer Name & Alerts</th>
                   <th className="py-3 px-4">Date / Due</th>
                   <th className="py-3 px-4">Amount</th>
                   <th className="py-3 px-4">Payment Status</th>
@@ -3012,6 +3069,24 @@ export default function InvoiceSettingsPage() {
                             {inv.customerName}
                           </span>
                           <span className="text-[10px] text-wa-text-secondary font-mono">{inv.customerPhone}</span>
+                          {/* Automation Status Badges */}
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {inv.reminderSent && (
+                              <span className="text-[9px] font-semibold bg-purple-500/15 text-purple-700 dark:text-purple-400 px-1.5 py-0.5 rounded" title={`2-Day Payment Reminder sent on ${inv.reminderSentAt ? new Date(inv.reminderSentAt).toLocaleString() : ''}`}>
+                                🔔 Reminder Sent
+                              </span>
+                            )}
+                            {inv.pendingSent && (
+                              <span className="text-[9px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded" title={`Payment Pending alert sent on ${inv.pendingSentAt ? new Date(inv.pendingSentAt).toLocaleString() : ''}`}>
+                                ⚠️ Pending Sent
+                              </span>
+                            )}
+                            {inv.receivedSent && (
+                              <span className="text-[9px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded" title={`Payment Received receipt sent on ${inv.receivedSentAt ? new Date(inv.receivedSentAt).toLocaleString() : ''}`}>
+                                💰 Received Sent
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-wa-text-secondary text-[11px]">
                           <div>{inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString() : '-'}</div>
@@ -3043,7 +3118,51 @@ export default function InvoiceSettingsPage() {
                           </select>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                          <div className="flex items-center justify-center gap-1.5 relative">
+                            {/* WhatsApp Template Actions Dropdown */}
+                            <div className="relative">
+                              <button
+                                onClick={() => setActiveTemplateMenuId(activeTemplateMenuId === inv._id ? null : inv._id)}
+                                disabled={sendingTemplateInvId === inv._id}
+                                className="p-1.5 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg transition-colors cursor-pointer"
+                                title="Send WhatsApp Template"
+                              >
+                                {sendingTemplateInvId === inv._id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                              {activeTemplateMenuId === inv._id && (
+                                <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-2xl p-1.5 z-50 text-left text-xs animate-scale-up">
+                                  <div className="px-2 py-1 text-[10px] font-bold text-wa-text-secondary uppercase border-b border-wa-border/50 dark:border-wa-dark-border/50 mb-1">
+                                    Send WhatsApp Template
+                                  </div>
+                                  <button
+                                    onClick={() => handleSendTemplate(inv._id, 'reminder')}
+                                    className="w-full text-left px-2 py-1.5 hover:bg-wa-hover dark:hover:bg-wa-dark-hover rounded-lg flex items-center gap-2 cursor-pointer text-purple-700 dark:text-purple-400"
+                                  >
+                                    <Bell className="w-3.5 h-3.5" />
+                                    <span>Send Payment Reminder</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleSendTemplate(inv._id, 'pending')}
+                                    className="w-full text-left px-2 py-1.5 hover:bg-wa-hover dark:hover:bg-wa-dark-hover rounded-lg flex items-center gap-2 cursor-pointer text-amber-700 dark:text-amber-400"
+                                  >
+                                    <AlertCircle className="w-3.5 h-3.5" />
+                                    <span>Send Payment Pending</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleSendTemplate(inv._id, 'received')}
+                                    className="w-full text-left px-2 py-1.5 hover:bg-wa-hover dark:hover:bg-wa-dark-hover rounded-lg flex items-center gap-2 cursor-pointer text-emerald-700 dark:text-emerald-400"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Send Payment Received</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
                             <button
                               onClick={() => {
                                 setSelectedInvoiceForView(inv);

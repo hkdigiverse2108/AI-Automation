@@ -334,9 +334,81 @@ router.put('/:id/status', async (req, res) => {
       }
     }
 
+    // Auto-trigger WhatsApp templates
+    const {
+      sendInvoicePaymentReceived,
+      sendInvoicePaymentPending
+    } = require('../services/invoiceAutomationService');
+
+    if (status === 'paid') {
+      sendInvoicePaymentReceived(invoice, req.body.transactionId || '').catch(err => {
+        console.error('[Invoices] Error sending automatic payment_received template:', err.message);
+      });
+    } else if (status === 'payment_due') {
+      sendInvoicePaymentPending(invoice).catch(err => {
+        console.error('[Invoices] Error sending automatic payment_follow_up template:', err.message);
+      });
+    }
+
     res.json({ success: true, data: { invoice } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to update invoice status' });
+  }
+});
+
+// POST /api/invoices/:id/send-template - Send specific WhatsApp template on-demand (reminder, pending, received)
+router.post('/:id/send-template', async (req, res) => {
+  try {
+    const { templateType, transactionId } = req.body;
+    const invoice = await Invoice.findOne({ _id: req.params.id, userId: req.userId });
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+
+    const {
+      sendInvoicePaymentReminder,
+      sendInvoicePaymentPending,
+      sendInvoicePaymentReceived
+    } = require('../services/invoiceAutomationService');
+
+    let result;
+    if (templateType === 'reminder') {
+      result = await sendInvoicePaymentReminder(invoice, { manual: true });
+    } else if (templateType === 'pending') {
+      result = await sendInvoicePaymentPending(invoice, { manual: true });
+    } else if (templateType === 'received') {
+      result = await sendInvoicePaymentReceived(invoice, transactionId || '', { manual: true });
+    } else {
+      return res.status(400).json({ success: false, error: 'Invalid templateType. Must be reminder, pending, or received' });
+    }
+
+    if (result.success) {
+      const updatedInvoice = await Invoice.findById(invoice._id);
+      res.json({
+        success: true,
+        message: `Template "${templateType}" sent successfully via WhatsApp!`,
+        data: { invoice: updatedInvoice, messageId: result.messageId }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || result.reason || 'Failed to send template message'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to trigger template message', details: error.message });
+  }
+});
+
+// POST /api/invoices/run-automation-check - Manually trigger the scheduled automation scan
+router.post('/run-automation-check', async (req, res) => {
+  try {
+    const { checkAndRunInvoiceAutomations } = require('../services/invoiceAutomationService');
+    const result = await checkAndRunInvoiceAutomations();
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to run automation check', details: error.message });
   }
 });
 

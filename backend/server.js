@@ -258,7 +258,6 @@ app.get(['/api/health', '/api/v1/health'], (_req, res) => {
   res.json({ success: true, message: 'HK Automation API is running', timestamp: new Date() });
 });
 
-
 // Root path handler for active health check
 
 app.get('/', (_req, res) => {
@@ -339,6 +338,14 @@ async function startServer() {
       startAppointmentCron();
     } catch (err) {
       logger.warn('Appointment reminder cron failed to start:', err.message);
+    }
+
+    // Init invoice payment reminder & pending follow-up cron job
+    try {
+      const { startInvoiceCron } = require('./services/invoiceCron');
+      startInvoiceCron();
+    } catch (err) {
+      logger.warn('Invoice automation cron failed to start:', err.message);
     }
 
     server.listen(env.PORT, () => {
