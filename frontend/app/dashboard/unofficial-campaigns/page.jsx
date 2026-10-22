@@ -13,7 +13,7 @@ const CampaignForm = dynamic(() => import('../../../components/CampaignForm'), {
   ssr: false,
 });
 import { useConfirmStore } from '../../../lib/store';
-import { formatDate } from '../../../lib/utils';
+import { formatDate, formatDateTimeSplit } from '../../../lib/utils';
 
 export default function UnofficialCampaignsPage() {
   const confirm = useConfirmStore((state) => state.confirm);
@@ -147,16 +147,16 @@ export default function UnofficialCampaignsPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full min-w-[880px] text-left border-collapse">
             <thead>
               <tr className="border-b border-wa-border dark:border-wa-dark-border text-xs font-semibold uppercase text-wa-text-secondary bg-wa-panel-header/30 dark:bg-wa-dark-panel-header/30">
-                <th className="px-6 py-3.5">Campaign Name</th>
-                <th className="px-6 py-3.5">Template</th>
-                <th className="px-6 py-3.5">Target</th>
-                <th className="px-6 py-3.5">Date</th>
-                <th className="px-6 py-3.5">Status</th>
-                <th className="px-6 py-3.5">Delivery</th>
-                <th className="px-6 py-3.5 text-right">Actions</th>
+                <th className="px-5 py-3.5 min-w-[170px]">Campaign Name</th>
+                <th className="px-5 py-3.5 min-w-[120px]">Template</th>
+                <th className="px-5 py-3.5 min-w-[120px]">Target</th>
+                <th className="px-5 py-3.5 min-w-[140px] whitespace-nowrap">Date</th>
+                <th className="px-5 py-3.5 min-w-[110px]">Status</th>
+                <th className="px-5 py-3.5 min-w-[150px]">Delivery</th>
+                <th className="px-5 py-3.5 text-right min-w-[80px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-wa-border/50 dark:divide-wa-dark-border/50 text-sm">
@@ -197,11 +197,21 @@ export default function UnofficialCampaignsPage() {
 
                   return (
                     <tr key={campaign._id} className="hover:bg-wa-hover/50 dark:hover:bg-wa-dark-hover/50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-wa-text-primary dark:text-wa-dark-text-primary">{campaign.name}</td>
-                      <td className="px-6 py-4 text-wa-text-secondary font-mono text-xs">{campaign.templateName}</td>
-                      <td className="px-6 py-4 text-wa-text-secondary text-xs">{target}</td>
-                      <td className="px-6 py-4 text-wa-text-secondary text-xs">{formatDate(campaign.scheduledAt || campaign.createdAt)}</td>
-                      <td className="px-6 py-4">{getStatusBadge(campaign.status)}</td>
+                      <td className="px-5 py-4 font-semibold text-wa-text-primary dark:text-wa-dark-text-primary">{campaign.name}</td>
+                      <td className="px-5 py-4 text-wa-text-secondary font-mono text-xs">{campaign.templateName}</td>
+                      <td className="px-5 py-4 text-wa-text-secondary text-xs">{target}</td>
+                      <td className="px-5 py-4 text-xs min-w-[140px]">
+                        {(() => {
+                          const dt = formatDateTimeSplit(campaign.scheduledAt || campaign.createdAt);
+                          return (
+                            <div className="flex flex-col 2xl:flex-row 2xl:items-center gap-0.5 2xl:gap-1.5 whitespace-nowrap">
+                              <span className="font-medium text-wa-text-primary dark:text-wa-dark-text-primary">{dt.date}</span>
+                              <span className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono tracking-tight">{dt.time}</span>
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-5 py-4">{getStatusBadge(campaign.status)}</td>
                       <td className="px-6 py-4">
                         <div className="space-y-1.5 min-w-[130px]">
                           <div className="flex justify-between text-xs font-medium text-wa-text-secondary">

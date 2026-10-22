@@ -17,7 +17,7 @@ import { GOOGLE_TRANSLATE_LANGUAGES, POPULAR_LANGUAGES } from '../lib/googleTran
 function formatMessageDate(date) {
   if (isToday(date)) return 'TODAY';
   if (isYesterday(date)) return 'YESTERDAY';
-  return format(date, 'MM/dd/yyyy');
+  return format(date, 'dd/MM/yyyy');
 }
 
 function formatRelativeTime(date) {

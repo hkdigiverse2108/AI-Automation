@@ -40,7 +40,7 @@ function formatChatTime(dateStr) {
   const d = new Date(dateStr);
   if (isToday(d)) return format(d, 'h:mm a');
   if (isYesterday(d)) return 'Yesterday';
-  return format(d, 'MM/dd/yyyy');
+  return format(d, 'dd/MM/yyyy');
 }
 
 export default function TeamChatPage() {
