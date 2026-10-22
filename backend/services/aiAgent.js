@@ -883,33 +883,59 @@ Example format:
 
 /**
  * Generate a structured conversation summary using AI (with smart contextual rule fallback).
+ * Supports month-wise filtering (e.g. month: '2026-10') or 'all' for full history.
  */
-async function generateConversationSummary({ conversation, contact, userId, org }) {
+async function generateConversationSummary({ conversation, contact, userId, org, month }) {
   try {
-    const history = await Message.find({ conversationId: conversation._id })
-      .sort({ createdAt: 1 })
-      .limit(60)
-      .lean();
-
     const contactName = contact?.name || contact?.phone || 'Customer';
     const orgName = org?.name || 'our company';
 
-    if (!history || history.length === 0) {
-      return {
-        executiveSummary: `No messages have been exchanged with ${contactName} in this conversation yet.`,
-        keyPoints: ['Conversation thread is newly opened.', 'Waiting for inbound or outbound interaction.'],
-        customerIntent: 'New Thread',
-        actionItems: ['Send a welcome message or template to start the interaction.'],
-        sentiment: 'neutral',
-        resolutionStatus: 'Awaiting Messages',
-        generatedAt: new Date(),
-        messageCountAtGeneration: 0,
-        isAIConfigured: false,
-        provider: 'none'
-      };
+    let dateFilter = { conversationId: conversation._id };
+    let monthLabel = null;
+    let isMonthFiltered = false;
+
+    if (month && month !== 'all' && /^\d{4}-\d{2}$/.test(month)) {
+      isMonthFiltered = true;
+      const [yearStr, monthStr] = month.split('-');
+      const year = parseInt(yearStr, 10);
+      const m = parseInt(monthStr, 10);
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      monthLabel = `${monthNames[m - 1]} ${year}`;
+
+      const startDate = new Date(Date.UTC(year, m - 1, 1, 0, 0, 0, 0));
+      const endDate = new Date(Date.UTC(year, m, 0, 23, 59, 59, 999));
+      dateFilter.createdAt = { $gte: startDate, $lte: endDate };
     }
 
+    const history = await Message.find(dateFilter)
+      .sort({ createdAt: 1 })
+      .limit(100)
+      .lean();
+
     const config = resolveAIConfig(org);
+
+    if (!history || history.length === 0) {
+      return {
+        executiveSummary: isMonthFiltered
+          ? `No messages were exchanged with ${contactName} in ${monthLabel}.`
+          : `No messages have been exchanged with ${contactName} in this conversation yet.`,
+        keyPoints: isMonthFiltered
+          ? [`No chat activity recorded during ${monthLabel}.`]
+          : ['Conversation thread is newly opened.', 'Waiting for inbound or outbound interaction.'],
+        customerIntent: isMonthFiltered ? 'No Activity' : 'New Thread',
+        actionItems: isMonthFiltered
+          ? [`Reach out to ${contactName} if a follow-up is needed for ${monthLabel}.`]
+          : ['Send a welcome message or template to start the interaction.'],
+        sentiment: 'neutral',
+        resolutionStatus: isMonthFiltered ? 'No Messages' : 'Awaiting Messages',
+        generatedAt: new Date(),
+        messageCountAtGeneration: 0,
+        isAIConfigured: Boolean(config && config.apiKey),
+        provider: 'none',
+        month: month || null,
+        monthLabel: monthLabel || (month === 'all' ? 'All Time' : null)
+      };
+    }
 
     // Format chat log
     const formattedHistory = history.map(m => {
@@ -919,12 +945,13 @@ async function generateConversationSummary({ conversation, contact, userId, org 
     }).join('\n');
 
     if (config && config.apiKey) {
+      const periodContext = isMonthFiltered ? ` for the period of ${monthLabel}` : '';
       const systemPrompt = `You are an expert CRM and Customer Support Intelligence Assistant for "${orgName}".
-Analyze the following WhatsApp conversation between customer "${contactName}" and our support agent/bot.
+Analyze the following WhatsApp conversation between customer "${contactName}" and our support agent/bot${periodContext}.
 Generate a structured, professional, and actionable conversation summary.
 
 CRITICAL RULES:
-1. "executiveSummary": 2-3 crisp sentences capturing the core topic, what happened, and current state.
+1. "executiveSummary": 2-3 crisp sentences capturing the core topic, what happened${isMonthFiltered ? ` in ${monthLabel}` : ''}, and current state.
 2. "keyPoints": Array of 2 to 4 bullet points capturing specific facts, requirements, prices, or questions discussed.
 3. "customerIntent": Short phrase (2-4 words) describing intent, e.g. "Pricing Inquiry", "Booking Request", "Support / Complaint", "Product Information", "General Greeting".
 4. "actionItems": Array of 1 to 3 concrete next steps for the agent or customer.
@@ -945,7 +972,7 @@ JSON SCHEMA:
 
       const messages = [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Summarize this WhatsApp conversation:\n\n${formattedHistory}` }
+        { role: 'user', content: `Summarize this WhatsApp conversation${periodContext}:\n\n${formattedHistory}` }
       ];
 
       try {
@@ -973,7 +1000,9 @@ JSON SCHEMA:
             generatedAt: new Date(),
             messageCountAtGeneration: history.length,
             isAIConfigured: true,
-            provider: config.provider
+            provider: config.provider,
+            month: month || null,
+            monthLabel: monthLabel || (month === 'all' ? 'All Time' : null)
           };
         }
       } catch (llmErr) {
@@ -1009,7 +1038,7 @@ JSON SCHEMA:
     }
 
     const keyPoints = [];
-    keyPoints.push(`${history.length} messages exchanged (${inbounds.length} customer messages, ${outbounds.length} responses).`);
+    keyPoints.push(`${history.length} messages exchanged${isMonthFiltered ? ` in ${monthLabel}` : ''} (${inbounds.length} customer messages, ${outbounds.length} responses).`);
     if (lastInboundText) {
       keyPoints.push(`Latest inquiry from customer: "${lastInboundText.length > 80 ? lastInboundText.slice(0, 80) + '...' : lastInboundText}"`);
     }
@@ -1033,7 +1062,9 @@ JSON SCHEMA:
         : 'In Progress';
 
     return {
-      executiveSummary: `${contactName} is currently in a conversation involving ${history.length} messages. The conversation is primarily centered around "${detectedIntent}". Current thread status is ${conversation.status}.`,
+      executiveSummary: isMonthFiltered
+        ? `${contactName} exchanged ${history.length} messages in ${monthLabel}. The discussion was primarily centered around "${detectedIntent}". Current thread status is ${conversation.status}.`
+        : `${contactName} is currently in a conversation involving ${history.length} messages. The conversation is primarily centered around "${detectedIntent}". Current thread status is ${conversation.status}.`,
       keyPoints,
       customerIntent: detectedIntent,
       actionItems,
@@ -1042,7 +1073,9 @@ JSON SCHEMA:
       generatedAt: new Date(),
       messageCountAtGeneration: history.length,
       isAIConfigured: Boolean(config && config.apiKey),
-      provider: config?.provider || 'smart-rule'
+      provider: config?.provider || 'smart-rule',
+      month: month || null,
+      monthLabel: monthLabel || (month === 'all' ? 'All Time' : null)
     };
   } catch (err) {
     logger.error('generateConversationSummary error:', err);
@@ -1056,7 +1089,9 @@ JSON SCHEMA:
       generatedAt: new Date(),
       messageCountAtGeneration: 0,
       isAIConfigured: false,
-      provider: 'error'
+      provider: 'error',
+      month: month || null,
+      monthLabel: null
     };
   }
 }

@@ -1653,7 +1653,93 @@ router.post('/conversations/:id/suggest-reply', ...validateObjectId('id'), async
   }
 });
 
-// GET /messages/conversations/:id/summary — Fetch existing summary or generate on-demand
+// Helper: calculate list of all months from chat start date down to current month
+async function getAvailableSummaryMonths(conversationId, fallbackCreatedAt) {
+  const Message = require('../models/Message');
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthNum = now.getMonth() + 1; // 1-12
+  const currentMonthKey = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`;
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  let monthCountsAgg = [];
+  try {
+    monthCountsAgg = await Message.aggregate([
+      { $match: { conversationId: conversationId } },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          count: { $sum: 1 },
+          earliest: { $min: '$createdAt' }
+        }
+      },
+      { $sort: { '_id.year': -1, '_id.month': -1 } }
+    ]);
+  } catch (aggErr) {
+    console.error('getAvailableSummaryMonths agg error:', aggErr);
+  }
+
+  const countMap = {};
+  let earliestDate = null;
+  let totalMessages = 0;
+
+  monthCountsAgg.forEach(item => {
+    if (item._id && item._id.year && item._id.month) {
+      const k = `${item._id.year}-${String(item._id.month).padStart(2, '0')}`;
+      countMap[k] = item.count;
+      totalMessages += item.count;
+      if (!earliestDate || new Date(item.earliest) < earliestDate) {
+        earliestDate = new Date(item.earliest);
+      }
+    }
+  });
+
+  if (!earliestDate) {
+    earliestDate = fallbackCreatedAt ? new Date(fallbackCreatedAt) : now;
+  }
+
+  const availableMonths = [];
+  let curr = new Date(Date.UTC(currentYear, currentMonthNum - 1, 1));
+  const minDate = new Date(Date.UTC(earliestDate.getFullYear(), earliestDate.getMonth(), 1));
+
+  while (curr >= minDate) {
+    const y = curr.getUTCFullYear();
+    const m = curr.getUTCMonth() + 1;
+    const key = `${y}-${String(m).padStart(2, '0')}`;
+    const isCurrent = key === currentMonthKey;
+    availableMonths.push({
+      key,
+      label: `${monthNames[m - 1]} ${y}`,
+      isCurrent,
+      messageCount: countMap[key] || 0
+    });
+    curr.setUTCMonth(curr.getUTCMonth() - 1);
+  }
+
+  if (availableMonths.length === 0) {
+    availableMonths.push({
+      key: currentMonthKey,
+      label: `${monthNames[currentMonthNum - 1]} ${currentYear}`,
+      isCurrent: true,
+      messageCount: 0
+    });
+  }
+
+  availableMonths.push({
+    key: 'all',
+    label: 'All Time (Full History)',
+    isCurrent: false,
+    messageCount: totalMessages
+  });
+
+  return { availableMonths, currentMonthKey };
+}
+
+// GET /messages/conversations/:id/summary — Fetch existing summary or generate on-demand (month-wise)
 router.post('/conversations/:id/summary/generate', ...validateObjectId('id'), async (req, res) => {
   // Alias for POST /summary
   req.url = `/conversations/${req.params.id}/summary`;
@@ -1672,11 +1758,31 @@ router.get('/conversations/:id/summary', ...validateObjectId('id'), async (req, 
       return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
     }
 
-    // Return cached summary if present
-    if (conversation.summary && conversation.summary.executiveSummary) {
+    const { availableMonths, currentMonthKey } = await getAvailableSummaryMonths(conversation._id, conversation.createdAt);
+    const targetMonth = req.query.month || currentMonthKey;
+
+    // Check cached summary
+    let cachedSummary = null;
+    if (targetMonth === 'all') {
+      if (conversation.summary && conversation.summary.executiveSummary && (!conversation.summary.month || conversation.summary.month === 'all')) {
+        cachedSummary = conversation.summary;
+      }
+    } else {
+      if (conversation.monthlySummaries && typeof conversation.monthlySummaries.get === 'function' && conversation.monthlySummaries.get(targetMonth)) {
+        cachedSummary = conversation.monthlySummaries.get(targetMonth);
+      } else if (conversation.monthlySummaries && conversation.monthlySummaries[targetMonth]) {
+        cachedSummary = conversation.monthlySummaries[targetMonth];
+      } else if (targetMonth === currentMonthKey && conversation.summary?.month === currentMonthKey && conversation.summary?.executiveSummary) {
+        cachedSummary = conversation.summary;
+      }
+    }
+
+    if (cachedSummary && cachedSummary.executiveSummary) {
       return res.json({
         success: true,
-        data: conversation.summary,
+        data: cachedSummary,
+        selectedMonth: targetMonth,
+        availableMonths,
         cached: true
       });
     }
@@ -1696,15 +1802,32 @@ router.get('/conversations/:id/summary', ...validateObjectId('id'), async (req, 
       conversation,
       contact: conversation.contactId,
       userId,
-      org
+      org,
+      month: targetMonth
     });
 
-    conversation.summary = summaryResult;
+    if (targetMonth === 'all') {
+      conversation.summary = summaryResult;
+    } else {
+      if (!conversation.monthlySummaries) {
+        conversation.monthlySummaries = new Map();
+      }
+      if (typeof conversation.monthlySummaries.set === 'function') {
+        conversation.monthlySummaries.set(targetMonth, summaryResult);
+      } else {
+        conversation.monthlySummaries[targetMonth] = summaryResult;
+      }
+      if (targetMonth === currentMonthKey) {
+        conversation.summary = summaryResult;
+      }
+    }
     await conversation.save();
 
     res.json({
       success: true,
       data: summaryResult,
+      selectedMonth: targetMonth,
+      availableMonths,
       cached: false
     });
   } catch (err) {
@@ -1713,7 +1836,7 @@ router.get('/conversations/:id/summary', ...validateObjectId('id'), async (req, 
   }
 });
 
-// POST /messages/conversations/:id/summary — Force re-generate conversation summary
+// POST /messages/conversations/:id/summary — Force re-generate conversation summary for a month
 router.post('/conversations/:id/summary', ...validateObjectId('id'), async (req, res) => {
   try {
     const conversationId = req.params.id;
@@ -1725,6 +1848,9 @@ router.post('/conversations/:id/summary', ...validateObjectId('id'), async (req,
     if (!conversation) {
       return res.status(404).json({ success: false, error: 'Conversation not found', code: 'NOT_FOUND' });
     }
+
+    const { availableMonths, currentMonthKey } = await getAvailableSummaryMonths(conversation._id, conversation.createdAt);
+    const targetMonth = req.body?.month || req.query?.month || currentMonthKey;
 
     const Organization = require('../models/Organization');
     const { generateConversationSummary } = require('../services/aiAgent');
@@ -1741,15 +1867,33 @@ router.post('/conversations/:id/summary', ...validateObjectId('id'), async (req,
       conversation,
       contact: conversation.contactId,
       userId,
-      org
+      org,
+      month: targetMonth
     });
 
-    conversation.summary = summaryResult;
+    if (targetMonth === 'all') {
+      conversation.summary = summaryResult;
+    } else {
+      if (!conversation.monthlySummaries) {
+        conversation.monthlySummaries = new Map();
+      }
+      if (typeof conversation.monthlySummaries.set === 'function') {
+        conversation.monthlySummaries.set(targetMonth, summaryResult);
+      } else {
+        conversation.monthlySummaries[targetMonth] = summaryResult;
+      }
+      if (targetMonth === currentMonthKey) {
+        conversation.summary = summaryResult;
+      }
+    }
     await conversation.save();
 
     res.json({
       success: true,
-      data: summaryResult
+      data: summaryResult,
+      selectedMonth: targetMonth,
+      availableMonths,
+      cached: false
     });
   } catch (err) {
     console.error('Failed to regenerate conversation summary:', err);
@@ -1770,14 +1914,27 @@ router.post('/conversations/:id/summary/save-note', ...validateObjectId('id'), a
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
 
-    const summary = conversation.summary;
+    const targetMonth = req.body?.month;
+    let summary = null;
+    if (targetMonth && targetMonth !== 'all') {
+      if (conversation.monthlySummaries && typeof conversation.monthlySummaries.get === 'function') {
+        summary = conversation.monthlySummaries.get(targetMonth);
+      } else if (conversation.monthlySummaries && conversation.monthlySummaries[targetMonth]) {
+        summary = conversation.monthlySummaries[targetMonth];
+      }
+    }
+    if (!summary) {
+      summary = req.body?.summary || conversation.summary;
+    }
+
     if (!summary || !summary.executiveSummary) {
       return res.status(400).json({ success: false, error: 'No summary generated yet to save as note' });
     }
 
     const dateStr = summary.generatedAt ? new Date(summary.generatedAt).toLocaleDateString() : new Date().toLocaleDateString();
+    const periodLabel = summary.monthLabel ? ` [${summary.monthLabel}]` : '';
     const formattedNote = [
-      `📋 AI Conversation Summary (${dateStr}):`,
+      `📋 AI Conversation Summary${periodLabel} (${dateStr}):`,
       `• Intent: ${summary.customerIntent || 'Inquiry'}`,
       `• Summary: ${summary.executiveSummary}`,
       summary.keyPoints?.length ? `• Key Points:\n  - ${summary.keyPoints.join('\n  - ')}` : '',

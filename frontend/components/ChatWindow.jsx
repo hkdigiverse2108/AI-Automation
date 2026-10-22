@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useConversationStore, useAuthStore, useConfirmStore } from '../lib/store';
 import api from '../lib/api';
 import {
@@ -7,7 +7,7 @@ import {
   Phone, MoreVertical, Search, Mic, Image, FileText, Camera,
   UserCircle, ArrowDown, X, Shield, Zap, Info, Tag, Edit2, Trash2, Mail, Loader2, MessageSquare, ChevronLeft,
   Download, Pin, Plus, Save, Star, RefreshCw, ArrowUpLeft, ChevronDown, ChevronUp, Copy, CheckCircle2, Clock,
-  Globe, Languages, RotateCcw, Square, MicOff
+  Globe, Languages, RotateCcw, Square, MicOff, Calendar
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -32,6 +32,31 @@ function formatRelativeTime(date) {
   } catch (e) {
     return '';
   }
+}
+
+// Helper to highlight matching search keywords inside text (WhatsApp style)
+function renderHighlightedText(text, query, isSearchActive) {
+  if (!text || typeof text !== 'string') return text || '';
+  if (!isSearchActive || !query || !query.trim()) return text;
+
+  const trimmedQuery = query.trim();
+  const escaped = trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escaped})`, 'gi');
+  const parts = text.split(regex);
+
+  return parts.map((part, i) => {
+    if (part.toLowerCase() === trimmedQuery.toLowerCase()) {
+      return (
+        <mark
+          key={i}
+          className="bg-amber-300 dark:bg-amber-400 text-slate-900 font-bold rounded-xs px-0.5 shadow-2xs"
+        >
+          {part}
+        </mark>
+      );
+    }
+    return part;
+  });
 }
 
 
@@ -140,6 +165,121 @@ export default function ChatWindow({ conversation, messages, onBack }) {
       l.code.toLowerCase().includes(q)
     );
   });
+
+  // In-Chat Keyword Search States & Handlers (WhatsApp style)
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
+  const searchInputRef = useRef(null);
+
+  // Helper to extract searchable text from a message
+  const getMessageSearchableText = useCallback((msg, msgId) => {
+    const parts = [];
+    if (typeof msg.content === 'string') parts.push(msg.content);
+    if (msg.content?.text) parts.push(msg.content.text);
+    if (msg.content?.caption) parts.push(msg.content.caption);
+    if (msg.content?.filename) parts.push(msg.content.filename);
+    if (msg.content?.contactName) parts.push(msg.content.contactName);
+    if (msg.content?.contactPhone) parts.push(msg.content.contactPhone);
+    if (msg.text) parts.push(msg.text);
+    if (messageTranslations[msgId]?.translatedText) {
+      parts.push(messageTranslations[msgId].translatedText);
+    }
+    return parts.join(' ');
+  }, [messageTranslations]);
+
+  // Find all matching message indices in the current conversation
+  const matchedIndices = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || !messages?.length) return [];
+    const indices = [];
+    messages.forEach((msg, idx) => {
+      const msgId = msg._id || `msg-${idx}`;
+      const searchTarget = getMessageSearchableText(msg, msgId).toLowerCase();
+      if (searchTarget.includes(q)) {
+        indices.push(idx);
+      }
+    });
+    return indices;
+  }, [searchQuery, messages, getMessageSearchableText]);
+
+  // When search query or matched results update, keep current match index in sync
+  useEffect(() => {
+    if (!searchQuery.trim() || matchedIndices.length === 0) {
+      setCurrentMatchIndex(-1);
+    } else {
+      setCurrentMatchIndex((prev) => {
+        if (prev >= 0 && prev < matchedIndices.length) {
+          return prev;
+        }
+        return matchedIndices.length - 1; // Default to most recent match (WhatsApp style)
+      });
+    }
+  }, [searchQuery, matchedIndices]);
+
+  // Smooth scroll to the current matched message
+  useEffect(() => {
+    if (!isSearchOpen || currentMatchIndex < 0 || currentMatchIndex >= matchedIndices.length) return;
+    const targetIdx = matchedIndices[currentMatchIndex];
+    if (targetIdx === undefined) return;
+    const targetMsg = messages[targetIdx];
+    if (!targetMsg) return;
+    const msgId = targetMsg._id || `msg-${targetIdx}`;
+    const el = document.getElementById(`chat-msg-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [currentMatchIndex, matchedIndices, isSearchOpen, messages]);
+
+  const goToNextMatch = useCallback(() => {
+    if (matchedIndices.length === 0) return;
+    setCurrentMatchIndex((prev) => (prev + 1) % matchedIndices.length);
+  }, [matchedIndices.length]);
+
+  const goToPrevMatch = useCallback(() => {
+    if (matchedIndices.length === 0) return;
+    setCurrentMatchIndex((prev) => (prev - 1 + matchedIndices.length) % matchedIndices.length);
+  }, [matchedIndices.length]);
+
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false);
+    setSearchQuery('');
+    setCurrentMatchIndex(-1);
+  }, []);
+
+  const handleSearchKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        goToPrevMatch();
+      } else {
+        goToNextMatch();
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSearch();
+    }
+  }, [goToPrevMatch, goToNextMatch, closeSearch]);
+
+  // Reset search when active conversation changes
+  useEffect(() => {
+    closeSearch();
+  }, [conversation?._id, closeSearch]);
+
+  // Open search on Ctrl+F / Cmd+F inside chat window
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 80);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Handle translation for a specific separate message
   const handleTranslateMessage = async (msgId, rawText, targetLang = 'en', targetLangName = 'English') => {
@@ -655,36 +795,55 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     }
   }, [contact?._id]);
 
-  // AI Conversation Summary States & Functions
+  // AI Conversation Summary States & Functions (supports month-wise filtering & multi-language translation)
   const [summaryData, setSummaryData] = useState(null);
+  const [selectedSummaryMonth, setSelectedSummaryMonth] = useState('');
+  const [availableSummaryMonths, setAvailableSummaryMonths] = useState([]);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [savingSummaryNote, setSavingSummaryNote] = useState(false);
+  const [summaryTranslation, setSummaryTranslation] = useState(null); // { targetLang, targetLangName, executiveSummary, keyPoints, actionItems, customerIntent, showOriginal }
+  const [translatingSummary, setTranslatingSummary] = useState(false);
 
   // Sync summary from conversation when selected conversation changes
   useEffect(() => {
+    setSelectedSummaryMonth('');
+    setAvailableSummaryMonths([]);
+    setSummaryTranslation(null);
     if (conversation?.summary?.executiveSummary) {
       setSummaryData(conversation.summary);
+      if (conversation.summary.month) {
+        setSelectedSummaryMonth(conversation.summary.month);
+      }
     } else {
       setSummaryData(null);
     }
-  }, [conversation?._id, conversation?.summary]);
+  }, [conversation?._id]);
 
-  const fetchConversationSummary = useCallback(async (forceRegenerate = false) => {
+  const fetchConversationSummary = useCallback(async (forceRegenerate = false, targetMonth = null) => {
     if (!conversation?._id) return;
     setLoadingSummary(true);
+    setSummaryTranslation(null);
     const toastId = forceRegenerate ? toast.loading('Analyzing chat & generating AI summary...') : null;
     try {
-      const endpoint = forceRegenerate
-        ? `/messages/conversations/${conversation._id}/summary`
-        : `/messages/conversations/${conversation._id}/summary`;
+      const monthToFetch = targetMonth !== null ? targetMonth : selectedSummaryMonth;
+      const queryParam = monthToFetch ? `?month=${encodeURIComponent(monthToFetch)}` : '';
+      const endpoint = `/messages/conversations/${conversation._id}/summary${queryParam}`;
       
       const { data } = forceRegenerate
-        ? await api.post(endpoint)
+        ? await api.post(`/messages/conversations/${conversation._id}/summary`, { month: monthToFetch || undefined })
         : await api.get(endpoint);
 
       if (data.success && data.data) {
         setSummaryData(data.data);
+        if (data.availableMonths && data.availableMonths.length > 0) {
+          setAvailableSummaryMonths(data.availableMonths);
+        }
+        if (data.selectedMonth) {
+          setSelectedSummaryMonth(data.selectedMonth);
+        } else if (targetMonth) {
+          setSelectedSummaryMonth(targetMonth);
+        }
         if (forceRegenerate) {
           toast.success('Conversation summary updated ✨', { id: toastId });
         }
@@ -698,16 +857,96 @@ export default function ChatWindow({ conversation, messages, onBack }) {
     } finally {
       setLoadingSummary(false);
     }
-  }, [conversation?._id]);
+  }, [conversation?._id, selectedSummaryMonth]);
+
+  // Translate AI Summary into 130+ Google Translate / AI languages
+  const handleTranslateSummary = async (targetLang = 'en', targetLangName = 'English') => {
+    if (!summaryData?.executiveSummary) {
+      toast.error('No summary content to translate');
+      return;
+    }
+
+    setTranslatingSummary(true);
+    const toastId = toast.loading(`Translating summary to ${targetLangName}...`);
+
+    try {
+      const promises = [
+        api.post('/messages/translate', { text: summaryData.executiveSummary, targetLang, targetLangName })
+      ];
+
+      if (summaryData.keyPoints?.length) {
+        promises.push(api.post('/messages/translate', { text: summaryData.keyPoints.join('\n'), targetLang, targetLangName }));
+      }
+      if (summaryData.actionItems?.length) {
+        promises.push(api.post('/messages/translate', { text: summaryData.actionItems.join('\n'), targetLang, targetLangName }));
+      }
+      if (summaryData.customerIntent) {
+        promises.push(api.post('/messages/translate', { text: summaryData.customerIntent, targetLang, targetLangName }));
+      }
+
+      const results = await Promise.all(promises);
+
+      const execResult = results[0]?.data?.data;
+      const translatedExec = execResult?.translatedText || summaryData.executiveSummary;
+      let nextIdx = 1;
+
+      let translatedKeyPoints = summaryData.keyPoints;
+      if (summaryData.keyPoints?.length) {
+        const raw = results[nextIdx]?.data?.data?.translatedText;
+        if (raw) translatedKeyPoints = raw.split('\n').map(s => s.trim()).filter(Boolean);
+        nextIdx++;
+      }
+
+      let translatedActionItems = summaryData.actionItems;
+      if (summaryData.actionItems?.length) {
+        const raw = results[nextIdx]?.data?.data?.translatedText;
+        if (raw) translatedActionItems = raw.split('\n').map(s => s.trim()).filter(Boolean);
+        nextIdx++;
+      }
+
+      let translatedIntent = summaryData.customerIntent;
+      if (summaryData.customerIntent) {
+        const raw = results[nextIdx]?.data?.data?.translatedText;
+        if (raw) translatedIntent = raw.trim();
+        nextIdx++;
+      }
+
+      setSummaryTranslation({
+        targetLang,
+        targetLangName,
+        provider: execResult?.provider || 'google-translate',
+        executiveSummary: translatedExec,
+        keyPoints: translatedKeyPoints,
+        actionItems: translatedActionItems,
+        customerIntent: translatedIntent,
+        showOriginal: false
+      });
+
+      toast.success(`Summary translated to ${targetLangName} 🌐`, { id: toastId });
+    } catch (err) {
+      console.error('Summary translation error:', err);
+      toast.error(err.response?.data?.error || err.message || 'Failed to translate summary', { id: toastId });
+    } finally {
+      setTranslatingSummary(false);
+    }
+  };
 
   const handleCopySummary = () => {
     if (!summaryData) return;
+    const isTranslated = summaryTranslation && !summaryTranslation.showOriginal;
+    const execText = isTranslated ? summaryTranslation.executiveSummary : summaryData.executiveSummary;
+    const kPoints = isTranslated ? summaryTranslation.keyPoints : summaryData.keyPoints;
+    const aItems = isTranslated ? summaryTranslation.actionItems : summaryData.actionItems;
+    const intentText = isTranslated ? summaryTranslation.customerIntent : summaryData.customerIntent;
+    const langTag = isTranslated ? ` [${summaryTranslation.targetLangName}]` : '';
+    const periodLabel = summaryData.monthLabel ? ` [${summaryData.monthLabel}]` : '';
+
     const copyText = [
-      `📋 AI Conversation Summary: ${contact.name || contact.phone || 'Customer'}`,
-      `Intent: ${summaryData.customerIntent || 'Inquiry'} | Status: ${summaryData.resolutionStatus || 'Active'} | Sentiment: ${summaryData.sentiment || 'neutral'}`,
-      `\nExecutive Overview:\n${summaryData.executiveSummary}`,
-      summaryData.keyPoints?.length ? `\nKey Discussion Points:\n• ${summaryData.keyPoints.join('\n• ')}` : '',
-      summaryData.actionItems?.length ? `\nAction Items & Next Steps:\n• ${summaryData.actionItems.join('\n• ')}` : ''
+      `📋 AI Conversation Summary${periodLabel}${langTag}: ${contact.name || contact.phone || 'Customer'}`,
+      `Period: ${summaryData.monthLabel || 'Current Month'}${langTag} | Intent: ${intentText || 'Inquiry'} | Status: ${summaryData.resolutionStatus || 'Active'} | Sentiment: ${summaryData.sentiment || 'neutral'}`,
+      `\nExecutive Overview:\n${execText}`,
+      kPoints?.length ? `\nKey Discussion Points:\n• ${kPoints.join('\n• ')}` : '',
+      aItems?.length ? `\nAction Items & Next Steps:\n• ${aItems.join('\n• ')}` : ''
     ].filter(Boolean).join('\n');
 
     navigator.clipboard.writeText(copyText);
@@ -715,11 +954,24 @@ export default function ChatWindow({ conversation, messages, onBack }) {
   };
 
   const handleSaveSummaryAsNote = async () => {
-    if (!conversation?._id || !summaryData?.executiveSummary) return;
+    if (!summaryData?.executiveSummary) return;
     setSavingSummaryNote(true);
     const toastId = toast.loading('Saving summary to contact notes...');
     try {
-      const { data } = await api.post(`/messages/conversations/${conversation._id}/summary/save-note`);
+      const isTranslated = summaryTranslation && !summaryTranslation.showOriginal;
+      const dataToSave = isTranslated ? {
+        ...summaryData,
+        executiveSummary: summaryTranslation.executiveSummary,
+        keyPoints: summaryTranslation.keyPoints,
+        actionItems: summaryTranslation.actionItems,
+        customerIntent: summaryTranslation.customerIntent,
+        monthLabel: `${summaryData.monthLabel || 'Current Period'} (${summaryTranslation.targetLangName})`
+      } : summaryData;
+
+      const { data } = await api.post(`/messages/conversations/${conversation._id}/summary/save-note`, {
+        month: selectedSummaryMonth || summaryData.month || undefined,
+        summary: dataToSave
+      });
       if (data.success) {
         toast.success('Summary saved to internal contact notes! 📝', { id: toastId });
         fetchContactNotes();
@@ -1256,154 +1508,155 @@ export default function ChatWindow({ conversation, messages, onBack }) {
       <div className="flex-1 flex flex-col h-full min-w-0 bg-wa-bg/15 dark:bg-wa-dark-bg/10 relative">
 
         {/* HEADER */}
-        <div className="wa-header h-[52px] flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-4 shrink-0 relative z-20">
-          <div className="flex items-center gap-2 md:gap-3 cursor-pointer min-w-0 flex-1">
+        <div className="wa-header min-h-[56px] sm:min-h-[58px] h-[56px] sm:h-[58px] !py-0 flex items-center justify-between border-b border-wa-border dark:border-wa-dark-border px-2 sm:px-4 shrink-0 relative z-20 bg-wa-panel-header dark:bg-wa-dark-panel-header">
+          {/* LEFT: Contact info (always prioritized and never squeezed to 0) */}
+          <div className="flex items-center gap-2 sm:gap-2.5 cursor-pointer min-w-0 flex-1 overflow-hidden mr-1 sm:mr-2" onClick={() => setShowSidebar(!showSidebar)}>
             {onBack && (
               <button
                 onClick={(e) => { e.stopPropagation(); onBack(); }}
-                className="lg:hidden p-1.5 rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-wa-text-secondary dark:text-wa-dark-text-secondary transition-colors"
+                className="lg:hidden p-1.5 -ml-1 rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover text-wa-text-secondary dark:text-wa-dark-text-secondary transition-colors shrink-0"
                 title="Back to chats"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
             )}
-            <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1" onClick={() => setShowSidebar(!showSidebar)}>
-              <div className={`w-9 h-9 rounded-full ${avatarClass} flex items-center justify-center font-bold text-xs shrink-0 shadow-sm`}>
-                {initials}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap min-w-0">
-                  <h3 className="font-semibold text-sm text-wa-text-primary dark:text-white leading-tight truncate">
-                    {contact.name || 'Unknown Contact'}
-                  </h3>
-                  {isAIActive ? (
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>AI Active</span>
-                    </span>
-                  ) : conversation?.status && (
-                    conversation.status === 'human' ? (
-                      conversation.lock_status ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-blue-50 text-blue-705 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
-                          <span className="w-1 h-1 rounded-full bg-blue-500 shrink-0" />
-                          <span>{`Handled by ${conversation.assignedAgent?.name || 'Agent'}`}</span>
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full ${avatarClass} flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 shadow-xs ring-1 ring-black/5 dark:ring-white/10`}>
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              {/* Line 1: Contact Name & Status Badge - Contact Name ALWAYS prioritized */}
+              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                <h3 className="font-semibold text-xs sm:text-sm text-wa-text-primary dark:text-white leading-tight truncate shrink-0 max-w-[130px] sm:max-w-[200px]">
+                  {contact.name || 'Unknown Contact'}
+                </h3>
+                {isAIActive ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink min-w-0 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <span className="truncate">AI Active</span>
+                  </span>
+                ) : conversation?.status && (
+                  conversation.status === 'human' ? (
+                    conversation.lock_status ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink min-w-0 max-w-[110px] bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">
+                        <span className="w-1 h-1 rounded-full bg-blue-500 shrink-0" />
+                        <span className="truncate">
+                          <span className="hidden md:inline">Handled by </span>
+                          {conversation.assignedAgent?.name ? conversation.assignedAgent.name.split(' ')[0] : 'Agent'}
                         </span>
-                      ) : conversation.assignedAgent ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-indigo-50 text-indigo-705 border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30 animate-pulse">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                          <span>Assigned to Human</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                          <span>Needs Human Reply</span>
-                        </span>
-                      )
+                      </span>
+                    ) : conversation.assignedAgent ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink min-w-0 bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30">
+                        <span className="w-1 h-1 rounded-full bg-indigo-500 shrink-0" />
+                        <span className="truncate">Assigned</span>
+                      </span>
                     ) : (
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conversation.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
-                          'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
-                        }`}>
-                        <span className={`w-1 h-1 rounded-full shrink-0 ${conversation.status === 'bot' ? 'bg-purple-500' : 'bg-slate-400'}`} />
-                        <span>{conversation.status}</span>
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink min-w-0 bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30">
+                        <span className="w-1 h-1 rounded-full bg-amber-500 shrink-0" />
+                        <span className="truncate">
+                          <span className="hidden md:inline">Needs Human Reply</span>
+                          <span className="md:hidden">Reply</span>
+                        </span>
                       </span>
                     )
-                  )}
-                </div>
-                <div className="text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex flex-wrap sm:flex-nowrap items-center gap-1.5 mt-0.5 min-w-0">
-                  <Phone className="w-3 h-3 text-wa-text-light shrink-0" />
-                  <span className="font-mono leading-none mr-1.5 shrink-0">{contact.phone || ''}</span>
-                  {isAIActive ? (
-                    <>
-                      <span className="text-slate-300 dark:text-slate-700 font-bold shrink-0">•</span>
-                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold leading-none flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-amber-500" /> AI Assistant is handling this chat (Human & Bot Paused)
-                      </span>
-                    </>
                   ) : (
-                    conversation?.status === 'human' && conversation.assignedAgent?.name && (
-                      <>
-                        <span className="text-slate-300 dark:text-slate-700 font-bold shrink-0">•</span>
-                        {conversation.lock_status ? (
-                          <div className="flex items-center gap-1 min-w-0 shrink-0">
-                            <div className="w-4 h-4 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-[8px] uppercase shrink-0 border border-blue-500/20">
-                              {conversation.assignedAgent.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                            </div>
-                            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold leading-none font-bold truncate">
-                              {conversation.assignedAgent.name}
-                            </span>
-                            {conversation.assigned_at && (
-                              <span className="text-[9px] text-wa-text-light dark:text-wa-dark-text-secondary font-medium ml-1 shrink-0">
-                                ({formatRelativeTime(conversation.assigned_at)})
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold leading-none animate-pulse truncate">
-                            Assigned to {conversation.assignedAgent.name} (Pending Takeover)
-                          </span>
-                        )}
-                      </>
-                    )
-                  )}
-                </div>
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink min-w-0 ${conversation.status === 'bot' ? 'bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
+                        'bg-slate-50 text-slate-700 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
+                      }`}>
+                      <span className={`w-1 h-1 rounded-full shrink-0 ${conversation.status === 'bot' ? 'bg-purple-500' : 'bg-slate-400'}`} />
+                      <span className="truncate">{conversation.status}</span>
+                    </span>
+                  )
+                )}
+              </div>
+
+              {/* Line 2: Phone number & Assigned Agent */}
+              <div className="text-[10px] sm:text-[11px] text-wa-text-secondary dark:text-wa-dark-text-secondary flex items-center gap-1.5 mt-0.5 min-w-0 overflow-hidden">
+                <Phone className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-wa-text-light shrink-0" />
+                <span className="font-mono leading-none truncate shrink-0 max-w-[120px] sm:max-w-none">{contact.phone || ''}</span>
+                {isAIActive ? (
+                  <>
+                    <span className="text-slate-300 dark:text-slate-700 font-bold shrink-0 hidden sm:inline">•</span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold leading-none items-center gap-1 truncate hidden sm:flex">
+                      <Sparkles className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                      <span className="truncate">AI Active</span>
+                    </span>
+                  </>
+                ) : (
+                  conversation?.status === 'human' && conversation.assignedAgent?.name && (
+                    <div className="hidden sm:flex items-center gap-1 min-w-0 truncate">
+                      <span className="text-slate-300 dark:text-slate-700 font-bold shrink-0">•</span>
+                      <div className="w-3.5 h-3.5 rounded-full bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-[7px] uppercase shrink-0 border border-blue-500/20">
+                        {conversation.assignedAgent.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                      </div>
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate">
+                        {conversation.assignedAgent.name}
+                      </span>
+                      {conversation.assigned_at && (
+                        <span className="text-[9px] text-wa-text-light dark:text-wa-dark-text-secondary font-normal shrink-0 hidden md:inline">
+                          ({formatRelativeTime(conversation.assigned_at)})
+                        </span>
+                      )}
+                    </div>
+                  )
+                )}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            {/* Take Over Button (when not locked or in AI mode) */}
+          {/* RIGHT ACTION BUTTONS: Icon-only for Bot/Take-Over below 2xl so name is never crowded */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+            {/* Take Over Button */}
             {(!isLocked || isAIActive) && (
               <button
                 onClick={handleAssign}
-                className="px-3.5 py-1.5 bg-wa-green hover:bg-wa-green-hover text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1 shrink-0"
+                className="w-8 h-8 2xl:w-auto 2xl:px-3 2xl:py-1.5 bg-wa-green hover:bg-wa-green-hover text-white text-xs font-bold rounded-lg shadow-xs hover:shadow transition-all flex items-center justify-center gap-1.5 shrink-0"
                 title="Take over conversation control from AI/Bot"
               >
-                <User className="w-3.5 h-3.5" />
-                <span>Take Over</span>
+                <User className="w-4 h-4 shrink-0" />
+                <span className="hidden 2xl:inline">Take Over</span>
               </button>
             )}
 
-            {/* Return to Bot Button (when locked by me/admin, replaces Take Over in the same left spot) */}
+            {/* Return to Bot Button */}
             {isLocked && !isAIActive && (isOwnerMe || isAdmin) && (
               <button
                 onClick={handleAI}
-                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-1 shrink-0"
+                className="w-8 h-8 2xl:w-auto 2xl:px-3 2xl:py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-xs hover:shadow transition-all flex items-center justify-center gap-1.5 shrink-0"
                 title="Release conversation and return to AI bot"
               >
-                <Bot className="w-3.5 h-3.5" />
-                <span>Return to Bot</span>
+                <Bot className="w-4 h-4 shrink-0" />
+                <span className="hidden 2xl:inline">Return to Bot</span>
               </button>
             )}
 
-            {/* Locked Button (when locked by another agent) */}
+            {/* Locked Indicator */}
             {isLocked && !isAIActive && !isOwnerMe && !isAdmin && (
               <button
                 disabled
-                className="px-3.5 py-1.5 bg-slate-200 dark:bg-slate-800 text-slate-400 text-xs font-bold rounded-lg cursor-not-allowed flex items-center gap-1 shrink-0"
+                className="w-8 h-8 2xl:w-auto 2xl:px-3 2xl:py-1.5 bg-slate-200 dark:bg-slate-800 text-slate-400 text-xs font-bold rounded-lg cursor-not-allowed flex items-center justify-center gap-1.5 shrink-0"
                 title={`Locked by ${conversation.assignedAgent?.name || 'another agent'}`}
               >
-                <Shield className="w-3.5 h-3.5" />
-                <span>Locked</span>
+                <Shield className="w-4 h-4 shrink-0" />
+                <span className="hidden 2xl:inline">Locked</span>
               </button>
             )}
 
-            {/* ASK AI BUTTON (Only shown when configured in Settings or currently active) */}
+            {/* ASK AI BUTTON - visible on 2xl:, always in 3-dots menu */}
             {(isAIConfigured || isAIActive) && (
               <button
                 onClick={handleToggleAskAI}
                 disabled={togglingAI}
-                className={`relative px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 shrink-0 select-none disabled:opacity-60 ${
+                className={`hidden 2xl:flex relative px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 items-center gap-1.5 shrink-0 select-none disabled:opacity-60 shadow-xs ${
                   isAIActive
-                    ? 'group bg-emerald-600 hover:bg-rose-600 text-white border border-emerald-500 hover:border-rose-500 shadow-sm'
-                    : 'bg-white dark:bg-wa-dark-header border border-slate-200 dark:border-wa-dark-border text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-wa-dark-hover hover:border-slate-300 dark:hover:border-slate-600 shadow-sm'
+                    ? 'group bg-emerald-600 hover:bg-rose-600 text-white border border-emerald-500 hover:border-rose-500'
+                    : 'bg-white dark:bg-wa-dark-header border border-slate-200 dark:border-wa-dark-border text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-wa-dark-hover hover:border-slate-300 dark:hover:border-slate-600'
                 }`}
                 title={isAIActive ? 'AI Assistant is active. Click to stop and return control.' : 'Activate AI Assistant for this chat'}
               >
                 {isAIActive ? (
                   <>
                     <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
-                    <span className="group-hover:hidden">AI Active</span>
-                    <span className="hidden group-hover:inline">Stop AI</span>
+                    <span>AI Active</span>
                   </>
                 ) : (
                   <>
@@ -1414,107 +1667,294 @@ export default function ChatWindow({ conversation, messages, onBack }) {
               </button>
             )}
 
-            {/* Pin Toggle Button */}
+            {/* Pin Button — visible ONLY on ultra-wide screens (2xl:), always in 3-dots dropdown */}
             <button
               onClick={handleTogglePin}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              className={`hidden 2xl:flex w-8 h-8 rounded-full items-center justify-center transition-colors shrink-0 ${
                 conversation?.isPinned
                   ? 'text-wa-green bg-wa-green/10'
                   : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
               }`}
               title={conversation?.isPinned ? 'Unpin chat' : 'Pin chat to top'}
             >
-              <Pin className={`w-4 h-4 rotate-45 ${conversation?.isPinned ? 'fill-wa-green/40' : ''}`} />
+              <Pin className={`w-3.5 h-3.5 rotate-45 ${conversation?.isPinned ? 'fill-wa-green/40' : ''}`} />
             </button>
 
-            {/* Star Toggle Button */}
+            {/* Star Button — visible ONLY on ultra-wide screens (2xl:), always in 3-dots dropdown */}
             <button
               onClick={handleToggleStar}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              className={`hidden 2xl:flex w-8 h-8 rounded-full items-center justify-center transition-colors shrink-0 ${
                 conversation?.isStarred
                   ? 'text-amber-500 bg-amber-500/10'
                   : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
               }`}
               title={conversation?.isStarred ? 'Unstar chat' : 'Star chat'}
             >
-              <Star className={`w-4 h-4 ${conversation?.isStarred ? 'fill-amber-400 text-amber-500' : ''}`} />
+              <Star className={`w-3.5 h-3.5 ${conversation?.isStarred ? 'fill-amber-400 text-amber-500' : ''}`} />
             </button>
 
-            {/* AI Conversation Summary Button */}
+            {/* AI Conversation Summary Button — visible ONLY on ultra-wide screens (2xl:), always in 3-dots dropdown */}
             <button
               onClick={() => {
                 setShowSummaryModal(true);
-                if (!summaryData) fetchConversationSummary(false);
+                fetchConversationSummary(false);
               }}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-indigo-500/10 hover:from-teal-500/20 hover:to-emerald-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/20 transition-all flex items-center gap-1.5 shrink-0 shadow-xs active:scale-95"
+              className="hidden 2xl:flex px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-indigo-500/10 hover:from-teal-500/20 hover:to-emerald-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/20 transition-all items-center gap-1.5 shrink-0 shadow-xs active:scale-95"
               title="View AI Conversation Summary & Key Points"
             >
-              <FileText className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-              <span className="hidden sm:inline font-bold">Summary</span>
+              <FileText className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+              <span className="font-bold">Summary</span>
             </button>
 
+            {/* Info Toggle Button (CRM Sidebar) - visible on sm: and above, accessible on mobile via tapping contact header or 3-dots menu */}
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${showSidebar ? 'text-wa-green bg-wa-green/10' : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'}`}
-              title="Toggle CRM Sidebar"
+              className={`hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full items-center justify-center transition-colors shrink-0 ${
+                showSidebar
+                  ? 'text-wa-green bg-wa-green/10'
+                  : 'text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover'
+              }`}
+              title={showSidebar ? 'Hide Contact Info' : 'View Contact Info'}
             >
-              <Info className="w-5 h-5" />
+              <Info className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
             </button>
-            <div className="relative" ref={dropdownRef}>
+
+            {/* 3-Dots More Menu — Always visible and contains ALL actions */}
+            <div className="relative shrink-0" ref={dropdownRef}>
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                title="More Options"
               >
-                <MoreVertical className="w-5 h-5" />
+                <MoreVertical className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               </button>
               {showDropdown && (
-                <div className="wa-dropdown">
+                <div className="wa-dropdown absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-xl py-1.5 z-50 animate-scale-up">
+                  {/* 1. Search Messages (WhatsApp Style) */}
+                  <button
+                    onClick={() => {
+                      setShowDropdown(false);
+                      setIsSearchOpen(true);
+                      setTimeout(() => {
+                        searchInputRef.current?.focus();
+                      }, 100);
+                    }}
+                    className="wa-dropdown-item w-full"
+                  >
+                    <Search className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Search Messages</span>
+                  </button>
+
+                  {/* 2. AI Summary */}
                   <button
                     onClick={() => {
                       setShowDropdown(false);
                       setShowSummaryModal(true);
-                      if (!summaryData) fetchConversationSummary(false);
+                      fetchConversationSummary(false);
                     }}
                     className="wa-dropdown-item w-full"
                   >
-                    <FileText className="w-4 h-4 text-teal-600" />Summary
+                    <FileText className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                    <span>AI Summary</span>
                   </button>
-                  <button onClick={handleAssign} className="wa-dropdown-item w-full">
-                    <User className="w-4 h-4" /> Take Over
+
+                  {/* 2. Contact Details & CRM sidebar */}
+                  <button
+                    onClick={() => {
+                      setShowDropdown(false);
+                      setShowSidebar(!showSidebar);
+                    }}
+                    className="wa-dropdown-item w-full"
+                  >
+                    <Info className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    <span>{showSidebar ? 'Hide Contact Details' : 'View Contact Details'}</span>
                   </button>
+
+                  {/* 3. Take Over */}
+                  {(!isLocked || isAIActive) && (
+                    <button
+                      onClick={() => {
+                        setShowDropdown(false);
+                        handleAssign();
+                      }}
+                      className="wa-dropdown-item w-full"
+                    >
+                      <User className="w-4 h-4 text-wa-green" />
+                      <span>Take Over Chat</span>
+                    </button>
+                  )}
+
+                  {/* 4. Return to Bot */}
+                  {isLocked && !isAIActive && (isOwnerMe || isAdmin) && (
+                    <button
+                      onClick={() => {
+                        setShowDropdown(false);
+                        handleAI();
+                      }}
+                      className="wa-dropdown-item w-full"
+                    >
+                      <Bot className="w-4 h-4 text-purple-500" />
+                      <span>Return to Bot</span>
+                    </button>
+                  )}
+
+                  {/* 5. Ask AI Assistant */}
                   {(isAIConfigured || isAIActive) && (
-                    <button onClick={handleToggleAskAI} className="wa-dropdown-item w-full">
-                      <Sparkles className="w-4 h-4 text-amber-500" /> {isAIActive ? 'Stop AI Assistant' : 'Ask AI Assistant'}
+                    <button
+                      onClick={() => {
+                        setShowDropdown(false);
+                        handleToggleAskAI();
+                      }}
+                      className="wa-dropdown-item w-full"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <span>{isAIActive ? 'Stop AI Assistant' : 'Ask AI Assistant'}</span>
                     </button>
                   )}
-                  <button onClick={handleAI} className="wa-dropdown-item w-full">
-                    <Bot className="w-4 h-4 text-purple-500" /> Return to Bot
-                  </button>
-                  <button onClick={handleResolve} className="wa-dropdown-item w-full">
-                    <Check className="w-4 h-4 text-wa-green" /> Resolve
-                  </button>
-                  {!conversation.isRead && (
-                    <button onClick={handleMarkRead} className="wa-dropdown-item w-full">
-                      <CheckCheck className="w-4 h-4 text-blue-500" /> Mark as Read
-                    </button>
-                  )}
-                  <button onClick={handleTogglePin} className="wa-dropdown-item w-full">
+
+                  <div className="border-t border-wa-border dark:border-wa-dark-border my-1" />
+
+                  {/* 6. Pin Chat */}
+                  <button
+                    onClick={() => {
+                      setShowDropdown(false);
+                      handleTogglePin();
+                    }}
+                    className="wa-dropdown-item w-full"
+                  >
                     <Pin className={`w-4 h-4 rotate-45 ${conversation?.isPinned ? 'text-wa-green fill-wa-green/40' : ''}`} />
                     <span>{conversation?.isPinned ? 'Unpin Chat' : 'Pin Chat to Top'}</span>
                   </button>
-                  <button onClick={handleToggleStar} className="wa-dropdown-item w-full">
+
+                  {/* 7. Star Chat */}
+                  <button
+                    onClick={() => {
+                      setShowDropdown(false);
+                      handleToggleStar();
+                    }}
+                    className="wa-dropdown-item w-full"
+                  >
                     <Star className={`w-4 h-4 ${conversation?.isStarred ? 'text-amber-500 fill-amber-400' : ''}`} />
                     <span>{conversation?.isStarred ? 'Unstar Chat' : 'Star Chat'}</span>
                   </button>
-                  <div className="border-t border-wa-border dark:border-wa-dark-border my-1"></div>
-                  <button onClick={handleDeleteChat} className="wa-dropdown-item w-full text-red-500 hover:text-red-650 hover:bg-red-50/50 dark:hover:bg-red-950/20">
-                    <Trash2 className="w-4 h-4 text-red-500" /> Delete Chat
+
+                  {/* 8. Resolve Chat */}
+                  <button
+                    onClick={() => {
+                      setShowDropdown(false);
+                      handleResolve();
+                    }}
+                    className="wa-dropdown-item w-full"
+                  >
+                    <Check className="w-4 h-4 text-wa-green" />
+                    <span>Resolve Conversation</span>
+                  </button>
+
+                  {/* 9. Mark as Read */}
+                  {!conversation?.isRead && (
+                    <button
+                      onClick={() => {
+                        setShowDropdown(false);
+                        handleMarkRead();
+                      }}
+                      className="wa-dropdown-item w-full"
+                    >
+                      <CheckCheck className="w-4 h-4 text-blue-500" />
+                      <span>Mark as Read</span>
+                    </button>
+                  )}
+
+                  <div className="border-t border-wa-border dark:border-wa-dark-border my-1" />
+
+                  {/* 10. Delete Chat */}
+                  <button
+                    onClick={() => {
+                      setShowDropdown(false);
+                      handleDeleteChat();
+                    }}
+                    className="wa-dropdown-item w-full text-red-500 hover:text-red-650 hover:bg-red-50/50 dark:hover:bg-red-950/20"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                    <span>Delete Chat</span>
                   </button>
                 </div>
               )}
             </div>
           </div>
         </div>
+
+        {/* IN-CHAT MESSAGE SEARCH BAR (WhatsApp Style) */}
+        {isSearchOpen && (
+          <div className="bg-wa-panel-header dark:bg-wa-dark-panel-header border-b border-wa-border dark:border-wa-dark-border px-3 sm:px-4 py-2 flex items-center gap-2 sm:gap-3 shrink-0 z-20 shadow-xs animate-slide-down">
+            <div className="relative flex-1 min-w-0">
+              <Search className="w-4 h-4 text-wa-text-secondary absolute left-3 top-2.5 pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="Search in chat... (Press Enter for next, Esc to close)"
+                className="w-full pl-9 pr-8 py-1.5 text-xs sm:text-[13px] bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white placeholder-wa-text-secondary focus:outline-none focus:ring-1.5 focus:ring-wa-green/60 shadow-2xs"
+                autoFocus
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-2 text-wa-text-secondary hover:text-wa-text-primary p-0.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  title="Clear"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Results counter & Match navigators */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              {searchQuery.trim() && (
+                <span className="text-[11px] sm:text-xs font-semibold px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-wa-text-secondary dark:text-wa-dark-text-secondary whitespace-nowrap">
+                  {matchedIndices.length > 0 ? (
+                    <span>{currentMatchIndex + 1} of {matchedIndices.length}</span>
+                  ) : (
+                    <span className="text-rose-500 font-bold">No results</span>
+                  )}
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={goToPrevMatch}
+                disabled={matchedIndices.length === 0}
+                className="p-1.5 rounded-lg text-wa-text-secondary hover:text-wa-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                title="Previous message (Shift + Enter)"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={goToNextMatch}
+                disabled={matchedIndices.length === 0}
+                className="p-1.5 rounded-lg text-wa-text-secondary hover:text-wa-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                title="Next message (Enter)"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+
+              <div className="h-4 w-px bg-wa-border dark:border-wa-dark-border mx-0.5" />
+
+              <button
+                type="button"
+                onClick={closeSearch}
+                className="p-1.5 rounded-lg text-wa-text-secondary hover:text-wa-text-primary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+                title="Close search (Esc)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* AI ACTIVE NOTICE BANNER */}
         {isAIActive && (
@@ -1562,15 +2002,24 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                 lastDate = msgDate;
               }
 
+              const isCurrentMatch = isSearchOpen && matchedIndices[currentMatchIndex] === i;
+              const isAnyMatch = isSearchOpen && searchQuery.trim() && matchedIndices.includes(i);
+
               return (
-                <div key={msg._id || i}>
+                <div key={msg._id || i} id={`chat-msg-${msgId}`}>
                   {showDateDivider && msgDate && (
                     <div className="wa-date-divider my-4">
                       <span>{formatMessageDate(msgDate)}</span>
                     </div>
                   )}
                   <div className={`flex ${isOut ? 'justify-end' : 'justify-start'} mb-1 msg-wrapper animate-message-pop`}>
-                    <div className={`${isOut ? 'chat-bubble-out' : 'chat-bubble-in'} relative group`}>
+                    <div className={`${isOut ? 'chat-bubble-out' : 'chat-bubble-in'} relative group transition-all duration-300 ${
+                      isCurrentMatch
+                        ? 'ring-2 ring-emerald-500 ring-offset-2 dark:ring-offset-slate-900 shadow-lg scale-[1.01]'
+                        : isAnyMatch
+                        ? 'ring-1.5 ring-amber-400/70 shadow-xs'
+                        : ''
+                    }`}>
                       {!isOut && msg.sentBy && <SentByLabel sentBy={msg.sentBy} />}
 
                       {/* Quick Hover Translate Trigger Button (Gemini AI Rotating Border Highlight) */}
@@ -1647,7 +2096,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                           <FileText className="w-5 h-5 text-purple-500 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <span className="block text-xs font-semibold text-wa-text-primary dark:text-white truncate">
-                              {msg.content.filename || msg.content.caption || msg.content.text || "Document File"}
+                              {renderHighlightedText(msg.content.filename || msg.content.caption || msg.content.text || "Document File", searchQuery, isSearchOpen)}
                             </span>
                           </div>
                           <button
@@ -1673,7 +2122,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                           <UserCircle className="w-6 h-6 text-blue-500 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <span className="block text-xs font-bold text-wa-text-primary dark:text-white leading-tight truncate">
-                              {msg.content?.contactName || "Contact"}
+                              {renderHighlightedText(msg.content?.contactName || "Contact", searchQuery, isSearchOpen)}
                             </span>
                             <span className="block text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono mt-0.5 leading-none">
                               {msg.content?.contactPhone || ""}
@@ -1685,7 +2134,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                       {/* Display text or caption if exists, or if type is text */}
                       {(msg.type === 'text' || (!msg.content?.mediaUrl && (msg.content?.text || msg.content?.caption))) && (
                         <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap text-wa-text-primary dark:text-wa-dark-text-primary">
-                          {msg.content?.text || msg.content?.caption}
+                          {renderHighlightedText(msg.content?.text || msg.content?.caption, searchQuery, isSearchOpen)}
                         </p>
                       )}
 
@@ -1780,7 +2229,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
 
                               {/* Translated Content */}
                               <p className="text-[13.5px] leading-relaxed text-slate-900 dark:text-slate-100 font-sans select-text whitespace-pre-wrap">
-                                {msgTranslation.translatedText}
+                                {renderHighlightedText(msgTranslation.translatedText, searchQuery, isSearchOpen)}
                               </p>
                             </div>
                           )}
@@ -3055,7 +3504,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
             <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-up">
               {/* Modal Header */}
-              <div className="px-5 py-4 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-indigo-500/10 shrink-0">
+              <div className="px-5 py-3.5 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-indigo-500/10 shrink-0">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-full bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold">
                     <Sparkles className="w-4 h-4" />
@@ -3078,119 +3527,254 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                 </button>
               </div>
 
+              {/* Month / Period & Translation Bar */}
+              <div className="px-5 py-2.5 bg-slate-50 dark:bg-slate-900/40 border-b border-wa-border dark:border-wa-dark-border flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                  <span className="text-xs font-bold text-wa-text-primary dark:text-white">
+                    Summary Period:
+                  </span>
+                  <select
+                    value={selectedSummaryMonth}
+                    onChange={(e) => {
+                      const newMonth = e.target.value;
+                      setSelectedSummaryMonth(newMonth);
+                      setSummaryTranslation(null);
+                      fetchConversationSummary(false, newMonth);
+                    }}
+                    disabled={loadingSummary || translatingSummary}
+                    className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-teal-500/30 bg-white dark:bg-wa-dark-header text-wa-text-primary dark:text-white focus:outline-hidden focus:ring-2 focus:ring-teal-500 cursor-pointer shadow-2xs"
+                  >
+                    {availableSummaryMonths.length > 0 ? (
+                      availableSummaryMonths.map((m) => (
+                        <option key={m.key} value={m.key}>
+                          {m.label} {m.isCurrent ? '• (Current Month)' : ''} ({m.messageCount || 0} msgs)
+                        </option>
+                      ))
+                    ) : (
+                      <option value="">Current Month</option>
+                    )}
+                  </select>
+                </div>
+
+                {/* Translation Controls */}
+                <div className="flex items-center gap-1.5">
+                  {summaryTranslation ? (
+                    <div className="flex items-center gap-1 bg-white dark:bg-wa-dark-header border border-teal-500/30 rounded-lg p-0.5 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setSummaryTranslation(prev => ({ ...prev, showOriginal: true }))}
+                        className={`px-2 py-1 rounded text-[11px] font-bold transition-all ${
+                          summaryTranslation.showOriginal
+                            ? 'bg-teal-600 text-white shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        }`}
+                        title="Show original untranslated summary"
+                      >
+                        Original
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSummaryTranslation(prev => ({ ...prev, showOriginal: false }))}
+                        className={`px-2 py-1 rounded text-[11px] font-bold flex items-center gap-1 transition-all ${
+                          !summaryTranslation.showOriginal
+                            ? 'bg-teal-600 text-white shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        }`}
+                        title={`Showing in ${summaryTranslation.targetLangName}`}
+                      >
+                        <Globe className="w-3 h-3 shrink-0" />
+                        <span>{summaryTranslation.targetLangName}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTranslateModalMsg({
+                            isSummary: true,
+                            text: summaryData?.executiveSummary || ''
+                          });
+                          setTranslateSearch('');
+                          setTranslateActiveTab('popular');
+                        }}
+                        disabled={translatingSummary}
+                        className="p-1 text-teal-600 hover:text-teal-700 dark:text-teal-400 hover:bg-teal-500/10 rounded transition-colors"
+                        title="Change translation language"
+                      >
+                        <Languages className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTranslateModalMsg({
+                          isSummary: true,
+                          text: summaryData?.executiveSummary || ''
+                        });
+                        setTranslateSearch('');
+                        setTranslateActiveTab('popular');
+                      }}
+                      disabled={loadingSummary || translatingSummary || !summaryData?.executiveSummary}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 flex items-center gap-1.5 transition-all disabled:opacity-50 active:scale-95 shadow-2xs"
+                      title="Translate Summary into 130+ languages (Hindi, Gujarati, Marathi, Spanish, etc.)"
+                    >
+                      <Globe className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+                      <span>{translatingSummary ? 'Translating...' : 'Translate'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Modal Content */}
               <div className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-thin">
-                {loadingSummary ? (
+                {loadingSummary || translatingSummary ? (
                   <div className="py-12 flex flex-col items-center justify-center gap-3 text-wa-text-secondary">
                     <Loader2 className="w-7 h-7 animate-spin text-teal-600" />
-                    <span className="text-sm font-semibold">Generating AI Conversation Summary...</span>
-                    <span className="text-xs text-wa-text-light">Reading recent messages and analyzing context...</span>
+                    <span className="text-sm font-semibold">
+                      {translatingSummary ? 'Translating AI Summary...' : 'Generating AI Conversation Summary...'}
+                    </span>
+                    <span className="text-xs text-wa-text-light">
+                      {translatingSummary
+                        ? 'Translating overview, key discussion points, and action items...'
+                        : `Reading messages ${summaryData?.monthLabel ? `for ${summaryData.monthLabel}` : ''} and analyzing context...`}
+                    </span>
                   </div>
                 ) : !summaryData?.executiveSummary ? (
                   <div className="py-10 text-center space-y-3">
-                    <p className="text-sm text-wa-text-secondary">No summary has been generated for this conversation yet.</p>
+                    <p className="text-sm text-wa-text-secondary">No summary has been generated for this period yet.</p>
                     <button
-                      onClick={() => fetchConversationSummary(true)}
+                      onClick={() => fetchConversationSummary(true, selectedSummaryMonth)}
                       className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-sm transition-all"
                     >
                       <Sparkles className="w-4 h-4" /> Generate Summary Now
                     </button>
                   </div>
-                ) : (
-                  <>
-                    {/* Badges Row */}
-                    <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800">
-                      {summaryData.customerIntent && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <span className="text-slate-400 font-medium">Intent:</span>
-                          <span className="font-bold text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/30">
-                            🎯 {summaryData.customerIntent}
-                          </span>
-                        </div>
-                      )}
-                      {summaryData.sentiment && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <span className="text-slate-400 font-medium">Sentiment:</span>
-                          <span className={`font-bold px-2 py-0.5 rounded capitalize ${
-                            summaryData.sentiment === 'positive' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300' :
-                            summaryData.sentiment === 'frustrated' ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300' :
-                            summaryData.sentiment === 'urgent' ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300' :
-                            'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300'
-                          }`}>
-                            {summaryData.sentiment === 'positive' ? '😊 Positive' :
-                             summaryData.sentiment === 'frustrated' ? '😠 Frustrated' :
-                             summaryData.sentiment === 'urgent' ? '🚨 Urgent' : '😐 Neutral'}
-                          </span>
-                        </div>
-                      )}
-                      {summaryData.resolutionStatus && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <span className="text-slate-400 font-medium">Status:</span>
-                          <span className="font-bold text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/30">
-                            {summaryData.resolutionStatus}
-                          </span>
-                        </div>
-                      )}
-                      {summaryData.messageCountAtGeneration > 0 && (
-                        <div className="flex items-center gap-1 text-[11px] text-wa-text-secondary ml-auto">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          <span>{summaryData.messageCountAtGeneration} msgs analyzed</span>
-                        </div>
-                      )}
-                    </div>
+                ) : (() => {
+                  const isTranslatedActive = summaryTranslation && !summaryTranslation.showOriginal;
+                  const displayExecutiveSummary = isTranslatedActive ? summaryTranslation.executiveSummary : summaryData.executiveSummary;
+                  const displayKeyPoints = isTranslatedActive ? summaryTranslation.keyPoints : summaryData.keyPoints;
+                  const displayActionItems = isTranslatedActive ? summaryTranslation.actionItems : summaryData.actionItems;
+                  const displayIntent = isTranslatedActive ? summaryTranslation.customerIntent : summaryData.customerIntent;
 
-                    {/* Executive Summary */}
-                    <div className="space-y-1.5">
-                      <h4 className="text-xs font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-teal-600" /> Executive Overview
-                      </h4>
-                      <div className="p-3.5 rounded-xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200/60 dark:border-teal-800/40 text-xs sm:text-[13px] leading-relaxed text-wa-text-primary dark:text-white">
-                        {summaryData.executiveSummary}
+                  return (
+                    <>
+                      {/* Badges Row */}
+                      <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800">
+                        {summaryData.monthLabel && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-slate-400 font-medium">Period:</span>
+                            <span className="font-bold text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/40">
+                              📅 {summaryData.monthLabel}
+                            </span>
+                          </div>
+                        )}
+                        {isTranslatedActive && summaryTranslation?.targetLangName && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-slate-400 font-medium">Language:</span>
+                            <span className="font-bold text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 flex items-center gap-1">
+                              <Globe className="w-3 h-3" /> {summaryTranslation.targetLangName}
+                            </span>
+                          </div>
+                        )}
+                        {displayIntent && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-slate-400 font-medium">Intent:</span>
+                            <span className="font-bold text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/30">
+                              🎯 {displayIntent}
+                            </span>
+                          </div>
+                        )}
+                        {summaryData.sentiment && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-slate-400 font-medium">Sentiment:</span>
+                            <span className={`font-bold px-2 py-0.5 rounded capitalize ${
+                              summaryData.sentiment === 'positive' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300' :
+                              summaryData.sentiment === 'frustrated' ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300' :
+                              summaryData.sentiment === 'urgent' ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300' :
+                              'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                            }`}>
+                              {summaryData.sentiment === 'positive' ? '😊 Positive' :
+                               summaryData.sentiment === 'frustrated' ? '😠 Frustrated' :
+                               summaryData.sentiment === 'urgent' ? '🚨 Urgent' : '😐 Neutral'}
+                            </span>
+                          </div>
+                        )}
+                        {summaryData.resolutionStatus && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-slate-400 font-medium">Status:</span>
+                            <span className="font-bold text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/30">
+                              {summaryData.resolutionStatus}
+                            </span>
+                          </div>
+                        )}
+                        {summaryData.messageCountAtGeneration > 0 && (
+                          <div className="flex items-center gap-1 text-[11px] text-wa-text-secondary ml-auto">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            <span>{summaryData.messageCountAtGeneration} msgs analyzed</span>
+                          </div>
+                        )}
                       </div>
-                    </div>
 
-                    {/* Key Discussion Points */}
-                    {summaryData.keyPoints && summaryData.keyPoints.length > 0 && (
+                      {/* Executive Summary */}
                       <div className="space-y-1.5">
-                        <h4 className="text-xs font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Key Discussion Points
-                        </h4>
-                        <div className="p-3 rounded-xl bg-white dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border space-y-1.5">
-                          {summaryData.keyPoints.map((pt, idx) => (
-                            <div key={idx} className="flex items-start gap-2 text-xs text-wa-text-primary dark:text-white">
-                              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 mt-1.5 shrink-0" />
-                              <span className="leading-snug">{pt}</span>
-                            </div>
-                          ))}
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-teal-600" /> Executive Overview {summaryData.monthLabel ? `(${summaryData.monthLabel})` : ''}
+                          </h4>
+                          {isTranslatedActive && (
+                            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold flex items-center gap-1">
+                              <Globe className="w-3 h-3" /> In {summaryTranslation.targetLangName}
+                            </span>
+                          )}
+                        </div>
+                        <div className="p-3.5 rounded-xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200/60 dark:border-teal-800/40 text-xs sm:text-[13px] leading-relaxed text-wa-text-primary dark:text-white">
+                          {displayExecutiveSummary}
                         </div>
                       </div>
-                    )}
 
-                    {/* Next Steps & Action Items */}
-                    {summaryData.actionItems && summaryData.actionItems.length > 0 && (
-                      <div className="space-y-1.5">
-                        <h4 className="text-xs font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider flex items-center gap-1.5">
-                          <Zap className="w-3.5 h-3.5 text-amber-500" /> Next Steps & Action Items
-                        </h4>
-                        <div className="p-3 rounded-xl bg-amber-50/30 dark:bg-amber-950/15 border border-amber-200/60 dark:border-amber-800/40 space-y-1.5">
-                          {summaryData.actionItems.map((act, idx) => (
-                            <div key={idx} className="flex items-start gap-2 text-xs text-wa-text-primary dark:text-white">
-                              <span className="text-amber-500 font-bold shrink-0">→</span>
-                              <span className="leading-snug font-medium">{act}</span>
-                            </div>
-                          ))}
+                      {/* Key Discussion Points */}
+                      {displayKeyPoints && displayKeyPoints.length > 0 && (
+                        <div className="space-y-1.5">
+                          <h4 className="text-xs font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Key Discussion Points
+                          </h4>
+                          <div className="p-3 rounded-xl bg-white dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border space-y-1.5">
+                            {displayKeyPoints.map((pt, idx) => (
+                              <div key={idx} className="flex items-start gap-2 text-xs text-wa-text-primary dark:text-white">
+                                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 mt-1.5 shrink-0" />
+                                <span className="leading-snug">{pt}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </>
-                )}
+                      )}
+
+                      {/* Next Steps & Action Items */}
+                      {displayActionItems && displayActionItems.length > 0 && (
+                        <div className="space-y-1.5">
+                          <h4 className="text-xs font-bold text-wa-text-secondary dark:text-wa-dark-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                            <Zap className="w-3.5 h-3.5 text-amber-500" /> Next Steps & Action Items
+                          </h4>
+                          <div className="p-3 rounded-xl bg-amber-50/30 dark:bg-amber-950/15 border border-amber-200/60 dark:border-amber-800/40 space-y-1.5">
+                            {displayActionItems.map((act, idx) => (
+                              <div key={idx} className="flex items-start gap-2 text-xs text-wa-text-primary dark:text-white">
+                                <span className="text-amber-500 font-bold shrink-0">→</span>
+                                <span className="leading-snug font-medium">{act}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Modal Footer */}
               <div className="px-5 py-3 border-t border-wa-border dark:border-wa-dark-border flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/30 shrink-0">
                 <button
                   type="button"
-                  onClick={() => fetchConversationSummary(true)}
+                  onClick={() => fetchConversationSummary(true, selectedSummaryMonth)}
                   disabled={loadingSummary}
                   className="px-3 py-1.5 text-xs font-bold text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
                 >
@@ -3238,7 +3822,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-sm text-wa-text-primary dark:text-white leading-tight flex items-center gap-1.5">
-                      <span>Translate Message</span>
+                      <span>{translateModalMsg.isSummary ? 'Translate AI Summary' : 'Translate Message'}</span>
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-700 dark:text-teal-300">
                         133 Languages
                       </span>
@@ -3260,7 +3844,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
               {/* Message Preview Quote */}
               <div className="px-5 py-2.5 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-200/50 dark:border-slate-800/50 shrink-0">
                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                  Translating Message
+                  {translateModalMsg.isSummary ? 'Translating Conversation Summary' : 'Translating Message'}
                 </span>
                 <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-2">
                   &ldquo;{translateModalMsg.text}&rdquo;
@@ -3333,7 +3917,11 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                           key={lang.code}
                           type="button"
                           onClick={() => {
-                            handleTranslateMessage(translateModalMsg.msgId, translateModalMsg.text, lang.code, lang.name);
+                            if (translateModalMsg.isSummary) {
+                              handleTranslateSummary(lang.code, lang.name);
+                            } else {
+                              handleTranslateMessage(translateModalMsg.msgId, translateModalMsg.text, lang.code, lang.name);
+                            }
                             setTranslateModalMsg(null);
                           }}
                           className="flex flex-col items-start p-2.5 rounded-xl border border-wa-border dark:border-wa-dark-border hover:border-teal-500/50 bg-wa-bg/60 dark:bg-wa-dark-header/40 hover:bg-teal-500/10 dark:hover:bg-teal-950/30 transition-all text-left group"
@@ -3361,7 +3949,11 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                           key={lang.code}
                           type="button"
                           onClick={() => {
-                            handleTranslateMessage(translateModalMsg.msgId, translateModalMsg.text, lang.code, lang.name);
+                            if (translateModalMsg.isSummary) {
+                              handleTranslateSummary(lang.code, lang.name);
+                            } else {
+                              handleTranslateMessage(translateModalMsg.msgId, translateModalMsg.text, lang.code, lang.name);
+                            }
                             setTranslateModalMsg(null);
                           }}
                           className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-teal-500/10 dark:hover:bg-teal-950/30 border border-transparent hover:border-teal-500/20 transition-all text-left group"

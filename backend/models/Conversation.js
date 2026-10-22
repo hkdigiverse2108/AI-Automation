@@ -68,7 +68,14 @@ const conversationSchema = new mongoose.Schema(
       generatedAt: { type: Date, default: null },
       messageCountAtGeneration: { type: Number, default: 0 },
       isAIConfigured: { type: Boolean, default: false },
-      provider: { type: String, default: null }
+      provider: { type: String, default: null },
+      month: { type: String, default: null },
+      monthLabel: { type: String, default: null }
+    },
+    monthlySummaries: {
+      type: Map,
+      of: Object,
+      default: {}
     }
   },
   { timestamps: true, strict: true }

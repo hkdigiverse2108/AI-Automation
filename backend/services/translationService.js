@@ -57,33 +57,36 @@ Return ONLY the translated text. Do NOT wrap in quotes, do NOT add explanations,
     logger.warn('AI translation attempt failed, switching to Google Translate fallback:', aiErr.message);
   }
 
-  // 2. Google Translate GTX Endpoint (Fast, Free, Reliable, Supports all 130+ Google Translate languages)
-  try {
-    const encodedText = encodeURIComponent(cleanText);
-    const langCode = encodeURIComponent(targetLang);
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${langCode}&dt=t&q=${encodedText}`;
+  // 2. Google Translate Endpoint (dict-chrome-ex & gtx fallback - Supports all 130+ Google Translate languages)
+  const gClients = ['dict-chrome-ex', 'gtx'];
+  for (const clientName of gClients) {
+    try {
+      const encodedText = encodeURIComponent(cleanText);
+      const langCode = encodeURIComponent(targetLang);
+      const url = `https://translate.googleapis.com/translate_a/single?client=${clientName}&sl=auto&tl=${langCode}&dt=t&q=${encodedText}`;
 
-    const res = await axios.get(url, {
-      timeout: 12000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      const res = await axios.get(url, {
+        timeout: 12000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+
+      if (Array.isArray(res.data) && Array.isArray(res.data[0])) {
+        const combined = res.data[0].map(item => (item && item[0]) ? item[0] : '').join('');
+        const detectedSource = res.data[2] || 'auto';
+
+        return {
+          translatedText: combined || cleanText,
+          detectedSourceLang: detectedSource,
+          targetLang,
+          targetLangName,
+          provider: 'google-translate'
+        };
       }
-    });
-
-    if (Array.isArray(res.data) && Array.isArray(res.data[0])) {
-      const combined = res.data[0].map(item => (item && item[0]) ? item[0] : '').join('');
-      const detectedSource = res.data[2] || 'auto';
-
-      return {
-        translatedText: combined || cleanText,
-        detectedSourceLang: detectedSource,
-        targetLang,
-        targetLangName,
-        provider: 'google-translate'
-      };
+    } catch (gErr) {
+      logger.warn(`Google Translate client (${clientName}) failed:`, gErr.message);
     }
-  } catch (gtxErr) {
-    logger.error('Google Translate fallback failed:', gtxErr.message);
   }
 
   // Fallback: Return original text if both fail
