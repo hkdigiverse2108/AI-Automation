@@ -809,11 +809,162 @@ router.post('/send', async (req, res) => {
         );
         messageText = bodyText;
       } else {
+        const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
+        const headerComp = tmpl.components?.find(c => c.type === 'HEADER' || c.type?.toLowerCase() === 'header');
+
+        // Extract expected parameter count for body placeholders {{1}}..{{n}}
+        let maxBodyVarIndex = 0;
+        if (bodyComp && bodyComp.text) {
+          const bodyMatches = [...bodyComp.text.matchAll(/\{\{([0-9]+)\}\}/g)];
+          for (const m of bodyMatches) {
+            const num = parseInt(m[1], 10);
+            if (num > maxBodyVarIndex) maxBodyVarIndex = num;
+          }
+        }
+
+        // Fetch invoice details if this is a billing/payment template
+        let invoice = null;
+        const isInvoiceTemplate = /payment|invoice|bill/i.test(tmpl.name);
+        if (isInvoiceTemplate) {
+          try {
+            const Invoice = require('../models/Invoice');
+            invoice = await Invoice.findOne({
+              userId,
+              $or: [
+                { customerId: contact._id },
+                { customerPhone: contact.phone },
+                { customerPhone: contact.phone.replace(/^91/, '') }
+              ]
+            }).sort({ createdAt: -1 });
+          } catch (invErr) {
+            // ignore invoice lookup errors
+          }
+        }
+
+        const resolvedVariables = [];
+        for (let i = 1; i <= maxBodyVarIndex; i++) {
+          const supplied = variables && variables[i - 1] !== undefined && String(variables[i - 1]).trim() !== ''
+            ? String(variables[i - 1]).trim()
+            : null;
+
+          if (supplied) {
+            resolvedVariables.push(supplied);
+            continue;
+          }
+
+          // Variable 1 is almost always the contact / customer name
+          if (i === 1) {
+            resolvedVariables.push(contact.name || invoice?.customerName || 'Customer');
+            continue;
+          }
+
+          // Smart filling for invoice / payment templates
+          if (isInvoiceTemplate) {
+            if (i === 2) {
+              resolvedVariables.push(invoice ? String(invoice.grandTotal || invoice.total || '0') : '0');
+            } else if (i === 3) {
+              resolvedVariables.push(invoice?.items?.[0]?.description || invoice?.items?.[0]?.name || 'Services');
+            } else if (i === 4) {
+              resolvedVariables.push(invoice?.invoiceNumber || 'INV-001');
+            } else if (i === 5) {
+              const d = invoice?.dueDate ? new Date(invoice.dueDate) : new Date();
+              resolvedVariables.push(d.toLocaleDateString('en-GB'));
+            } else {
+              resolvedVariables.push('-');
+            }
+            continue;
+          }
+
+          // Smart filling for event_invitation
+          if (/event|webinar|session/i.test(tmpl.name)) {
+            if (i === 2) resolvedVariables.push('Business Automation Masterclass');
+            else if (i === 3) resolvedVariables.push(new Date().toLocaleDateString('en-GB'));
+            else if (i === 4) resolvedVariables.push('05:00 PM');
+            else if (i === 5) resolvedVariables.push('Online');
+            else resolvedVariables.push('-');
+            continue;
+          }
+
+          // Smart filling for newsletter
+          if (/newsletter/i.test(tmpl.name)) {
+            if (i === 2) resolvedVariables.push(new Date().toLocaleString('en-US', { month: 'long' }));
+            else if (i === 3) resolvedVariables.push('Smart Automation Tools');
+            else if (i === 4) resolvedVariables.push('Consistent Growth');
+            else resolvedVariables.push('-');
+            continue;
+          }
+
+          // Smart filling for meeting / appointment
+          if (/meeting|appointment/i.test(tmpl.name)) {
+            if (i === 2) resolvedVariables.push('Consultation');
+            else if (i === 3) resolvedVariables.push(new Date().toLocaleDateString('en-GB'));
+            else if (i === 4) resolvedVariables.push('11:00 AM');
+            else resolvedVariables.push('-');
+            continue;
+          }
+
+          // Smart filling for order / delivery
+          if (/order|delivery|shipping/i.test(tmpl.name)) {
+            if (i === 2) resolvedVariables.push('ORD-' + Math.floor(1000 + Math.random() * 9000));
+            else if (i === 3) resolvedVariables.push('Package');
+            else if (i === 4) resolvedVariables.push('Courier');
+            else if (i === 5) resolvedVariables.push(new Date().toLocaleDateString('en-GB'));
+            else resolvedVariables.push('-');
+            continue;
+          }
+
+          // Smart filling for discount / sale / offers
+          if (/sale|discount|coupon|offer/i.test(tmpl.name)) {
+            if (i === 2) resolvedVariables.push('Special');
+            else if (i === 3) resolvedVariables.push('SAVE20');
+            else if (i === 4) resolvedVariables.push(new Date().toLocaleDateString('en-GB'));
+            else if (i === 5) resolvedVariables.push('11:59 PM');
+            else resolvedVariables.push('-');
+            continue;
+          }
+
+          // Fallback to template's example if valid and not "Sample_X"
+          const exampleVal = bodyComp?.example?.body_text?.[0]?.[i - 1];
+          if (exampleVal && !exampleVal.startsWith('Sample_') && !exampleVal.startsWith('Sample')) {
+            resolvedVariables.push(exampleVal);
+          } else {
+            resolvedVariables.push('-');
+          }
+        }
+
         const templateComponents = [];
-        if (variables && variables.length > 0) {
+
+        // 1. Handle HEADER component if required by Meta
+        if (headerComp) {
+          if (headerComp.format === 'TEXT' && headerComp.text && headerComp.text.includes('{{')) {
+            const headerMatches = [...headerComp.text.matchAll(/\{\{([0-9]+)\}\}/g)];
+            const headerParams = headerMatches.map(() => ({ type: 'text', text: contact.name || 'Customer' }));
+            if (headerParams.length > 0) {
+              templateComponents.push({ type: 'header', parameters: headerParams });
+            }
+          } else if (headerComp.format === 'IMAGE' && headerComp.example?.header_handle?.[0]) {
+            templateComponents.push({
+              type: 'header',
+              parameters: [{ type: 'image', image: { link: headerComp.example.header_handle[0] } }]
+            });
+          } else if (headerComp.format === 'DOCUMENT' && headerComp.example?.header_handle?.[0]) {
+            templateComponents.push({
+              type: 'header',
+              parameters: [{ type: 'document', document: { link: headerComp.example.header_handle[0], filename: 'document.pdf' } }]
+            });
+          } else if (headerComp.format === 'VIDEO' && headerComp.example?.header_handle?.[0]) {
+            templateComponents.push({
+              type: 'header',
+              parameters: [{ type: 'video', video: { link: headerComp.example.header_handle[0] } }]
+            });
+          }
+        }
+
+        // 2. Handle BODY component
+        if (resolvedVariables.length > 0) {
           templateComponents.push({
             type: 'body',
-            parameters: variables.map((v) => ({ type: 'text', text: v }))
+            parameters: resolvedVariables.map((v) => ({ type: 'text', text: String(v) }))
           });
         }
 
@@ -828,15 +979,11 @@ router.post('/send', async (req, res) => {
 
         // Resolve template text for visual chat bubbles
         let templateText = '';
-        const bodyComp = tmpl.components?.find(c => c.type === 'BODY' || c.type?.toLowerCase() === 'body');
         if (bodyComp && bodyComp.text) {
-          templateText = bodyComp.text;
-          if (variables && variables.length > 0) {
-            templateText = templateText.replace(/\{\{([0-9]+)\}\}/g, (_, num) => {
-              const idx = parseInt(num, 10) - 1;
-              return variables[idx] !== undefined ? variables[idx] : `{{${num}}}`;
-            });
-          }
+          templateText = bodyComp.text.replace(/\{\{([0-9]+)\}\}/g, (_, num) => {
+            const idx = parseInt(num, 10) - 1;
+            return resolvedVariables[idx] !== undefined ? resolvedVariables[idx] : `{{${num}}}`;
+          });
         }
         messageText = templateText || `[Template: ${tmpl.name}]`;
       }
@@ -900,7 +1047,12 @@ router.post('/send', async (req, res) => {
       });
     }
 
-    res.json({ success: true, data: { message: decryptedMsg }, message: 'Message sent' });
+    res.json({
+      success: result.success,
+      data: { message: decryptedMsg },
+      message: result.success ? 'Message sent' : (result.error || 'Failed to send message'),
+      error: result.error || null
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to send message', code: 'SEND_ERROR' });
   }

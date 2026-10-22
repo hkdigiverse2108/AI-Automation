@@ -1477,15 +1477,18 @@ export default function ChatWindow({ conversation, messages, onBack }) {
         contactId: contact._id,
         type: 'template',
         templateId: tmpl._id,
-        variables: []
+        variables: [contact.name || 'Customer']
       });
 
-      if (sendRes.data.success) {
+      if (sendRes.data.success && sendRes.data.data?.message?.status !== 'failed') {
         toast.success('Template sent successfully!', { id: toastId });
         await fetchMessages(conversation._id);
         await fetchConversations();
       } else {
-        toast.error(sendRes.data.error || 'Failed to send template', { id: toastId });
+        const errMsg = sendRes.data.data?.message?.errorDetails || sendRes.data.error || 'Failed to send template';
+        toast.error(errMsg, { id: toastId });
+        await fetchMessages(conversation._id);
+        await fetchConversations();
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to send template', { id: toastId });
@@ -2300,24 +2303,55 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                     const bodyText = getTemplateBodyText(tmpl);
                     const hasButtons = tmpl.components?.some(c => c.type === 'BUTTONS' && c.buttons?.length > 0);
                     return (
-                      <button
+                      <div
                         key={tmpl._id}
-                        onClick={() => {
-                          if (hasButtons) {
-                            handleSendTemplate(tmpl);
-                          } else {
-                            handleSelectQuickReply(bodyText);
-                          }
-                        }}
                         className="w-full text-left p-2.5 rounded-xl bg-wa-bg hover:bg-wa-green/10 dark:bg-wa-dark-header/40 border border-wa-border/35 dark:border-wa-dark-border/20 hover:border-wa-green/20 group transition-all"
                       >
-                        <span className="block text-xs font-bold text-wa-text-primary dark:text-white truncate group-hover:text-wa-green transition-colors">
-                          {tmpl.name} {hasButtons && <span className="ml-1 text-[9px] px-1 py-0.5 bg-wa-green/15 text-wa-green rounded font-normal font-sans">Buttons</span>}
-                        </span>
-                        <span className="block text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary truncate mt-0.5 font-sans">
+                        <div className="flex items-center justify-between mb-1 gap-1">
+                          <span
+                            onClick={() => handleSendTemplate(tmpl)}
+                            className="block text-xs font-bold text-wa-text-primary dark:text-white truncate group-hover:text-wa-green transition-colors cursor-pointer flex-1"
+                            title={tmpl.name}
+                          >
+                            {tmpl.name}
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {hasButtons && (
+                              <span className="text-[9px] px-1 py-0.5 bg-wa-green/15 text-wa-green rounded font-normal font-sans">
+                                Buttons
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectQuickReply(bodyText);
+                              }}
+                              title="Insert into chat input"
+                              className="text-[10px] text-wa-text-secondary hover:text-wa-green px-1.5 py-0.5 rounded hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-0.5 transition-colors"
+                            >
+                              <ArrowUpLeft className="w-2.5 h-2.5" /> Text
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendTemplate(tmpl);
+                              }}
+                              title="Send WhatsApp Template"
+                              className="text-[10px] font-bold text-white bg-wa-green hover:bg-wa-green-hover px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs transition-colors"
+                            >
+                              <Send className="w-2.5 h-2.5" /> Send
+                            </button>
+                          </div>
+                        </div>
+                        <p
+                          onClick={() => handleSendTemplate(tmpl)}
+                          className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary line-clamp-2 cursor-pointer font-sans"
+                        >
                           {bodyText}
-                        </span>
-                      </button>
+                        </p>
+                      </div>
                     );
                   })
                 )}
