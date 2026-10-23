@@ -42,6 +42,8 @@ router.get('/', async (req, res) => {
         ...decrypted,
         assignedAgent: c.assignedAgent || null,
         status: decrypted.customFields?.status || 'new',
+        lossReason: decrypted.customFields?.lossReason || decrypted.customFields?.dropReason || '',
+        winReason: decrypted.customFields?.winReason || decrypted.customFields?.wonReason || '',
         serviceRequired: decrypted.customFields?.selectedService || decrypted.customFields?.service || decrypted.customFields?.businessCategory || '',
         projectDescription: decrypted.customFields?.subService || decrypted.customFields?.description || '',
         budget: decrypted.customFields?.budget || '',
@@ -196,6 +198,8 @@ router.get('/:id', async (req, res) => {
       ...decrypted,
       assignedAgent: contact.assignedAgent || null,
       status: decrypted.customFields?.status || 'new',
+      lossReason: decrypted.customFields?.lossReason || decrypted.customFields?.dropReason || '',
+      winReason: decrypted.customFields?.winReason || decrypted.customFields?.wonReason || '',
       serviceRequired: decrypted.customFields?.selectedService || decrypted.customFields?.service || decrypted.customFields?.businessCategory || '',
       projectDescription: decrypted.customFields?.subService || decrypted.customFields?.description || '',
       budget: decrypted.customFields?.budget || '',
@@ -223,7 +227,7 @@ router.get('/:id', async (req, res) => {
 // PUT /leads/:id - update lead status, notes, assignedAgent, and bot flow details
 router.put('/:id', async (req, res) => {
   try {
-    const { name, phone, email, notes, status, serviceRequired, budget, timeline, city, specialRequirements, assignedAgent } = req.body;
+    const { name, phone, email, notes, status, serviceRequired, budget, timeline, city, specialRequirements, assignedAgent, lossReason, dropReason, winReason, wonReason } = req.body;
     
     // Find the contact
     const contact = await Contact.findOne({ _id: req.params.id, userId: req.userId, isDeleted: { $ne: true } });
@@ -239,6 +243,16 @@ router.put('/:id', async (req, res) => {
     if (!contact.customFields) contact.customFields = new Map();
 
     if (status !== undefined) contact.customFields.set('status', status);
+    const finalLossReason = lossReason !== undefined ? lossReason : dropReason;
+    if (finalLossReason !== undefined) {
+      contact.customFields.set('lossReason', finalLossReason);
+      contact.customFields.set('dropReason', finalLossReason);
+    }
+    const finalWinReason = winReason !== undefined ? winReason : wonReason;
+    if (finalWinReason !== undefined) {
+      contact.customFields.set('winReason', finalWinReason);
+      contact.customFields.set('wonReason', finalWinReason);
+    }
     if (serviceRequired !== undefined) {
       contact.customFields.set('selectedService', serviceRequired);
       contact.customFields.set('service', serviceRequired);
@@ -281,6 +295,8 @@ router.put('/:id', async (req, res) => {
       ...decrypted,
       assignedAgent: contact.assignedAgent || null,
       status: decrypted.customFields?.status || 'new',
+      lossReason: decrypted.customFields?.lossReason || decrypted.customFields?.dropReason || '',
+      winReason: decrypted.customFields?.winReason || decrypted.customFields?.wonReason || '',
       serviceRequired: decrypted.customFields?.selectedService || decrypted.customFields?.service || decrypted.customFields?.businessCategory || '',
       projectDescription: decrypted.customFields?.subService || decrypted.customFields?.description || '',
       budget: decrypted.customFields?.budget || '',

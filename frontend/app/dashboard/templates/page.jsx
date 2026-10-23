@@ -4,13 +4,19 @@ import { toast } from 'react-hot-toast';
 import {
   FileText, RefreshCw, Plus, Trash2, CheckCircle2,
   Clock, AlertTriangle, X, Loader2, Sparkles, LayoutGrid, List, Search, ChevronLeft, ChevronRight, Edit3, Image, Settings,
-  Filter, Tag
+  Filter, Tag, Download, FileSpreadsheet
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { usePageData } from '../../../lib/usePageData';
 import { useConfirmStore } from '../../../lib/store';
 import { formatDateOnly } from '../../../lib/utils';
 import Portal from '../../../components/Portal';
+import {
+  exportTemplatesToExcel,
+  exportTemplatesToPDF,
+  exportSingleTemplateToExcel,
+  exportSingleTemplateToPDF
+} from '../../../lib/templateExportUtils';
 
 export default function TemplatesPage() {
   const confirm = useConfirmStore(state => state.confirm);
@@ -24,6 +30,11 @@ export default function TemplatesPage() {
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL', 'APPROVED', 'PENDING', 'REJECTED'
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Export dropdown states
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [exportingType, setExportingType] = useState(null); // 'excel' | 'pdf' | null
+  const [activeCardMenuId, setActiveCardMenuId] = useState(null);
 
   // Create/Edit template modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -458,6 +469,59 @@ export default function TemplatesPage() {
     currentPage * entriesPerPage
   );
 
+  const isFiltered = categoryFilter !== 'ALL' || statusFilter !== 'ALL' || !!searchTerm.trim();
+
+  // Bulk / Filtered Export Handler
+  const handleBulkExport = async (format) => {
+    setIsExportMenuOpen(false);
+    const targetTemplates = filteredTemplates;
+    if (!targetTemplates.length) {
+      toast.error('No templates available to export');
+      return;
+    }
+
+    setExportingType(format);
+    const toastId = toast.loading(`Generating ${format === 'excel' ? 'Excel workbook (.xlsx)' : 'PDF catalog report (.pdf)'}...`);
+    try {
+      const filterInfo = {
+        isFiltered,
+        categoryFilter,
+        statusFilter,
+        searchTerm
+      };
+      if (format === 'excel') {
+        await exportTemplatesToExcel(targetTemplates, filterInfo);
+        toast.success(`Exported ${targetTemplates.length} template(s) to Excel!`, { id: toastId });
+      } else {
+        await exportTemplatesToPDF(targetTemplates, filterInfo);
+        toast.success(`Exported ${targetTemplates.length} template(s) to PDF report!`, { id: toastId });
+      }
+    } catch (err) {
+      console.error('Bulk export error:', err);
+      toast.error(err.message || 'Export failed', { id: toastId });
+    } finally {
+      setExportingType(null);
+    }
+  };
+
+  // Single Template Export Handler
+  const handleSingleExport = async (template, format) => {
+    setActiveCardMenuId(null);
+    const toastId = toast.loading(`Exporting "${template.name}" to ${format.toUpperCase()}...`);
+    try {
+      if (format === 'excel') {
+        await exportSingleTemplateToExcel(template);
+        toast.success(`Template "${template.name}" exported to Excel (.xlsx)!`, { id: toastId });
+      } else {
+        await exportSingleTemplateToPDF(template);
+        toast.success(`Template "${template.name}" exported to PDF (.pdf)!`, { id: toastId });
+      }
+    } catch (err) {
+      console.error('Single export error:', err);
+      toast.error(err.message || 'Export failed', { id: toastId });
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -485,6 +549,83 @@ export default function TemplatesPage() {
             >
               <List className="w-4 h-4" />
             </button>
+          </div>
+
+          {/* Bulk / Filtered Export Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsExportMenuOpen(prev => !prev)}
+              disabled={exportingType !== null || templates.length === 0}
+              className="btn-secondary flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-wa-text-primary dark:text-white"
+              title="Export Templates Catalog"
+            >
+              {exportingType ? (
+                <Loader2 className="w-4 h-4 animate-spin text-wa-green" />
+              ) : (
+                <Download className="w-4 h-4 text-wa-green" />
+              )}
+              <span>Export</span>
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isFiltered ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' : 'bg-wa-green/10 text-wa-green'}`}>
+                {filteredTemplates.length}
+              </span>
+            </button>
+
+            {isExportMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsExportMenuOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-xl z-50 p-2 space-y-1 animate-slide-up text-xs">
+                  <div className="px-3 py-2 border-b border-wa-border dark:border-wa-dark-border">
+                    <p className="font-bold text-wa-text-primary dark:text-white">
+                      Export Templates Catalog
+                    </p>
+                    <p className="text-[11px] text-wa-text-secondary mt-0.5">
+                      {isFiltered
+                        ? `Filtered: ${filteredTemplates.length} of ${templates.length} templates`
+                        : `All ${templates.length} templates`}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => handleBulkExport('excel')}
+                    className="w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-left transition-colors group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-wa-text-primary dark:text-white flex items-center gap-1.5">
+                        <span>Excel Spreadsheet</span>
+                        <span className="text-[10px] font-bold px-1 rounded bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">.xlsx</span>
+                      </p>
+                      <p className="text-[11px] text-wa-text-secondary">
+                        Multi-sheet workbook with overview, breakdown & cards
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleBulkExport('pdf')}
+                    className="w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-left transition-colors group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/40 text-red-600 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-wa-text-primary dark:text-white flex items-center gap-1.5">
+                        <span>PDF Catalog Report</span>
+                        <span className="text-[10px] font-bold px-1 rounded bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300">.pdf</span>
+                      </p>
+                      <p className="text-[11px] text-wa-text-secondary">
+                        Formatted catalog report ready to print or present
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           <button onClick={handleSync} disabled={syncing} className="btn-secondary flex items-center gap-2 px-4 py-2 text-xs font-semibold">
@@ -674,6 +815,22 @@ export default function TemplatesPage() {
             </span>
           </button>
 
+          {/* Rejected */}
+          <button
+            onClick={() => { setStatusFilter(statusFilter === 'REJECTED' ? 'ALL' : 'REJECTED'); setCurrentPage(1); }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+              statusFilter === 'REJECTED'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40'
+            }`}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            <span>Rejected</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${statusFilter === 'REJECTED' ? 'bg-red-700 text-white' : 'bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300'}`}>
+              {statusCounts.REJECTED}
+            </span>
+          </button>
+
           <div className="ml-auto text-[11px] text-wa-text-light font-medium">
             Showing <strong className="text-wa-text-primary dark:text-white font-semibold">{filteredTemplates.length}</strong> of {templates.length} templates
           </div>
@@ -803,7 +960,62 @@ export default function TemplatesPage() {
 
                 <div className="px-5 py-3 bg-wa-panel-header/30 dark:bg-wa-dark-panel-header/30 rounded-b-2xl flex items-center justify-between text-xs">
                   <span className="text-wa-text-light">{template.isCarousel ? `${template.carouselCards?.length || 0} cards` : `${template.variableCount || 0} variables`}</span>
-                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className={`flex items-center gap-1.5 transition-opacity ${activeCardMenuId === template._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    {/* Individual Template Download Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveCardMenuId(activeCardMenuId === template._id ? null : template._id);
+                        }}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                          activeCardMenuId === template._id
+                            ? 'bg-wa-green text-white shadow-sm'
+                            : 'text-wa-text-secondary hover:bg-wa-bg hover:text-wa-green'
+                        }`}
+                        title="Download Template (PDF / Excel)"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+
+                      {activeCardMenuId === template._id && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveCardMenuId(null);
+                            }}
+                          />
+                          <div className="absolute right-0 bottom-full mb-2 w-48 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-xl z-50 p-1.5 space-y-1 animate-slide-up text-xs">
+                            <div className="px-2.5 py-1 text-[10px] font-bold text-wa-text-light uppercase tracking-wider border-b border-wa-border/50 dark:border-wa-dark-border/50">
+                              Download Template
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSingleExport(template, 'pdf');
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left hover:bg-red-50 dark:hover:bg-red-950/30 text-wa-text-primary dark:text-white transition-colors"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-red-600" />
+                              <span className="font-medium">Download PDF</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSingleExport(template, 'excel');
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-wa-text-primary dark:text-white transition-colors"
+                            >
+                              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                              <span className="font-medium">Download Excel</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
                     <button
                       onClick={() => handleEditTemplateClick(template)}
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-wa-text-secondary hover:bg-wa-bg transition-colors"
@@ -869,6 +1081,61 @@ export default function TemplatesPage() {
                     <td className="py-3.5 px-4">{getStatusBadge(template.status)}</td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Table Row Download Dropdown */}
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveCardMenuId(activeCardMenuId === template._id ? null : template._id);
+                            }}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                              activeCardMenuId === template._id
+                                ? 'bg-wa-green text-white shadow-sm'
+                                : 'text-wa-text-secondary hover:bg-wa-bg hover:text-wa-green'
+                            }`}
+                            title="Download (PDF / Excel)"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+
+                          {activeCardMenuId === template._id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveCardMenuId(null);
+                                }}
+                              />
+                              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-xl z-50 p-1.5 space-y-1 animate-slide-up text-xs text-left">
+                                <div className="px-2.5 py-1 text-[10px] font-bold text-wa-text-light uppercase tracking-wider border-b border-wa-border/50 dark:border-wa-dark-border/50">
+                                  Download Template
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSingleExport(template, 'pdf');
+                                  }}
+                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left hover:bg-red-50 dark:hover:bg-red-950/30 text-wa-text-primary dark:text-white transition-colors"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-red-600" />
+                                  <span className="font-medium">Download PDF</span>
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSingleExport(template, 'excel');
+                                  }}
+                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-wa-text-primary dark:text-white transition-colors"
+                                >
+                                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span className="font-medium">Download Excel</span>
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
                         <button
                           onClick={() => handleEditTemplateClick(template)}
                           className="w-7 h-7 rounded-lg flex items-center justify-center text-wa-text-secondary hover:bg-wa-bg transition-colors"

@@ -7,10 +7,13 @@ import {
   MapPin, DollarSign, Calendar, Briefcase, ChevronLeft, ChevronRight, 
   Bookmark, ArrowRight, Edit2, Trash2, X, Loader2, Save,
   ChevronDown, Award, FileText, CreditCard, XCircle, CheckCircle2, UserCheck, Check,
-  List, LayoutGrid, GripVertical, Receipt
+  List, LayoutGrid, GripVertical, Receipt, BarChart3
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import LeadAnalyticsView from '../../../components/LeadAnalyticsView';
+import LeadLostReasonModal from '../../../components/LeadLostReasonModal';
+import LeadWonReasonModal from '../../../components/LeadWonReasonModal';
 
 const LeadDetailsModal = dynamic(() => import('../../../components/LeadDetailsModal'), {
   ssr: false,
@@ -124,6 +127,11 @@ export default function LeadsPage() {
   // Active inline popover dropdown: { id: string, type: 'status' | 'assign' } | null
   const [activeDropdown, setActiveDropdown] = useState(null);
 
+  // Lost Reason Modal State: { leadId: string, leadName: string } | null
+  const [lostReasonTarget, setLostReasonTarget] = useState(null);
+  // Won Reason Modal State: { leadId: string, leadName: string, targetStatus: string } | null
+  const [wonReasonTarget, setWonReasonTarget] = useState(null);
+
   // Modal states
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -136,6 +144,10 @@ export default function LeadsPage() {
     phone: '',
     email: '',
     status: 'new',
+    lossReason: 'Price / Budget Issue',
+    customLossReason: '',
+    winReason: 'Competitive Pricing & Value',
+    customWinReason: '',
     assignedAgent: 'unassigned',
     serviceRequired: '',
     budget: '',
@@ -242,22 +254,56 @@ export default function LeadsPage() {
     }
   };
 
-  // Inline Quick Status Handler (Also used for Kanban Drag and Drop)
+  // Inline Quick Status Handler (Intercepts 'lost' & 'won' to ask for reason)
   const handleUpdateStatus = async (leadId, newStatus) => {
+    if (newStatus === 'lost') {
+      const lead = allLeads.find((l) => l._id === leadId);
+      setLostReasonTarget({ leadId, leadName: lead?.name || 'Inquiry' });
+      return;
+    }
+    if (newStatus === 'won' || newStatus === 'closed') {
+      const lead = allLeads.find((l) => l._id === leadId);
+      setWonReasonTarget({ leadId, leadName: lead?.name || 'Inquiry', targetStatus: newStatus });
+      return;
+    }
+    await executeStatusUpdate(leadId, newStatus);
+  };
+
+  const executeStatusUpdate = async (leadId, newStatus, lossReason = '', additionalNotes = '', winReason = '') => {
     const previousLeads = [...allLeads];
+    const currentLead = allLeads.find((l) => l._id === leadId);
 
     // Optimistic UI Update
     setAllLeads((prev) =>
       prev.map((lead) => {
         if (lead._id === leadId) {
-          return { ...lead, status: newStatus };
+          return {
+            ...lead,
+            status: newStatus,
+            lossReason: lossReason || lead.lossReason,
+            winReason: winReason || lead.winReason,
+            customFields: {
+              ...(lead.customFields || {}),
+              status: newStatus,
+              ...(lossReason ? { lossReason, dropReason: lossReason } : {}),
+              ...(winReason ? { winReason, wonReason: winReason } : {})
+            },
+            notes: additionalNotes ? (lead.notes ? `${lead.notes} | ${additionalNotes}` : additionalNotes) : lead.notes
+          };
         }
         return lead;
       })
     );
 
     try {
-      const { data } = await api.put(`/leads/${leadId}`, { status: newStatus });
+      const payload = { status: newStatus };
+      if (lossReason) payload.lossReason = lossReason;
+      if (winReason) payload.winReason = winReason;
+      if (additionalNotes) {
+        payload.notes = currentLead?.notes ? `${currentLead.notes} | ${additionalNotes}` : additionalNotes;
+      }
+
+      const { data } = await api.put(`/leads/${leadId}`, payload);
       if (data.success) {
         toast.success(`Moved to ${getStatusLabel(newStatus)}`);
         setFastCache('leads_all_cache', {
@@ -287,7 +333,23 @@ export default function LeadsPage() {
       return;
     }
 
-    await handleUpdateStatus(draggedLeadId, targetStatus);
+    if (targetStatus === 'lost') {
+      const lId = draggedLeadId;
+      setDraggedLeadId(null);
+      setDragOverCol(null);
+      setLostReasonTarget({ leadId: lId, leadName: lead.name || 'Inquiry' });
+      return;
+    }
+
+    if (targetStatus === 'won' || targetStatus === 'closed') {
+      const lId = draggedLeadId;
+      setDraggedLeadId(null);
+      setDragOverCol(null);
+      setWonReasonTarget({ leadId: lId, leadName: lead.name || 'Inquiry', targetStatus });
+      return;
+    }
+
+    await executeStatusUpdate(draggedLeadId, targetStatus);
     setDraggedLeadId(null);
     setDragOverCol(null);
   };
@@ -386,6 +448,10 @@ export default function LeadsPage() {
       phone: lead.phone || '',
       email: lead.email || '',
       status: lead.status || 'new',
+      lossReason: lead.lossReason || lead.customFields?.lossReason || 'Price / Budget Issue',
+      customLossReason: '',
+      winReason: lead.winReason || lead.customFields?.winReason || lead.customFields?.wonReason || 'Competitive Pricing & Value',
+      customWinReason: '',
       assignedAgent: lead.assignedAgent?._id || (typeof lead.assignedAgent === 'string' ? lead.assignedAgent : 'unassigned'),
       serviceRequired: lead.serviceRequired || '',
       budget: lead.budget || '',
@@ -400,9 +466,18 @@ export default function LeadsPage() {
     e.preventDefault();
     setSavingLead(true);
     try {
+      const finalLossReason = editForm.status === 'lost' 
+        ? (editForm.lossReason === 'Custom Reason' ? (editForm.customLossReason || 'Other / Unspecified') : (editForm.customLossReason || editForm.lossReason))
+        : '';
+      const finalWinReason = (editForm.status === 'won' || editForm.status === 'closed')
+        ? (editForm.winReason === 'Custom Reason' ? (editForm.customWinReason || 'General Deal Win') : (editForm.customWinReason || editForm.winReason))
+        : '';
+
       const payload = {
         ...editForm,
-        assignedAgent: editForm.assignedAgent === 'unassigned' ? '' : editForm.assignedAgent
+        assignedAgent: editForm.assignedAgent === 'unassigned' ? '' : editForm.assignedAgent,
+        ...(editForm.status === 'lost' ? { lossReason: finalLossReason } : {}),
+        ...((editForm.status === 'won' || editForm.status === 'closed') ? { winReason: finalWinReason } : {})
       };
       const { data } = await api.put(`/leads/${editingLead._id}`, payload);
       if (data.success) {
@@ -497,7 +572,7 @@ export default function LeadsPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {/* Table vs Kanban View Mode Toggle */}
+          {/* Table vs Kanban vs Lead Analytics View Mode Toggle */}
           <div className="flex items-center p-1 bg-wa-panel-header dark:bg-wa-dark-panel-header border border-wa-border dark:border-wa-dark-border rounded-xl shadow-xs">
             <button
               type="button"
@@ -525,6 +600,19 @@ export default function LeadsPage() {
               <LayoutGrid className="w-3.5 h-3.5" />
               <span>Kanban</span>
             </button>
+            <button
+              type="button"
+              onClick={() => handleToggleView('analytics')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
+                viewMode === 'analytics'
+                  ? 'bg-white dark:bg-wa-dark-panel text-wa-green shadow-xs'
+                  : 'text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white'
+              }`}
+              title="Lead Analytics & Agent Performance"
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Lead Analytics</span>
+            </button>
           </div>
 
           <button 
@@ -540,8 +628,17 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* VIEW 3: INLINE LEAD ANALYTICS VIEW */}
+      {viewMode === 'analytics' ? (
+        <LeadAnalyticsView 
+          allLeads={allLeads} 
+          agents={agents} 
+          onBackToLeads={() => handleToggleView('list')} 
+        />
+      ) : (
+        <>
+          {/* Metrics Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-card p-5 flex items-center gap-4 relative overflow-hidden">
           <div className="p-3 bg-wa-green/10 text-wa-green rounded-xl">
             <Users className="w-6 h-6" />
@@ -990,6 +1087,18 @@ export default function LeadsPage() {
                                   </div>
                                 )}
                               </div>
+
+                              {/* Win/Loss Reason Badges */}
+                              {lead.status === 'lost' && (lead.lossReason || lead.customFields?.lossReason) && (
+                                <span className="text-[9px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200/50 px-1.5 py-0.5 rounded truncate max-w-[140px]" title={lead.lossReason || lead.customFields?.lossReason}>
+                                  ❌ {lead.lossReason || lead.customFields?.lossReason}
+                                </span>
+                              )}
+                              {(lead.status === 'won' || lead.status === 'closed') && (lead.winReason || lead.customFields?.winReason) && (
+                                <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 px-1.5 py-0.5 rounded truncate max-w-[140px]" title={lead.winReason || lead.customFields?.winReason}>
+                                  🏆 {lead.winReason || lead.customFields?.winReason}
+                                </span>
+                              )}
                             </div>
                           </td>
 
@@ -1222,6 +1331,20 @@ export default function LeadsPage() {
                                 )}
                               </div>
 
+                              {/* Win or Loss Reason on Kanban Card */}
+                              {lead.status === 'lost' && (lead.lossReason || lead.customFields?.lossReason) && (
+                                <div className="mb-2 px-2 py-1 rounded bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/40 text-[10px] font-semibold flex items-center gap-1 truncate" title={lead.lossReason || lead.customFields?.lossReason}>
+                                  <span>❌</span>
+                                  <span className="truncate">{lead.lossReason || lead.customFields?.lossReason}</span>
+                                </div>
+                              )}
+                              {(lead.status === 'won' || lead.status === 'closed') && (lead.winReason || lead.customFields?.winReason) && (
+                                <div className="mb-2 px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/40 text-[10px] font-semibold flex items-center gap-1 truncate" title={lead.winReason || lead.customFields?.winReason}>
+                                  <span>🏆</span>
+                                  <span className="truncate">{lead.winReason || lead.customFields?.winReason}</span>
+                                </div>
+                              )}
+
                               {/* Card Bottom: Assigned Agent, Time & Actions */}
                               <div className="flex items-center justify-between pt-2 border-t border-wa-border/50 dark:border-wa-dark-border/40 text-[10px]">
                                 <div className="flex items-center gap-1.5 min-w-0">
@@ -1283,6 +1406,8 @@ export default function LeadsPage() {
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Details modal overlay */}
       {isDetailsOpen && selectedLeadId && (
@@ -1411,6 +1536,90 @@ export default function LeadsPage() {
                   </div>
                 </div>
 
+                {/* Drop Reason Selector when Status is Lost */}
+                {editForm.status === 'lost' && (
+                  <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 space-y-2.5 animate-fade-in">
+                    <label className="block text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                      Select Lead Drop / Loss Reason:
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5 text-xs">
+                      {[
+                        'Price / Budget Issue',
+                        'Chose Competitor',
+                        'No Response / Ghosted',
+                        'Service Area Mismatch',
+                        'Postponed / Timing Issue',
+                        'Not Interested / Invalid',
+                        'Custom Reason'
+                      ].map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setEditForm({ ...editForm, lossReason: r })}
+                          className={`px-2 py-1.5 rounded-lg border text-left text-[11px] font-semibold transition-all ${
+                            editForm.lossReason === r
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                              : 'bg-white dark:bg-wa-dark-panel border-wa-border dark:border-wa-dark-border text-wa-text-secondary hover:border-rose-400'
+                          }`}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom reason or feedback note */}
+                    <input
+                      type="text"
+                      value={editForm.customLossReason}
+                      onChange={(e) => setEditForm({ ...editForm, customLossReason: e.target.value })}
+                      placeholder="Write custom reason or client feedback..."
+                      className="input-field py-1.5 text-xs bg-white dark:bg-wa-dark-panel"
+                    />
+                  </div>
+                )}
+
+                {/* Win Reason Selector when Status is Won or Closed */}
+                {(editForm.status === 'won' || editForm.status === 'closed') && (
+                  <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-2.5 animate-fade-in">
+                    <label className="block text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                      Select Deal Win / Conversion Reason:
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5 text-xs">
+                      {[
+                        'Competitive Pricing & Value',
+                        'Fast Response & Follow-up',
+                        'Trust, Demo & Portfolio',
+                        'Custom Requirements Matched',
+                        'Client Referral / Word of Mouth',
+                        'Special Discount / Deal Offer',
+                        'Custom Reason'
+                      ].map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setEditForm({ ...editForm, winReason: r })}
+                          className={`px-2 py-1.5 rounded-lg border text-left text-[11px] font-semibold transition-all ${
+                            editForm.winReason === r
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                              : 'bg-white dark:bg-wa-dark-panel border-wa-border dark:border-wa-dark-border text-wa-text-secondary hover:border-emerald-400'
+                          }`}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom reason or feedback note */}
+                    <input
+                      type="text"
+                      value={editForm.customWinReason}
+                      onChange={(e) => setEditForm({ ...editForm, customWinReason: e.target.value })}
+                      placeholder="Write custom reason or conversion factor..."
+                      className="input-field py-1.5 text-xs bg-white dark:bg-wa-dark-panel"
+                    />
+                  </div>
+                )}
+
                 <div className="h-px bg-wa-border dark:bg-wa-dark-border opacity-50 my-2" />
                 
                 <div className="flex items-center gap-1.5 text-wa-green font-bold text-xs">
@@ -1529,6 +1738,35 @@ export default function LeadsPage() {
         </Portal>
       )}
 
+      {/* Lead Lost Reason Quick Popup Modal */}
+      <LeadLostReasonModal
+        isOpen={!!lostReasonTarget}
+        leadName={lostReasonTarget?.leadName}
+        onClose={() => setLostReasonTarget(null)}
+        onConfirm={async ({ lossReason, notes }) => {
+          if (lostReasonTarget?.leadId) {
+            await executeStatusUpdate(lostReasonTarget.leadId, 'lost', lossReason, notes);
+          }
+        }}
+      />
+
+      {/* Lead Won Reason Quick Popup Modal */}
+      <LeadWonReasonModal
+        isOpen={!!wonReasonTarget}
+        leadName={wonReasonTarget?.leadName}
+        onClose={() => setWonReasonTarget(null)}
+        onConfirm={async ({ winReason, notes }) => {
+          if (wonReasonTarget?.leadId) {
+            await executeStatusUpdate(
+              wonReasonTarget.leadId,
+              wonReasonTarget.targetStatus || 'won',
+              '',
+              notes,
+              winReason
+            );
+          }
+        }}
+      />
     </div>
   );
 }

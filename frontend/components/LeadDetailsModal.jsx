@@ -18,6 +18,10 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess, age
   
   // Editable fields
   const [status, setStatus] = useState('new');
+  const [lossReason, setLossReason] = useState('Price / Budget Issue');
+  const [customLossReason, setCustomLossReason] = useState('');
+  const [winReason, setWinReason] = useState('Competitive Pricing & Value');
+  const [customWinReason, setCustomWinReason] = useState('');
   const [notes, setNotes] = useState('');
   const [assignedAgent, setAssignedAgent] = useState('unassigned');
 
@@ -41,6 +45,10 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess, age
           setLead(l);
           setMessages(data.data.messages || []);
           setStatus(l.status || 'new');
+          setLossReason(l.lossReason || l.customFields?.lossReason || l.customFields?.dropReason || 'Price / Budget Issue');
+          setCustomLossReason('');
+          setWinReason(l.winReason || l.customFields?.winReason || l.customFields?.wonReason || 'Competitive Pricing & Value');
+          setCustomWinReason('');
           setNotes(l.notes || '');
           const currentAgentId = l.assignedAgent?._id || (typeof l.assignedAgent === 'string' ? l.assignedAgent : 'unassigned');
           setAssignedAgent(currentAgentId || 'unassigned');
@@ -61,10 +69,19 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess, age
     e.preventDefault();
     setSaving(true);
     try {
+      const finalLossReason = status === 'lost'
+        ? (lossReason === 'Custom Reason' ? (customLossReason || 'Other / Unspecified') : (customLossReason ? `${lossReason} - ${customLossReason}` : lossReason))
+        : '';
+      const finalWinReason = (status === 'won' || status === 'closed')
+        ? (winReason === 'Custom Reason' ? (customWinReason || 'General Deal Win') : (customWinReason ? `${winReason} - ${customWinReason}` : winReason))
+        : '';
+
       const { data } = await api.put(`/leads/${leadId}`, { 
         status, 
         notes,
-        assignedAgent: assignedAgent === 'unassigned' ? '' : assignedAgent
+        assignedAgent: assignedAgent === 'unassigned' ? '' : assignedAgent,
+        ...(status === 'lost' ? { lossReason: finalLossReason } : {}),
+        ...((status === 'won' || status === 'closed') ? { winReason: finalWinReason } : {})
       });
       if (data.success) {
         toast.success('Lead updated successfully');
@@ -134,6 +151,16 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess, age
                 <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusColor(lead.status)}`}>
                   {getStatusLabel(lead.status)}
                 </span>
+                {lead.status === 'lost' && (lead.lossReason || lead.customFields?.lossReason) && (
+                  <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200/50 px-2 py-0.5 rounded-full">
+                    ❌ {lead.lossReason || lead.customFields?.lossReason}
+                  </span>
+                )}
+                {(lead.status === 'won' || lead.status === 'closed') && (lead.winReason || lead.customFields?.winReason) && (
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 px-2 py-0.5 rounded-full">
+                    🏆 {lead.winReason || lead.customFields?.winReason}
+                  </span>
+                )}
               </h3>
               <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-mono mt-0.5">
                 Lead ID: {lead._id}
@@ -282,6 +309,90 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess, age
                   <option value="closed">🟣 Closed / Won</option>
                 </select>
               </div>
+
+              {/* Loss Reason Selector when Status is Lost */}
+              {status === 'lost' && (
+                <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 space-y-2.5 animate-fade-in">
+                  <label className="block text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                    Select Lead Drop / Loss Reason:
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5 text-xs">
+                    {[
+                      'Price / Budget Issue',
+                      'Chose Competitor',
+                      'No Response / Ghosted',
+                      'Service Area Mismatch',
+                      'Postponed / Timing Issue',
+                      'Not Interested / Invalid',
+                      'Custom Reason'
+                    ].map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setLossReason(r)}
+                        className={`px-2 py-1.5 rounded-lg border text-left text-[11px] font-semibold transition-all ${
+                          lossReason === r
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                            : 'bg-white dark:bg-wa-dark-panel border-wa-border dark:border-wa-dark-border text-wa-text-secondary hover:border-rose-400'
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Custom reason or feedback note */}
+                  <input
+                    type="text"
+                    value={customLossReason}
+                    onChange={(e) => setCustomLossReason(e.target.value)}
+                    placeholder="Write custom reason or client feedback..."
+                    className="input-field py-1.5 text-xs bg-white dark:bg-wa-dark-panel"
+                  />
+                </div>
+              )}
+
+              {/* Win Reason Selector when Status is Won or Closed */}
+              {(status === 'won' || status === 'closed') && (
+                <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-2.5 animate-fade-in">
+                  <label className="block text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                    Select Deal Win / Conversion Reason:
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5 text-xs">
+                    {[
+                      'Competitive Pricing & Value',
+                      'Fast Response & Follow-up',
+                      'Trust, Demo & Portfolio',
+                      'Custom Requirements Matched',
+                      'Client Referral / Word of Mouth',
+                      'Special Discount / Deal Offer',
+                      'Custom Reason'
+                    ].map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setWinReason(r)}
+                        className={`px-2 py-1.5 rounded-lg border text-left text-[11px] font-semibold transition-all ${
+                          winReason === r
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                            : 'bg-white dark:bg-wa-dark-panel border-wa-border dark:border-wa-dark-border text-wa-text-secondary hover:border-emerald-400'
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Custom reason or feedback note */}
+                  <input
+                    type="text"
+                    value={customWinReason}
+                    onChange={(e) => setCustomWinReason(e.target.value)}
+                    placeholder="Write custom reason or conversion factor..."
+                    className="input-field py-1.5 text-xs bg-white dark:bg-wa-dark-panel"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] font-bold text-wa-text-secondary uppercase mb-1.5">Assigned Agent / Team Member</label>

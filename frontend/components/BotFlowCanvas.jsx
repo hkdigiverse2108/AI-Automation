@@ -14,11 +14,13 @@ import {
   MessageSquare, HelpCircle, GitFork, Activity, Clock, Bot, 
   UserCheck, Plus, Trash2, Save, Play, X, Settings,
   Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Keyboard,
-  GripVertical, Layers, UploadCloud, Loader2, Image
+  GripVertical, Layers, UploadCloud, Loader2, Image,
+  FileDown, FileSpreadsheet, FileText, Download
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { customNodeTypes } from './CustomBotNodes';
 import api from '../lib/api';
+import { exportFlowToPDF, exportFlowToExcel } from '../lib/flowExportUtils';
 
 // Available node type definitions with styling details
 const NODE_TYPES_INFO = {
@@ -33,7 +35,7 @@ const NODE_TYPES_INFO = {
 // Maximum undo/redo history size
 const MAX_HISTORY = 30;
 
-export default function BotFlowCanvas({ flow, onSave }) {
+export default function BotFlowCanvas({ flow, onSave, canvasRef }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -42,6 +44,8 @@ export default function BotFlowCanvas({ flow, onSave }) {
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleUploadImageNode = async (file) => {
@@ -401,6 +405,84 @@ export default function BotFlowCanvas({ flow, onSave }) {
     }
   };
 
+  // Helper to compile full canvas state
+  const getFormattedCanvasFlow = useCallback(() => {
+    const formattedNodes = nodes.map((node) => {
+      const matchingEdges = edges.filter((e) => e.source === node.id);
+      const subEdges = matchingEdges.map((e) => ({
+        targetNodeId: e.target,
+        label: e.label || '',
+        sourceHandle: e.sourceHandle || 'out',
+      }));
+
+      return {
+        id: node.id,
+        type: node.data?.nodeType || node.type?.replace('Node', '') || 'message',
+        position: node.position,
+        data: node.data,
+        edges: subEdges
+      };
+    });
+
+    const trigger = {
+      type: triggerType,
+      keywords: keywords ? keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean) : []
+    };
+
+    return {
+      ...flow,
+      trigger,
+      nodes: formattedNodes
+    };
+  }, [nodes, edges, triggerType, keywords, flow]);
+
+  // Expose canvas flow state to parent via ref (no re-renders triggered)
+  useEffect(() => {
+    if (canvasRef) {
+      canvasRef.current = {
+        getFlowData: getFormattedCanvasFlow
+      };
+    }
+  }, [canvasRef, getFormattedCanvasFlow]);
+
+  const handleQuickExportPDF = async () => {
+    const currentData = getFormattedCanvasFlow();
+    if (!currentData.nodes || currentData.nodes.length === 0) {
+      toast.error('No flow blocks available to export');
+      return;
+    }
+    setExportingPdf(true);
+    const toastId = toast.loading('Generating branded PDF flow report with logo...');
+    try {
+      await exportFlowToPDF(currentData);
+      toast.success('Chatbot Flow PDF downloaded successfully!', { id: toastId });
+    } catch (err) {
+      console.error('PDF export error:', err);
+      toast.error('Failed to export PDF: ' + (err.message || 'Error'), { id: toastId });
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const handleQuickExportExcel = async () => {
+    const currentData = getFormattedCanvasFlow();
+    if (!currentData.nodes || currentData.nodes.length === 0) {
+      toast.error('No flow blocks available to export');
+      return;
+    }
+    setExportingExcel(true);
+    const toastId = toast.loading('Generating Excel workbook (.xlsx)...');
+    try {
+      await exportFlowToExcel(currentData);
+      toast.success('Chatbot Flow Excel downloaded successfully!', { id: toastId });
+    } catch (err) {
+      console.error('Excel export error:', err);
+      toast.error('Failed to export Excel: ' + (err.message || 'Error'), { id: toastId });
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <div className="flex h-[75vh] border border-wa-border dark:border-wa-dark-border rounded-2xl overflow-hidden bg-slate-50 dark:bg-[#0a1118] relative shadow-xl">
       {/* Node Palette Bar (Left) */}
@@ -493,6 +575,35 @@ export default function BotFlowCanvas({ flow, onSave }) {
               <p><kbd className="px-1 py-0.5 bg-wa-search dark:bg-wa-dark-search rounded text-[8px] font-mono">Ctrl+Y</kbd> Redo</p>
               <p><kbd className="px-1 py-0.5 bg-wa-search dark:bg-wa-dark-search rounded text-[8px] font-mono">Ctrl+S</kbd> Save</p>
               <p><kbd className="px-1 py-0.5 bg-wa-search dark:bg-wa-dark-search rounded text-[8px] font-mono">Del</kbd> Delete node</p>
+            </div>
+          </div>
+
+          {/* Quick Export Actions */}
+          <div className="border-t border-wa-border dark:border-wa-dark-border pt-3">
+            <h4 className="text-[10px] font-extrabold text-wa-text-secondary uppercase tracking-[0.12em] mb-2 flex items-center gap-1.5">
+              <FileDown className="w-3 h-3 text-emerald-600" /> Export Flow
+            </h4>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={handleQuickExportPDF}
+                disabled={exportingPdf}
+                className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-bold border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 disabled:opacity-40 transition-all shadow-2xs"
+                title="Download branded PDF flow architecture with logo"
+              >
+                <Download className="w-3.5 h-3.5 text-red-500" />
+                <span>{exportingPdf ? 'Exporting...' : 'PDF'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleQuickExportExcel}
+                disabled={exportingExcel}
+                className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-bold border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 disabled:opacity-40 transition-all shadow-2xs"
+                title="Download Excel multi-sheet workbook (.xlsx)"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{exportingExcel ? 'Exporting...' : 'Excel'}</span>
+              </button>
             </div>
           </div>
         </div>
