@@ -175,11 +175,13 @@ function triggerFrontendWarmup() {
 
         const route = warmupRoutes[idx++];
         const wReq = http.get(`http://localhost:3000${route}`, (wRes) => {
-          wRes.resume();
-          setTimeout(step, 400);
+          wRes.on('data', () => {});
+          wRes.on('end', () => {
+            setTimeout(step, 800);
+          });
         });
         wReq.on('error', () => {
-          setTimeout(step, 400);
+          setTimeout(step, 800);
         });
       };
 

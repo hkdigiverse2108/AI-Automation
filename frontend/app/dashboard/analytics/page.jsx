@@ -13,8 +13,6 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend
 } from 'recharts';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import api from '../../../lib/api';
 import { useMultiPageData } from '../../../lib/usePageData';
 import { LOGO_BASE64 } from '../../../lib/logoBase64';
@@ -135,13 +133,16 @@ export default function AnalyticsPage() {
   };
 
   // Export report to PDF with Company Logo
-  const exportReportPdf = () => {
+  const exportReportPdf = async () => {
     if (!reportData || !reportData.timeline?.length) {
       toast.error('No report data available to export');
       return;
     }
 
     try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
       const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'pt',

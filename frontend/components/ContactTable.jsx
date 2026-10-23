@@ -8,8 +8,6 @@ import {
   Calendar, Eye, Copy, FileSpreadsheet, AlertCircle, Check, Sparkles, FileDown, ChevronDown,
   Kanban, LayoutGrid, List, GripVertical
 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import api from '../lib/api';
 import { ScoreBadge } from './ContactScoreCard';
 import { LOGO_BASE64 } from '../lib/logoBase64';
@@ -506,6 +504,9 @@ export default function ContactTable() {
       }
 
       // Generate PDF with jsPDF and autoTable
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
       const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'pt',
