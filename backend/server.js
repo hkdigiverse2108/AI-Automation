@@ -213,12 +213,14 @@ const ordersRoute = require('./routes/orders');
 const invoicesRoute = require('./routes/invoices');
 const myoperatorRoute = require('./routes/myoperator');
 const telephonyAdminRoute = require('./routes/telephonyAdmin');
+const walletRoute = require('./routes/wallet');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
   app.use(`${prefix}/media`, mediaRoute);
   app.use(`${prefix}/webhook`, webhookRoutes);
   app.use(`${prefix}/messages`, messagesRoute);
+  app.use(`${prefix}/wallet`, walletRoute);
   app.use(`${prefix}/contacts`, contactsRoute);
   app.use(`${prefix}/leads`, leadsRoute);
   app.use(`${prefix}/invoices`, invoicesRoute);

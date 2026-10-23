@@ -107,6 +107,12 @@ const organizationSchema = new mongoose.Schema(
     },
     subscriptionExpiryDate: { type: Date },
     currentSubscriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' },
+    walletBalance: { type: Number, default: 0, min: 0 },
+    walletCurrency: { type: String, default: 'INR' },
+    lowBalanceAlert: {
+      threshold: { type: Number, default: 100 },
+      notifiedAt: { type: Date }
+    },
     chatConfig: {
       roleColors: {
         type: Object,

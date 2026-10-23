@@ -679,6 +679,22 @@ router.post('/send', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Contact has opted out', code: 'OPTED_OUT' });
     }
 
+    // Pre-flight Wallet Balance Check
+    const organizationId = req.user.organizationId;
+    if (organizationId && req.user.role !== 'superadmin') {
+      const walletService = require('../services/walletService');
+      const balanceCheck = await walletService.checkBalance(organizationId, 0.15);
+      if (!balanceCheck.hasBalance) {
+        return res.status(402).json({
+          success: false,
+          error: `Insufficient wallet balance (Current: ₹${balanceCheck.currentBalance.toFixed(2)}). Please recharge your wallet to send messages.`,
+          code: 'INSUFFICIENT_WALLET_BALANCE',
+          currentBalance: balanceCheck.currentBalance,
+          requiredAmount: 0.15
+        });
+      }
+    }
+
     const waAccount = await WhatsAppAccount.findOne({ userId, isActive: true });
     if (!waAccount) {
       return res.status(400).json({ success: false, error: 'No active WhatsApp account', code: 'NO_WA_ACCOUNT' });
@@ -1075,6 +1091,24 @@ router.post('/bulk', async (req, res) => {
     const waAccount = await WhatsAppAccount.findOne({ userId, isActive: true });
     if (!waAccount) {
       return res.status(400).json({ success: false, error: 'No active WhatsApp account', code: 'NO_WA_ACCOUNT' });
+    }
+
+    // Pre-flight Wallet Balance Check for Bulk Messages
+    const organizationId = req.user.organizationId;
+    if (organizationId && req.user.role !== 'superadmin') {
+      const walletService = require('../services/walletService');
+      const rates = await walletService.getRates(organizationId);
+      const estCost = contactIds.length * (rates.marketing || 0.85);
+      const balanceCheck = await walletService.checkBalance(organizationId, estCost);
+      if (!balanceCheck.hasBalance) {
+        return res.status(402).json({
+          success: false,
+          error: `Insufficient wallet balance for bulk broadcast. Estimated Cost: ₹${estCost.toFixed(2)}, Current Balance: ₹${balanceCheck.currentBalance.toFixed(2)}. Please recharge your wallet.`,
+          code: 'INSUFFICIENT_WALLET_BALANCE',
+          currentBalance: balanceCheck.currentBalance,
+          requiredAmount: estCost
+        });
+      }
     }
 
     const token = decryptField(waAccount.accessToken);

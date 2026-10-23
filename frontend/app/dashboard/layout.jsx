@@ -7,6 +7,7 @@ import NotificationCenter from '../../components/NotificationCenter';
 import ConfirmModal from '../../components/ConfirmModal';
 import SubscriptionExpiredGate from '../../components/SubscriptionExpiredGate';
 import RouteGuard from '../../components/RouteGuard';
+import WalletHeaderBadge from '../../components/WalletHeaderBadge';
 import api from '../../lib/api';
 import { Menu, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -211,6 +212,7 @@ export default function DashboardLayout({ children }) {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <WalletHeaderBadge />
             <NotificationCenter />
             <div className="w-8 h-8 rounded-full bg-wa-green/10 text-wa-green font-bold text-xs flex items-center justify-center border border-wa-green/20">
               {user?.name?.[0]?.toUpperCase() || 'U'}
@@ -246,7 +248,8 @@ export default function DashboardLayout({ children }) {
           )}
 
           {/* Right side: Actions & User Info */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-5">
+            <WalletHeaderBadge />
             <div className="flex items-center gap-4">
               <NotificationCenter />
             </div>

@@ -7,7 +7,7 @@ import {
   Settings, LogOut, Sun, Moon, MessageCircle, Shield,
   Users2, Clock, Zap, Terminal, PanelLeftClose, PanelLeft,
   Building, Activity, Globe, Lock, X, BarChart3, CreditCard,
-  FolderOpen, Calendar, ClipboardList, ShoppingBag, Receipt
+  FolderOpen, Calendar, ClipboardList, ShoppingBag, Receipt, Wallet
 } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 
@@ -51,6 +51,7 @@ const navSections = [
   {
     title: 'System',
     items: [
+      { href: '/dashboard/fund-management', label: 'Fund Management', icon: Wallet },
       { href: '/dashboard/subscription', label: 'Subscription', icon: CreditCard },
       { href: '/dashboard/chat-logs', label: 'Chat Logs', icon: Terminal },
       { href: '/dashboard/settings', label: 'Settings', icon: Settings },
@@ -78,6 +79,7 @@ const routeToSlugMap = {
   '/dashboard/bot-builder': 'bot-builder',
   '/dashboard/analytics': 'analytics',
   '/dashboard/subscription': 'subscription',
+  '/dashboard/fund-management': 'subscription',
   '/dashboard/chat-logs': 'chat-logs',
   '/dashboard/settings': 'settings',
 };
@@ -115,6 +117,7 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/call-logs', label: 'Call Logs', icon: Clock },
             { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
             { href: '/dashboard/admin?tab=subscriptions', label: 'Subscriptions', icon: Zap },
+            { href: '/dashboard/fund-management', label: 'Fund Management', icon: Wallet },
             { href: '/dashboard/settings?tab=integrations', label: 'Integrations', icon: Globe },
             { href: '/dashboard/bot-builder', label: 'AI Management', icon: Bot },
             { href: '/dashboard/leads', label: 'Leads', icon: ClipboardList },
