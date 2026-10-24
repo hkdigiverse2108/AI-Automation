@@ -79,9 +79,11 @@ function StyledHandle({ type, position, id, label, color }) {
    ═══════════════════════════════════════════════ */
 export const MessageNode = memo(({ data, selected }) => {
   const isImage = data.message?.type === 'image';
-  const text = isImage ? (data.message?.caption || '') : (data.message?.text || '');
-  const assetKey = data.message?.assetKey || '';
-  const isConfigured = isImage ? !!assetKey : text.length > 0;
+  const text = isImage 
+    ? (data.message?.caption || data.message?.text || '') 
+    : (data.message?.text || data.message?.body || data.prompt || data.text || '');
+  const assetKey = data.message?.assetKey || data.message?.mediaUrl || '';
+  const isConfigured = isImage ? (!!assetKey || text.length > 0) : text.length > 0;
 
   return (
     <NodeShell color="#10b981" borderColor="border-emerald-400" isConfigured={isConfigured} selected={selected}>
@@ -122,10 +124,12 @@ MessageNode.displayName = 'MessageNode';
    ═══════════════════════════════════════════════ */
 export const QuestionNode = memo(({ data, selected }) => {
   const isImage = data.message?.type === 'image';
-  const text = isImage ? (data.message?.caption || '') : (data.message?.text || '');
-  const assetKey = data.message?.assetKey || '';
+  const text = isImage 
+    ? (data.message?.caption || data.message?.text || '') 
+    : (data.message?.text || data.message?.body || data.prompt || data.text || '');
+  const assetKey = data.message?.assetKey || data.message?.mediaUrl || '';
   const variable = data.variable || '';
-  const isConfigured = (isImage ? !!assetKey : text.length > 0) && variable.length > 0;
+  const isConfigured = (isImage ? (!!assetKey || text.length > 0) : text.length > 0) && variable.length > 0;
 
   return (
     <NodeShell color="#3b82f6" borderColor="border-blue-400" isConfigured={isConfigured} selected={selected}>
@@ -150,6 +154,15 @@ export const QuestionNode = memo(({ data, selected }) => {
         <p className="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed line-clamp-2">
           {text || (isImage ? <span className="italic text-gray-400">Set image caption...</span> : <span className="italic text-gray-400">Set question text...</span>)}
         </p>
+        {data.message?.type === 'buttons' && Array.isArray(data.message?.buttons) && data.message.buttons.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-0.5">
+            {data.message.buttons.map((b, i) => (
+              <span key={i} className="text-[9px] font-bold bg-blue-100/80 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded-md border border-blue-200 dark:border-blue-800/60 truncate max-w-[140px]">
+                🔘 {b.text || b.title || b.label || `Option ${i+1}`}
+              </span>
+            ))}
+          </div>
+        )}
         {variable && (
           <div className="flex items-center gap-1">
             <span className="text-[9px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-950/30 px-1.5 py-0.5 rounded font-mono">

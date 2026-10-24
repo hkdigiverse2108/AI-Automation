@@ -353,21 +353,18 @@ router.post('/submit-upi-topup', async (req, res) => {
   }
 });
 
-// ================= ADMIN ROUTES =================
+// ================= ADMIN ROUTES (SUPERADMIN ONLY) =================
 
 /**
- * GET /api/wallet/admin/pending-topups — View pending UPI requests
+ * GET /api/wallet/admin/pending-topups — View pending UPI requests (SuperAdmin Only)
  */
 router.get('/admin/pending-topups', async (req, res) => {
   try {
-    if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, error: 'Unauthorized access' });
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Only SuperAdmin can view pending payment approvals' });
     }
 
     const query = { status: 'pending', category: 'topup_upi_qr' };
-    if (req.user.role !== 'superadmin') {
-      query.organizationId = req.user.organizationId;
-    }
 
     const pending = await WalletTransaction.find(query)
       .populate('organizationId', 'name contactEmail contactNumber')
@@ -382,12 +379,12 @@ router.get('/admin/pending-topups', async (req, res) => {
 });
 
 /**
- * POST /api/wallet/admin/approve-topup — Approve UPI top-up
+ * POST /api/wallet/admin/approve-topup — Approve UPI top-up (SuperAdmin Only)
  */
 router.post('/admin/approve-topup', async (req, res) => {
   try {
-    if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, error: 'Unauthorized access' });
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Only SuperAdmin can approve wallet top-ups' });
     }
 
     const { transactionId } = req.body;
@@ -407,12 +404,12 @@ router.post('/admin/approve-topup', async (req, res) => {
 });
 
 /**
- * POST /api/wallet/admin/reject-topup — Reject UPI top-up
+ * POST /api/wallet/admin/reject-topup — Reject UPI top-up (SuperAdmin Only)
  */
 router.post('/admin/reject-topup', async (req, res) => {
   try {
-    if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, error: 'Unauthorized access' });
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Only SuperAdmin can reject wallet top-ups' });
     }
 
     const { transactionId, reason } = req.body;
@@ -427,6 +424,33 @@ router.post('/admin/reject-topup', async (req, res) => {
     res.json({ success: true, message: 'Top-up request rejected', data: result });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/wallet/admin/update-rates — Update Platform Rate Card (SuperAdmin Only)
+ */
+router.post('/admin/update-rates', async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Only SuperAdmin can update rate card' });
+    }
+
+    const { marketing, utility, authentication, service } = req.body;
+    const WalletRateCard = require('../models/WalletRateCard');
+    let defaultCard = await WalletRateCard.findOne({ isDefault: true });
+    if (!defaultCard) {
+      defaultCard = new WalletRateCard({ isDefault: true });
+    }
+    if (marketing !== undefined) defaultCard.marketing = parseFloat(marketing);
+    if (utility !== undefined) defaultCard.utility = parseFloat(utility);
+    if (authentication !== undefined) defaultCard.authentication = parseFloat(authentication);
+    if (service !== undefined) defaultCard.service = parseFloat(service);
+    await defaultCard.save();
+
+    res.json({ success: true, message: 'Platform conversation rates updated successfully!', data: defaultCard });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

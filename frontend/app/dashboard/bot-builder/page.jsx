@@ -27,6 +27,7 @@ const BotFlowCanvas = dynamic(() => import('../../../components/BotFlowCanvas'),
 });
 const FlowSimulatorPanel = dynamic(() => import('../../../components/FlowSimulatorPanel'), { ssr: false });
 const BotMediaLibrary = dynamic(() => import('../../../components/BotMediaLibrary'), { ssr: false });
+const AIBotBuilderModal = dynamic(() => import('../../../components/AIBotBuilderModal'), { ssr: false });
 
 export default function BotBuilderPage() {
   const confirm = useConfirmStore((state) => state.confirm);
@@ -34,6 +35,9 @@ export default function BotBuilderPage() {
   const [currentFlow, setCurrentFlow] = useState(null);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('builder'); // 'builder' or 'media'
+  
+  // AI Bot Builder state
+  const [isAIBotBuilderOpen, setIsAIBotBuilderOpen] = useState(false);
   
   // Simulator state
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
@@ -144,6 +148,19 @@ export default function BotBuilderPage() {
     setIsLibraryOpen(false);
     setActiveTab('builder');
     toast.success(`${template.name} loaded into the builder. Click "Save" to save it.`);
+  };
+
+  const handleApplyAIFlow = (generatedFlow) => {
+    const newAIFlow = {
+      _id: 'new_flow',
+      name: generatedFlow.name || 'AI Generated Bot Flow',
+      description: generatedFlow.description || '',
+      trigger: generatedFlow.trigger || { type: 'keyword', keywords: ['hi', 'hello'] },
+      nodes: JSON.parse(JSON.stringify(generatedFlow.nodes || []))
+    };
+    setCurrentFlow(newAIFlow);
+    setActiveTab('builder');
+    toast.success(`✨ "${newAIFlow.name}" loaded into the canvas! You can test it in Simulate Flow or click Save.`);
   };
 
   const flowsFetcher = useCallback(async () => {
@@ -373,7 +390,17 @@ export default function BotBuilderPage() {
             </div>
           )}
 
-          {currentFlow && currentFlow._id !== 'new_flow' && (
+          {/* AI Bot Builder Button */}
+          <button 
+            onClick={() => setIsAIBotBuilderOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 border border-purple-200/90 dark:border-purple-800/70 bg-gradient-to-b from-purple-50/70 via-white to-purple-50/30 dark:from-purple-950/30 dark:via-wa-dark-panel dark:to-wa-dark-panel hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:border-purple-300 dark:hover:border-purple-600 text-purple-950 dark:text-purple-100 rounded-xl text-sm font-semibold transition-all duration-200 shadow-xs hover:shadow-sm active:scale-[0.98]"
+            title="Generate a complete WhatsApp chatbot flow automatically using AI"
+          >
+            <Sparkles className="w-4.5 h-4.5 text-purple-600 dark:text-purple-400 shrink-0" />
+            <span>AI Bot Builder</span>
+          </button>
+
+          {currentFlow && (currentFlow.nodes?.length > 0 || currentFlow._id !== 'new_flow') && (
             <button 
               onClick={() => { setIsSimulatorOpen(true); setSimLog([]); setSimAnswers(''); setSimVars({}); }}
               className="flex items-center gap-2 px-4 py-2 border border-wa-border dark:border-wa-dark-border text-wa-text-primary dark:text-wa-dark-text-primary bg-white dark:bg-wa-dark-panel hover:bg-wa-bg dark:hover:bg-wa-dark-header rounded-xl text-sm font-semibold transition-all duration-200"
@@ -405,27 +432,45 @@ export default function BotBuilderPage() {
           <div className="w-10 h-10 bg-wa-green/10 text-wa-green rounded-xl flex items-center justify-center shrink-0 shadow-inner">
             <Bot className="w-5.5 h-5.5" />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <span className="block text-[10px] font-bold uppercase text-wa-text-secondary dark:text-wa-dark-text-secondary tracking-wider">Active Flow Builder</span>
-            <select
-              value={currentFlow?._id || ''}
-              onChange={(e) => {
-                const selected = flows.find(f => f._id === e.target.value);
-                setCurrentFlow(selected || null);
-                setActiveTab('builder');
-              }}
-              className="bg-transparent text-wa-text-primary dark:text-white font-bold text-sm focus:outline-none py-1 min-w-[220px]"
+            <div 
+              className="relative inline-flex items-center gap-1.5 max-w-full group cursor-pointer pt-0.5"
+              title={currentFlow?.name || 'Select Flow'}
             >
-              {currentFlow?._id === 'new_flow' && (
-                <option value="new_flow">* Creating New Flow *</option>
+              <span className="font-bold text-sm text-wa-text-primary dark:text-white truncate max-w-[200px] xs:max-w-[260px] sm:max-w-[340px] md:max-w-[420px]">
+                {currentFlow?._id === 'new_flow' 
+                  ? '* Creating New Flow *' 
+                  : (currentFlow?.name || (flows.length === 0 ? 'No flows created' : 'Select Flow'))}
+              </span>
+              {currentFlow?.isActive && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Active Flow" />
               )}
-              {flows.length === 0 && currentFlow?._id !== 'new_flow' && (
-                <option value="">No flows created</option>
-              )}
-              {flows.map(f => (
-                <option key={f._id} value={f._id}>{f.name} {f.isActive ? '● [ACTIVE]' : ''}</option>
-              ))}
-            </select>
+              <ChevronDown className="w-4 h-4 text-wa-text-secondary dark:text-wa-dark-text-secondary shrink-0 transition-transform group-hover:translate-y-0.5" />
+
+              {/* Native select overlaid invisibly for full accessibility & mobile support */}
+              <select
+                value={currentFlow?._id || ''}
+                onChange={(e) => {
+                  const selected = flows.find(f => f._id === e.target.value);
+                  setCurrentFlow(selected || null);
+                  setActiveTab('builder');
+                }}
+                aria-label="Active Flow Builder"
+                title={currentFlow?.name || 'Select Flow'}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              >
+                {currentFlow?._id === 'new_flow' && (
+                  <option value="new_flow">* Creating New Flow *</option>
+                )}
+                {flows.length === 0 && currentFlow?._id !== 'new_flow' && (
+                  <option value="">No flows created</option>
+                )}
+                {flows.map(f => (
+                  <option key={f._id} value={f._id}>{f.name} {f.isActive ? '● [ACTIVE]' : ''}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -752,6 +797,23 @@ export default function BotBuilderPage() {
               </div>
             </div>
           </div>
+        </Portal>
+      )}
+
+      {/* AI Bot Builder Modal */}
+      {isAIBotBuilderOpen && (
+        <Portal>
+          <AIBotBuilderModal
+            isOpen={isAIBotBuilderOpen}
+            onClose={() => setIsAIBotBuilderOpen(false)}
+            onApplyFlow={handleApplyAIFlow}
+            onOpenSimulator={() => {
+              setIsSimulatorOpen(true);
+              setSimLog([]);
+              setSimAnswers('');
+              setSimVars({});
+            }}
+          />
         </Portal>
       )}
     </div>

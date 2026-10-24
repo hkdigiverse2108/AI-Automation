@@ -10,12 +10,69 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [simVariables, setSimVariables] = useState({});
+  const simVariablesRef = useRef({});
   const [currentNodeId, setCurrentNodeId] = useState(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [typing, setTyping] = useState(false);
   const [validationReport, setValidationReport] = useState({ passed: true, errors: [] });
   const messagesEndRef = useRef(null);
+
+  // Helper to extract text from any node message structure
+  const extractNodeText = (node) => {
+    return (
+      node.data?.message?.text ||
+      node.data?.message?.body ||
+      node.data?.message?.caption ||
+      node.data?.prompt ||
+      node.data?.text ||
+      ''
+    );
+  };
+
+  const isImageNode = (node) => {
+    return (
+      node.data?.message?.type === 'image' &&
+      !!(node.data?.message?.assetKey || node.data?.message?.mediaUrl || node.data?.message?.caption)
+    );
+  };
+
+  // Find the best matching edge based on user response
+  const findMatchingEdge = (node, userText) => {
+    if (!node.edges || node.edges.length === 0) return null;
+    if (node.edges.length === 1) return node.edges[0];
+
+    const cleanInput = String(userText || '').toLowerCase().trim();
+
+    // 1. Exact match across comma-separated labels or condition values
+    const exactMatch = node.edges.find(e => {
+      const label = (e.label || '').toLowerCase();
+      const condVal = (e.condition?.value || '').toLowerCase();
+      const parts = label.split(',').map(s => s.trim());
+      return parts.some(p => p === cleanInput) || condVal === cleanInput;
+    });
+    if (exactMatch) return exactMatch;
+
+    // 2. Partial match
+    const partialMatch = node.edges.find(e => {
+      const label = (e.label || '').toLowerCase();
+      const condVal = (e.condition?.value || '').toLowerCase();
+      const parts = label.split(',').map(s => s.trim()).filter(Boolean);
+      return parts.some(p => cleanInput.includes(p) || p.includes(cleanInput)) ||
+             (condVal && cleanInput.includes(condVal));
+    });
+    if (partialMatch) return partialMatch;
+
+    // 3. Default edge
+    const defaultEdge = node.edges.find(e => {
+      const label = (e.label || '').toLowerCase();
+      return label.includes('default');
+    });
+    if (defaultEdge) return defaultEdge;
+
+    // 4. Fallback to first edge
+    return node.edges[0];
+  };
 
   // Validate the flow design
   const validateFlow = () => {
@@ -29,23 +86,30 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
     const nodeIds = flow.nodes.map(n => n.id);
 
     flow.nodes.forEach(node => {
+      const nodeType = node.data?.nodeType || (node.type ? node.type.replace(/Node$/, '') : 'message');
+      const textContent = extractNodeText(node);
+      const isImg = isImageNode(node);
+
       // 1. Check for broken handles
       const targetEdges = flow.nodes.filter(n => n.edges && n.edges.some(e => e.targetNodeId === node.id));
       const hasParent = targetEdges.length > 0;
       const isEntry = node.id === flow.entryNodeId || node.id === flow.nodes[0]?.id;
 
       if (!hasParent && !isEntry) {
-        errors.push(`Block [${node.data?.nodeType || node.type}] (${node.id}) is orphaned (no incoming links).`);
+        errors.push(`Block [${nodeType}] (${node.id}) is orphaned (no incoming links).`);
       }
 
       // 2. Check for missing configuration
-      if (node.type === 'message' && !node.data?.message?.text) {
+      if (nodeType === 'message' && !textContent && !isImg) {
         errors.push(`Message block (${node.id}) has empty text content.`);
       }
-      if (node.type === 'question' && (!node.data?.message?.text || !node.data?.variable)) {
-        errors.push(`Question block (${node.id}) is missing the prompt or the store variable name.`);
+      if (nodeType === 'question') {
+        const hasPrompt = !!textContent || isImg;
+        if (!hasPrompt) {
+          errors.push(`Question block (${node.id}) is missing the prompt text.`);
+        }
       }
-      if (node.type === 'condition' && (!node.data?.condition?.variable || !node.data?.condition?.value)) {
+      if (nodeType === 'condition' && (!node.data?.condition?.variable || !node.data?.condition?.value)) {
         errors.push(`Condition block (${node.id}) has unconfigured variable or matching value.`);
       }
 
@@ -86,16 +150,23 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
     }
 
     setCurrentNodeId(node.id);
-    const nodeType = node.data?.nodeType || node.type;
+    const nodeType = node.data?.nodeType || (node.type ? node.type.replace(/Node$/, '') : 'message');
 
     switch (nodeType) {
       case 'message': {
         setTyping(true);
-        await sleep(1000);
+        await sleep(800);
         setTyping(false);
 
-        const parsedText = interpolateVars(node.data?.message?.text || '');
-        addBotMessage(parsedText);
+        const rawText = extractNodeText(node);
+        const parsedText = interpolateVars(rawText);
+        addBotMessage(parsedText, {
+          type: node.data?.message?.type,
+          header: interpolateVars(node.data?.message?.header || ''),
+          footer: interpolateVars(node.data?.message?.footer || ''),
+          buttons: node.data?.message?.buttons,
+          sections: node.data?.message?.sections
+        });
 
         const nextEdge = node.edges?.[0];
         if (nextEdge) {
@@ -110,21 +181,27 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
         if (userMsgText === null) {
           // Send question prompt
           setTyping(true);
-          await sleep(1000);
+          await sleep(800);
           setTyping(false);
 
-          const parsedText = interpolateVars(node.data?.message?.text || '');
-          addBotMessage(parsedText);
+          const rawText = extractNodeText(node);
+          const parsedText = interpolateVars(rawText);
+          addBotMessage(parsedText, {
+            type: node.data?.message?.type,
+            header: interpolateVars(node.data?.message?.header || ''),
+            footer: interpolateVars(node.data?.message?.footer || ''),
+            buttons: node.data?.message?.buttons,
+            sections: node.data?.message?.sections
+          });
           // Wait for user input
         } else {
           // Process user input
           const varName = node.data?.variable || 'temp_var';
-          setSimVariables(prev => ({
-            ...prev,
-            [varName]: userMsgText
-          }));
+          const updatedVars = { ...simVariablesRef.current, [varName]: userMsgText };
+          simVariablesRef.current = updatedVars;
+          setSimVariables(updatedVars);
 
-          const nextEdge = node.edges?.[0];
+          const nextEdge = findMatchingEdge(node, userMsgText);
           if (nextEdge) {
             executeStep(nextEdge.targetNodeId);
           } else {
@@ -207,17 +284,18 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
   };
 
   const interpolateVars = (text) => {
-    let result = text;
-    Object.entries(simVariables).forEach(([key, val]) => {
-      result = result.replace(new RegExp(`{{${key}}}`, 'g'), val);
+    let result = text || '';
+    const vars = { ...simVariables, ...(simVariablesRef.current || {}) };
+    Object.entries(vars).forEach(([key, val]) => {
+      result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}|\\$\\{\\s*${key}\\s*\\}`, 'gi'), val);
     });
     return result;
   };
 
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-  const addBotMessage = (text) => {
-    setMessages(prev => [...prev, { sender: 'bot', text, timestamp: new Date() }]);
+  const addBotMessage = (text, meta = null) => {
+    setMessages(prev => [...prev, { sender: 'bot', text, meta, timestamp: new Date() }]);
   };
 
   const addSystemMessage = (text) => {
@@ -231,6 +309,7 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
       return;
     }
     setMessages([]);
+    simVariablesRef.current = {};
     setSimVariables({});
     setIsSimulating(true);
     const entryId = flow.entryNodeId || flow.nodes?.[0]?.id;
@@ -246,7 +325,7 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
 
     // Advance simulator if we are waiting for a question reply
     const node = flow.nodes.find(n => n.id === currentNodeId);
-    const nodeType = node?.data?.nodeType || node?.type;
+    const nodeType = node?.data?.nodeType || (node?.type ? node.type.replace(/Node$/, '') : 'message');
     if (nodeType === 'question') {
       executeStep(currentNodeId, userText);
     } else {
@@ -254,8 +333,21 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
     }
   };
 
+  const handleSelectOption = (optionTitle) => {
+    if (!isSimulating) return;
+    setMessages(prev => [...prev, { sender: 'user', text: optionTitle, timestamp: new Date() }]);
+    setInputText('');
+
+    const node = flow.nodes.find(n => n.id === currentNodeId);
+    const nodeType = node?.data?.nodeType || (node?.type ? node.type.replace(/Node$/, '') : 'message');
+    if (nodeType === 'question') {
+      executeStep(currentNodeId, optionTitle);
+    }
+  };
+
   const handleReset = () => {
     setMessages([]);
+    simVariablesRef.current = {};
     setSimVariables({});
     setCurrentNodeId(null);
     setIsSimulating(false);
@@ -349,7 +441,61 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
                         : 'bg-wa-bubble-out-bg dark:bg-wa-dark-bubble-out-bg origin-top-left'
                     }`} />
                   </div>
-                  <span>{msg.text}</span>
+
+                  {msg.meta?.header && (
+                    <div className="font-bold text-[11px] text-emerald-600 dark:text-emerald-400 mb-1 border-b border-wa-border/30 pb-0.5">
+                      {msg.meta.header}
+                    </div>
+                  )}
+
+                  <span className="whitespace-pre-line">{msg.text}</span>
+
+                  {msg.meta?.footer && (
+                    <div className="text-[10px] text-gray-400 mt-1 italic">
+                      {msg.meta.footer}
+                    </div>
+                  )}
+
+                  {/* Interactive Button Options */}
+                  {Array.isArray(msg.meta?.buttons) && msg.meta.buttons.length > 0 && (
+                    <div className="mt-2.5 pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                      {msg.meta.buttons.map((btn, bIdx) => {
+                        const btnLabel = btn.text || btn.title || btn.label || btn.id || `Option ${bIdx + 1}`;
+                        return (
+                          <button
+                            key={btn.id || bIdx}
+                            onClick={() => handleSelectOption(btnLabel)}
+                            disabled={!isSimulating}
+                            className="w-full py-2 px-3 text-center text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50/90 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 rounded-xl border border-emerald-300 dark:border-emerald-700/60 transition-all shadow-2xs hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <span>{btnLabel}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Interactive List Sections */}
+                  {Array.isArray(msg.meta?.sections) && msg.meta.sections.length > 0 && (
+                    <div className="mt-2.5 pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                      {msg.meta.sections.flatMap((sec, secIdx) => (sec.rows || []).map((row, rIdx) => {
+                        const rowLabel = row.title || row.text || row.id || `Option ${rIdx + 1}`;
+                        return (
+                          <button
+                            key={`${secIdx}-${row.id || rIdx}`}
+                            onClick={() => handleSelectOption(rowLabel)}
+                            disabled={!isSimulating}
+                            className="w-full text-left py-1.5 px-2.5 text-[11px] font-medium text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/70 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-lg border border-slate-200 dark:border-slate-700/60 transition-all flex items-center justify-between gap-1 shadow-2xs hover:scale-[1.01]"
+                          >
+                            <span className="font-bold text-[10.5px] truncate">{rowLabel}</span>
+                            {row.description && (
+                              <span className="text-[9px] text-gray-400 dark:text-gray-500 truncate max-w-[110px]">{row.description}</span>
+                            )}
+                          </button>
+                        );
+                      }))}
+                    </div>
+                  )}
                 </div>
               </div>
             );

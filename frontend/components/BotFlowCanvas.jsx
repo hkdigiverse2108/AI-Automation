@@ -47,6 +47,7 @@ export default function BotFlowCanvas({ flow, onSave, canvasRef }) {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
   const fileInputRef = useRef(null);
+  const sidebarScrollRef = useRef(null);
 
   const handleUploadImageNode = async (file) => {
     if (!file || !flow?._id || flow?._id === 'new_flow') return;
@@ -243,6 +244,9 @@ export default function BotFlowCanvas({ flow, onSave, canvasRef }) {
         setHistory([{ nodes: [{ ...initialNode }], edges: [] }]);
         setHistoryIndex(0);
       }
+      setTimeout(() => {
+        sidebarScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 50);
     }
   }, [flow, setNodes, setEdges]);
 
@@ -487,7 +491,7 @@ export default function BotFlowCanvas({ flow, onSave, canvasRef }) {
     <div className="flex h-[75vh] border border-wa-border dark:border-wa-dark-border rounded-2xl overflow-hidden bg-slate-50 dark:bg-[#0a1118] relative shadow-xl">
       {/* Node Palette Bar (Left) */}
       <div className="w-56 border-r border-wa-border dark:border-wa-dark-border bg-white dark:bg-[#111b21] p-4 shrink-0 flex flex-col justify-between h-full">
-        <div className="flex-1 overflow-y-auto pr-1 space-y-4 mb-4 scrollbar-thin">
+        <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto pr-1 space-y-4 mb-4 scrollbar-thin">
           <div>
             <h4 className="text-[10px] font-extrabold text-wa-text-secondary uppercase tracking-[0.12em] mb-2 flex items-center gap-1.5">
               <Settings className="w-3 h-3" /> Trigger Config
@@ -770,8 +774,12 @@ export default function BotFlowCanvas({ flow, onSave, canvasRef }) {
                     <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Message Text Copy</label>
                     <textarea
                       rows="4"
-                      value={selectedNode.data.message?.text || ''}
-                      onChange={(e) => handleUpdateNodeData('message', { text: e.target.value })}
+                      value={selectedNode.data.message?.text || selectedNode.data.message?.body || ''}
+                      onChange={(e) => handleUpdateNodeData('message', {
+                        ...(selectedNode.data.message || {}),
+                        text: e.target.value,
+                        body: e.target.value
+                      })}
                       placeholder="Enter message body copy..."
                       className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-wa-green"
                     />
@@ -859,19 +867,104 @@ export default function BotFlowCanvas({ flow, onSave, canvasRef }) {
                       const type = e.target.value;
                       handleUpdateNodeData('message', { 
                         type, 
-                        mediaUrl: type === 'text' ? '' : (selectedNode.data.message?.mediaUrl || ''),
-                        assetKey: type === 'text' ? '' : (selectedNode.data.message?.assetKey || ''),
-                        caption: type === 'text' ? '' : (selectedNode.data.message?.caption || '')
+                        buttons: type === 'buttons' ? (selectedNode.data.message?.buttons?.length ? selectedNode.data.message.buttons.map(b => ({ ...b, text: b.text || b.title || '', title: b.text || b.title || '' })) : [{ id: 'opt_1', text: 'Option 1', title: 'Option 1' }, { id: 'opt_2', text: 'Option 2', title: 'Option 2' }]) : (selectedNode.data.message?.buttons || []),
+                        mediaUrl: type === 'text' || type === 'buttons' ? '' : (selectedNode.data.message?.mediaUrl || ''),
+                        assetKey: type === 'text' || type === 'buttons' ? '' : (selectedNode.data.message?.assetKey || ''),
+                        caption: type === 'text' || type === 'buttons' ? '' : (selectedNode.data.message?.caption || '')
                       });
                     }}
                     className="w-full text-xs px-2.5 py-2 border border-wa-border dark:border-wa-dark-border bg-wa-search dark:bg-wa-dark-search rounded-lg focus:outline-none text-wa-text-primary dark:text-white"
                   >
                     <option value="text">Outbound Text Question</option>
+                    <option value="buttons">WhatsApp Quick Reply Buttons</option>
                     <option value="image">Image Attachment Question</option>
                   </select>
                 </div>
 
-                {selectedNode.data.message?.type === 'image' ? (
+                {selectedNode.data.message?.type === 'buttons' ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Question Text / Prompt</label>
+                      <textarea
+                        rows="3"
+                        value={selectedNode.data.message?.text || selectedNode.data.message?.body || ''}
+                        onChange={(e) => handleUpdateNodeData('message', {
+                          ...(selectedNode.data.message || {}),
+                          type: 'buttons',
+                          text: e.target.value,
+                          body: e.target.value
+                        })}
+                        placeholder="e.g. Which specialist do you want to consult?"
+                        className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-wa-text-secondary uppercase">
+                          Reply Buttons ({ (selectedNode.data.message?.buttons || []).length }/3)
+                        </label>
+                        {(selectedNode.data.message?.buttons || []).length < 3 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = [...(selectedNode.data.message?.buttons || [])];
+                              const newTitle = `Option ${curr.length + 1}`;
+                              curr.push({ id: `btn_${Date.now()}`, text: newTitle, title: newTitle });
+                              handleUpdateNodeData('message', {
+                                ...(selectedNode.data.message || {}),
+                                type: 'buttons',
+                                buttons: curr
+                              });
+                            }}
+                            className="text-[10px] font-bold text-wa-green hover:underline flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" /> Add Button
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        {(selectedNode.data.message?.buttons || []).map((btn, btnIdx) => (
+                          <div key={btn.id || btnIdx} className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={btn.text || btn.title || ''}
+                              maxLength={20}
+                              placeholder={`Button ${btnIdx + 1} text`}
+                              onChange={(e) => {
+                                const curr = [...(selectedNode.data.message?.buttons || [])];
+                                curr[btnIdx] = { ...curr[btnIdx], text: e.target.value, title: e.target.value };
+                                handleUpdateNodeData('message', {
+                                  ...(selectedNode.data.message || {}),
+                                  type: 'buttons',
+                                  buttons: curr
+                                });
+                              }}
+                              className="flex-1 text-xs px-2.5 py-1.5 border border-wa-border dark:border-wa-dark-border rounded-lg bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400 font-semibold"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const curr = (selectedNode.data.message?.buttons || []).filter((_, i) => i !== btnIdx);
+                                handleUpdateNodeData('message', {
+                                  ...(selectedNode.data.message || {}),
+                                  type: 'buttons',
+                                  buttons: curr
+                                });
+                              }}
+                              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-400 hover:text-red-600 rounded-lg transition-colors"
+                              title="Delete button"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[9px] text-wa-text-light">WhatsApp allows up to 3 buttons. Tapping a button sends that title as the customer's answer.</p>
+                    </div>
+                  </div>
+                ) : selectedNode.data.message?.type === 'image' ? (
                   <div className="space-y-3">
                     <div>
                       <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Image Source Asset</label>
@@ -925,8 +1018,12 @@ export default function BotFlowCanvas({ flow, onSave, canvasRef }) {
                     <label className="block text-xs font-bold text-wa-text-secondary uppercase mb-1.5">Question Text Copy</label>
                     <textarea
                       rows="3"
-                      value={selectedNode.data.message?.text || ''}
-                      onChange={(e) => handleUpdateNodeData('message', { text: e.target.value })}
+                      value={selectedNode.data.message?.text || selectedNode.data.message?.body || ''}
+                      onChange={(e) => handleUpdateNodeData('message', {
+                        ...(selectedNode.data.message || {}),
+                        text: e.target.value,
+                        body: e.target.value
+                      })}
                       placeholder="Ask user a question..."
                       className="w-full text-sm px-3 py-2 border border-wa-border dark:border-wa-dark-border rounded-xl bg-wa-search dark:bg-wa-dark-search text-wa-text-primary dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />

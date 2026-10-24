@@ -31,6 +31,7 @@ const flowData = {
           type: "list",
           header: "HK DigiVerse LLP",
           body: "👋 *Welcome to HK DigiVerse!* 🚀\n\nYour premier technology partner for cutting-edge Digital Transformation, Custom Software, Web & Mobile Apps, AI Automation, and Cloud Solutions.\n\nHow can we accelerate your business today?",
+          text: "👋 *Welcome to HK DigiVerse!* 🚀\n\nYour premier technology partner for cutting-edge Digital Transformation, Custom Software, Web & Mobile Apps, AI Automation, and Cloud Solutions.\n\nHow can we accelerate your business today?",
           footer: "Select an option below",
           sections: [
             {
@@ -68,6 +69,7 @@ const flowData = {
           type: "list",
           header: "HK DigiVerse Services",
           body: "🛠️ *Our Core IT & Digital Services*\n\nWe provide end-to-end technology solutions tailored to scale your enterprise. Please select a service to view full details:",
+          text: "🛠️ *Our Core IT & Digital Services*\n\nWe provide end-to-end technology solutions tailored to scale your enterprise. Please select a service to view full details:",
           footer: "Choose a service to view details",
           sections: [
             {
@@ -324,6 +326,7 @@ const flowData = {
           type: "list",
           header: "Project Quotation",
           body: "💡 *Step 1 of 4: Which service do you need a quotation for?*\n\nPlease select the primary service required for your project:",
+          text: "💡 *Step 1 of 4: Which service do you need a quotation for?*\n\nPlease select the primary service required for your project:",
           footer: "Select a service",
           sections: [
             {
@@ -359,6 +362,7 @@ const flowData = {
           type: "list",
           header: "Project Scope",
           body: "📋 *Step 2 of 4: What is the current status / scope of your project?*",
+          text: "📋 *Step 2 of 4: What is the current status / scope of your project?*",
           footer: "Select project scope",
           sections: [
             {
@@ -417,6 +421,7 @@ const flowData = {
           type: "list",
           header: "Estimated Budget",
           body: "💰 *Step 4 of 4: What is your estimated investment budget?*\n\nThis helps us propose the best technical stack and architecture for your goals:",
+          text: "💰 *Step 4 of 4: What is your estimated investment budget?*\n\nThis helps us propose the best technical stack and architecture for your goals:",
           footer: "Select your budget tier",
           sections: [
             {
@@ -447,7 +452,8 @@ const flowData = {
         variable: "customer_name",
         message: {
           type: "text",
-          body: "👤 *Almost done!*\n\nPlease share your *Full Name* and *Company Name* (or simply your name) so our Senior Technical Consultant can address you properly:"
+          body: "👤 *Almost done!*\n\nPlease share your *Full Name* and *Company Name* (or simply your name) so our Senior Technical Consultant can address you properly:",
+          text: "👤 *Almost done!*\n\nPlease share your *Full Name* and *Company Name* (or simply your name) so our Senior Technical Consultant can address you properly:"
         }
       },
       edges: [

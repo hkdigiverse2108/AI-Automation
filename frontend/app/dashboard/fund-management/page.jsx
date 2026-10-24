@@ -46,6 +46,10 @@ export default function FundManagementPage() {
   const [adminActionLoading, setAdminActionLoading] = useState(false);
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
   const [adjustmentForm, setAdjustmentForm] = useState({ organizationId: '', type: 'credit', amount: '', reason: '' });
+  
+  // Custom Modals
+  const [rejectModal, setRejectModal] = useState({ open: false, transactionId: '', utrNumber: '', amount: 0, reason: '' });
+  const [editRatesModal, setEditRatesModal] = useState({ open: false, marketing: 0.85, utility: 0.15, authentication: 0.15, service: 0.35 });
 
   // 1. Fetch Balance & Stats
   const fetchWalletOverview = useCallback(async () => {
@@ -83,17 +87,16 @@ export default function FundManagementPage() {
     }
   }, [filterType, filterCategory, searchQuery]);
 
-  // 3. Fetch Admin Data (if superadmin/admin)
+  // 3. Fetch Admin Data (SuperAdmin ONLY)
   const fetchAdminData = useCallback(async () => {
-    if (user?.role !== 'superadmin' && user?.role !== 'admin') return;
+    if (user?.role !== 'superadmin') return;
     try {
-      const pendingRes = await api.get('/wallet/admin/pending-topups');
+      const [pendingRes, walletsRes] = await Promise.all([
+        api.get('/wallet/admin/pending-topups'),
+        api.get('/wallet/admin/all-wallets')
+      ]);
       if (pendingRes.data?.success) setPendingTopups(pendingRes.data.data);
-
-      if (user?.role === 'superadmin') {
-        const walletsRes = await api.get('/wallet/admin/all-wallets');
-        if (walletsRes.data?.success) setAllWallets(walletsRes.data.data);
-      }
+      if (walletsRes.data?.success) setAllWallets(walletsRes.data.data);
     } catch (err) {
       console.error('Failed to load admin wallet data:', err);
     }
@@ -267,20 +270,60 @@ export default function FundManagementPage() {
     }
   };
 
-  // Admin: Reject UPI Topup
-  const handleRejectTopup = async (transactionId) => {
-    const reason = prompt('Please enter rejection reason:');
-    if (reason === null) return;
+  // Admin: Open Reject Modal
+  const handleOpenRejectModal = (topup) => {
+    setRejectModal({
+      open: true,
+      transactionId: topup.transactionId,
+      utrNumber: topup.paymentDetails?.utrNumber || '',
+      amount: topup.amount,
+      reason: ''
+    });
+  };
+
+  // Admin: Confirm Rejection with Reason
+  const handleConfirmRejectTopup = async (e) => {
+    e.preventDefault();
+    if (!rejectModal.reason || !rejectModal.reason.trim()) {
+      return toast.error('Please enter a rejection reason');
+    }
     setAdminActionLoading(true);
     try {
-      const res = await api.post('/wallet/admin/reject-topup', { transactionId, reason });
+      const res = await api.post('/wallet/admin/reject-topup', {
+        transactionId: rejectModal.transactionId,
+        reason: rejectModal.reason.trim()
+      });
       if (res.data?.success) {
         toast.success('Payment request rejected');
+        setRejectModal({ open: false, transactionId: '', utrNumber: '', amount: 0, reason: '' });
         fetchAdminData();
         fetchTransactions(pagination.page);
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to reject');
+    } finally {
+      setAdminActionLoading(false);
+    }
+  };
+
+  // SuperAdmin: Update Rate Card
+  const handleSaveRates = async (e) => {
+    e.preventDefault();
+    setAdminActionLoading(true);
+    try {
+      const res = await api.post('/wallet/admin/update-rates', {
+        marketing: parseFloat(editRatesModal.marketing),
+        utility: parseFloat(editRatesModal.utility),
+        authentication: parseFloat(editRatesModal.authentication),
+        service: parseFloat(editRatesModal.service)
+      });
+      if (res.data?.success) {
+        toast.success('Rate card & platform margins updated!');
+        setEditRatesModal(prev => ({ ...prev, open: false }));
+        fetchWalletOverview();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update rates');
     } finally {
       setAdminActionLoading(false);
     }
@@ -484,7 +527,7 @@ export default function FundManagementPage() {
           { id: 'passbook', label: '📜 Passbook (Google Pay Style)' },
           { id: 'analytics', label: '📊 Spend Analytics' },
           { id: 'rates', label: '🏷️ Meta Pricing & Rate Card' },
-          ...((user?.role === 'superadmin' || user?.role === 'admin') ? [
+          ...((user?.role === 'superadmin') ? [
             { id: 'admin', label: `🛡️ Admin Approvals (${pendingTopups.length})` }
           ] : [])
         ].map((tab) => (
@@ -933,11 +976,27 @@ export default function FundManagementPage() {
       {/* ================= TAB 4: META PRICING & RATE CARD ================= */}
       {activeTab === 'rates' && (
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">Meta WhatsApp Conversation Rate Card (India)</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Transparent, per-conversation billing structure based on official WhatsApp Cloud API standards.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Meta WhatsApp Conversation Rate Card (India)</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Transparent, per-conversation billing structure based on official WhatsApp Cloud API standards.
+              </p>
+            </div>
+            {user?.role === 'superadmin' && (
+              <button
+                onClick={() => setEditRatesModal({
+                  open: true,
+                  marketing: rates.marketing,
+                  utility: rates.utility,
+                  authentication: rates.authentication,
+                  service: rates.service
+                })}
+                className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 shrink-0 hover:bg-slate-800"
+              >
+                ⚙️ Customize Rates & Platform Margin
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -982,7 +1041,7 @@ export default function FundManagementPage() {
       )}
 
       {/* ================= TAB 5: ADMIN APPROVALS & ALL WALLETS ================= */}
-      {activeTab === 'admin' && (user?.role === 'superadmin' || user?.role === 'admin') && (
+      {activeTab === 'admin' && user?.role === 'superadmin' && (
         <div className="space-y-6">
           {/* Superadmin Manual Adjustment Action Button */}
           {user?.role === 'superadmin' && (
@@ -1046,7 +1105,7 @@ export default function FundManagementPage() {
                       </button>
                       <button
                         disabled={adminActionLoading}
-                        onClick={() => handleRejectTopup(topup.transactionId)}
+                        onClick={() => handleOpenRejectModal(topup)}
                         className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs"
                       >
                         Reject
@@ -1371,6 +1430,170 @@ export default function FundManagementPage() {
               >
                 {adminActionLoading ? 'Processing...' : 'Apply Adjustment'}
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 4: CUSTOM REJECT REASON MODAL ================= */}
+      {rejectModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+                  <XCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 dark:text-white text-sm">Reject Top-up Request</h3>
+                  <p className="text-[11px] text-slate-400 font-mono">{rejectModal.transactionId}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRejectModal({ open: false, transactionId: '', utrNumber: '', amount: 0, reason: '' })}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Request Amount:</span>
+                <span className="font-bold text-slate-900 dark:text-white">₹{rejectModal.amount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Submitted UTR:</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white">{rejectModal.utrNumber}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmRejectTopup} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">
+                  Rejection Reason <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="e.g. UTR number not found in bank statement, amount mismatch, duplicate submission"
+                  value={rejectModal.reason}
+                  onChange={(e) => setRejectModal({ ...rejectModal, reason: e.target.value })}
+                  className="w-full mt-1.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setRejectModal({ open: false, transactionId: '', utrNumber: '', amount: 0, reason: '' })}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={adminActionLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-sm"
+                >
+                  {adminActionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 5: CUSTOMIZE RATES MODAL (SUPERADMIN ONLY) ================= */}
+      {editRatesModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-sm">Customize Conversation Rates & Platform Margin</h3>
+                <p className="text-[11px] text-slate-400">Set per-conversation charge for client wallet deductions</p>
+              </div>
+              <button
+                onClick={() => setEditRatesModal(prev => ({ ...prev, open: false }))}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRates} className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">📢 Marketing Conversation (₹)</label>
+                <p className="text-[10px] text-slate-400 mb-1">Meta Base: ~₹0.80 - ₹0.82</p>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  min="0.01"
+                  value={editRatesModal.marketing}
+                  onChange={(e) => setEditRatesModal({ ...editRatesModal, marketing: e.target.value })}
+                  className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">📦 Utility Conversation (₹)</label>
+                <p className="text-[10px] text-slate-400 mb-1">Meta Base: ~₹0.12 - ₹0.15</p>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  min="0.01"
+                  value={editRatesModal.utility}
+                  onChange={(e) => setEditRatesModal({ ...editRatesModal, utility: e.target.value })}
+                  className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">🔐 Authentication / OTP (₹)</label>
+                <p className="text-[10px] text-slate-400 mb-1">Meta Base: ~₹0.12 - ₹0.15</p>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  min="0.01"
+                  value={editRatesModal.authentication}
+                  onChange={(e) => setEditRatesModal({ ...editRatesModal, authentication: e.target.value })}
+                  className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">💬 Service / Support Conversation (₹)</label>
+                <p className="text-[10px] text-slate-400 mb-1">Meta Base: ~₹0.29 - ₹0.35</p>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  min="0.01"
+                  value={editRatesModal.service}
+                  onChange={(e) => setEditRatesModal({ ...editRatesModal, service: e.target.value })}
+                  className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold font-mono"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditRatesModal(prev => ({ ...prev, open: false }))}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 font-bold text-slate-600 dark:text-slate-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={adminActionLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-sm"
+                >
+                  {adminActionLoading ? 'Saving...' : 'Save Rates'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

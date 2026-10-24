@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+// AI Bot Builder routes loaded
 const path = require('path');
 const compression = require('compression');
 const { Server } = require('socket.io');
@@ -377,5 +378,5 @@ process.on('uncaughtException', (err) => { logger.error('Uncaught exception:', e
 
 startServer();
 
-// Reload trigger: smart search routes updated
+// Reload trigger: ai bot builder scraping category & offer detection updated
 module.exports = { app, server };

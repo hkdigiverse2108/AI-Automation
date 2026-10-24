@@ -4,6 +4,7 @@ const Conversation = require('../models/Conversation');
 const AuditLog = require('../models/AuditLog');
 const { verifyToken } = require('../middleware/auth');
 const { flowValidation, validateObjectId } = require('../middleware/validator');
+const { generateBotFlow, scrapeWebsite, refineBotFlow } = require('../services/aiBotBuilderService');
 
 router.use(verifyToken);
 const checkFeatureAccess = require('../middleware/checkFeatureAccess');
@@ -465,6 +466,83 @@ router.get('/templates', async (req, res) => {
   }
 });
 
+// POST /flows/ai-builder/scrape — quick preview of website metadata
+router.post('/ai-builder/scrape', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ success: false, error: 'URL is required' });
+    }
+    const data = await scrapeWebsite(url);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || 'Scrape failed' });
+  }
+});
+
+// POST /flows/ai-builder/generate — AI Bot Builder generation
+router.post('/ai-builder/generate', async (req, res) => {
+  try {
+    const { prompt, businessName, industry, websiteUrl, offers, language } = req.body;
+    const result = await generateBotFlow({
+      prompt,
+      businessName,
+      industry,
+      websiteUrl,
+      offers,
+      language
+    });
+
+    res.json({
+      success: true,
+      data: {
+        flow: result.flow,
+        websiteData: result.websiteData,
+        source: result.source
+      }
+    });
+  } catch (error) {
+    console.error('AI Bot Builder error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to generate flow with AI',
+      code: 'AI_GEN_ERROR'
+    });
+  }
+});
+
+// POST /flows/ai-builder/refine — Refine an existing generated flow with AI instruction
+router.post('/ai-builder/refine', async (req, res) => {
+  try {
+    const { flow, refineInstruction, businessName, language } = req.body;
+    if (!flow || !refineInstruction) {
+      return res.status(400).json({ success: false, error: 'Flow and refinement instruction are required' });
+    }
+
+    const result = await refineBotFlow({
+      flow,
+      refineInstruction,
+      businessName,
+      language
+    });
+
+    res.json({
+      success: true,
+      data: {
+        flow: result.flow,
+        note: result.note || 'Refined with AI'
+      }
+    });
+  } catch (error) {
+    console.error('AI Bot Builder refine error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to refine flow with AI',
+      code: 'AI_REFINE_ERROR'
+    });
+  }
+});
+
 // POST /flows — create
 router.post('/', flowValidation, async (req, res) => {
   try {
@@ -478,6 +556,13 @@ router.post('/', flowValidation, async (req, res) => {
 
     // Validate edges reference valid nodes
     for (const node of nodes) {
+      if (node.data?.message) {
+        if (node.data.message.body && !node.data.message.text) {
+          node.data.message.text = node.data.message.body;
+        } else if (node.data.message.text && !node.data.message.body) {
+          node.data.message.body = node.data.message.text;
+        }
+      }
       for (const edge of node.edges || []) {
         if (!nodeIds.includes(edge.targetNodeId)) {
           return res.status(400).json({
@@ -516,6 +601,15 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
     if (description !== undefined) flow.description = description;
     if (trigger) flow.trigger = trigger;
     if (nodes) {
+      nodes.forEach(node => {
+        if (node.data?.message) {
+          if (node.data.message.body && !node.data.message.text) {
+            node.data.message.text = node.data.message.body;
+          } else if (node.data.message.text && !node.data.message.body) {
+            node.data.message.body = node.data.message.text;
+          }
+        }
+      });
       flow.nodes = nodes;
       flow.entryNodeId = nodes[0]?.id;
     }
