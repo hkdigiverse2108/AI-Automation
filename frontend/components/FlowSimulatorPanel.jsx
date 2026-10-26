@@ -197,7 +197,13 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
         } else {
           // Process user input
           const varName = node.data?.variable || 'temp_var';
-          const updatedVars = { ...simVariablesRef.current, [varName]: userMsgText };
+          let finalVal = userMsgText;
+          if (varName.toLowerCase().includes('phone') || varName.toLowerCase().includes('mobile')) {
+            if (/same/i.test(userMsgText) || userMsgText.includes('આ જ નંબર') || userMsgText.includes('यही नंबर')) {
+              finalVal = simVariablesRef.current['phone'] || simVariablesRef.current['sender_phone'] || '+91 98786 57877';
+            }
+          }
+          const updatedVars = { ...simVariablesRef.current, [varName]: finalVal };
           simVariablesRef.current = updatedVars;
           setSimVariables(updatedVars);
 
@@ -285,7 +291,12 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
 
   const interpolateVars = (text) => {
     let result = text || '';
-    const vars = { ...simVariables, ...(simVariablesRef.current || {}) };
+    const vars = {
+      phone: '+91 98786 57877',
+      sender_phone: '+91 98786 57877',
+      ...simVariables,
+      ...(simVariablesRef.current || {})
+    };
     Object.entries(vars).forEach(([key, val]) => {
       result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}|\\$\\{\\s*${key}\\s*\\}`, 'gi'), val);
     });
@@ -309,8 +320,12 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
       return;
     }
     setMessages([]);
-    simVariablesRef.current = {};
-    setSimVariables({});
+    const initialVars = {
+      phone: '+91 98786 57877',
+      sender_phone: '+91 98786 57877'
+    };
+    simVariablesRef.current = initialVars;
+    setSimVariables(initialVars);
     setIsSimulating(true);
     const entryId = flow.entryNodeId || flow.nodes?.[0]?.id;
     executeStep(entryId);
@@ -347,8 +362,12 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
 
   const handleReset = () => {
     setMessages([]);
-    simVariablesRef.current = {};
-    setSimVariables({});
+    const initialVars = {
+      phone: '+91 98786 57877',
+      sender_phone: '+91 98786 57877'
+    };
+    simVariablesRef.current = initialVars;
+    setSimVariables(initialVars);
     setCurrentNodeId(null);
     setIsSimulating(false);
     toast.success('Simulator Reset');

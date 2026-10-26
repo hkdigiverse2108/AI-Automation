@@ -313,7 +313,11 @@ function generateFallbackFlow({ businessName, industry, websiteData, offers, lan
     ]
   };
 
-  // Lead Capture: Phone
+  // Lead Capture: Phone (Smart WhatsApp aware)
+  const phoneTextEn = 'Thank you {{user_full_name}}! 🙏\n\n📱 We already have your WhatsApp number (*{{phone}}*).\n\nTap *Same Number* below to confirm, or reply with an alternate calling number:';
+  const phoneTextHi = 'धन्यवाद {{user_full_name}}! 🙏\n\n📱 आपका यह व्हाट्सएप नंबर (*{{phone}}*) हमारे पास नोट है।\n\nपुष्टि के लिए नीचे *यही नंबर (Same)* पर टैप करें, या कोई दूसरा कॉलिंग नंबर लिखकर भेजें:';
+  const phoneTextGu = 'આભાર {{user_full_name}}! 🙏\n\n📱 આપનો આ વોટ્સએપ નંબર (*{{phone}}*) અમારી પાસે છે.\n\nકન્ફર્મ કરવા નીચે *આ જ નંબર (Same)* પર ટેપ કરો, અથવા અન્ય કોલિંગ નંબર લખીને મોકલો:';
+
   const nodeLeadPhone = {
     id: 'node_lead_phone',
     type: 'question',
@@ -321,13 +325,19 @@ function generateFallbackFlow({ businessName, industry, websiteData, offers, lan
     data: {
       variable: 'user_phone_number',
       message: {
-        type: 'text',
-        text: hasGujarati ? 'આભાર {{user_full_name}}! 🙏\n\nકૃપા કરીને આપનો મોબાઇલ નંબર / WhatsApp નંબર આપો:' : (hasHindi ? 'धन्यवाद {{user_full_name}}! 🙏\n\nकृपया अपना मोबाइल नंबर / WhatsApp नंबर साझा करें:' : 'Thank you {{user_full_name}}! 🙏\n\nPlease share your preferred contact / WhatsApp number:'),
-        body: hasGujarati ? 'આભાર {{user_full_name}}! 🙏\n\nકૃપા કરીને આપનો મોબાઇલ નંબર / WhatsApp નંબર આપો:' : (hasHindi ? 'धन्यवाद {{user_full_name}}! 🙏\n\nकृपया अपना मोबाइल नंबर / WhatsApp नंबर साझा करें:' : 'Thank you {{user_full_name}}! 🙏\n\nPlease share your preferred contact / WhatsApp number:')
+        type: 'buttons',
+        text: hasGujarati ? phoneTextGu : (hasHindi ? phoneTextHi : phoneTextEn),
+        body: hasGujarati ? phoneTextGu : (hasHindi ? phoneTextHi : phoneTextEn),
+        buttons: [
+          {
+            id: 'btn_same_phone',
+            text: hasGujarati ? '📱 આ જ નંબર (Same)' : (hasHindi ? '📱 यही नंबर (Same)' : '📱 Same Number')
+          }
+        ]
       }
     },
     edges: [
-      { targetNodeId: 'node_confirmation', label: '' }
+      { targetNodeId: 'node_confirmation', label: 'Same Number, same, 1, btn_same_phone, यही नंबर, આ જ નંબર, default' }
     ]
   };
 
@@ -597,16 +607,21 @@ A valid WhatsApp Flow JSON MUST strictly adhere to this schema:
 
 STRICT ARCHITECTURE RULES:
 1. Always populate BOTH data.message.text AND data.message.body with the exact same text string.
-2. Structure nodes hierarchically with clean (x, y) coordinates:
+2. INTERACTIVE TYPES (BUTTONS VS LIST MENU):
+   - For 1-3 choices: Use type: "buttons" with data.message.buttons array.
+   - For 4 or more choices (or when user requests a List/Menu): Use type: "list" with data.message.sections array containing { "title": "Category Title", "rows": [{ "id": "row_item_1", "title": "Item Name", "description": "Short subtitle" }] }. Each edge leading from a list node must have label containing the row title and row id.
+3. Structure nodes hierarchically with clean (x, y) coordinates:
    - Root welcome node at x: 450, y: 60
    - First level branches spread at y: 320 (e.g. x: 120, x: 450, x: 750)
    - "Talk to Expert" / "Live Agent" option MUST connect to a terminal node of type "handoff".
    - Second level (lead capture: name, phone) at y: 580 and y: 820
    - Final confirmation node at y: 1060 with crmSync: true
-3. Ensure all edge targetNodeIds exist in the nodes list.
-4. Edge labels MUST contain comma-separated accepted input keywords (e.g. "Services, services, 1, btn_services").
+4. Ensure all edge targetNodeIds exist in the nodes list.
+5. Edge labels MUST contain comma-separated accepted input keywords (e.g. "Services, services, 1, btn_services").
 5. When asking questions that save user data, specify a clear data.variable (e.g., "user_name", "user_phone", "service_interest").
-6. The closing node should be type "message" that thanks {{user_name}}, confirms next steps, and confirms lead capture.
+   - SMART WHATSAPP LEAD CAPTURE: Since the customer is already on WhatsApp, do NOT blindly ask them to type their phone number. Acknowledge their number and offer a 1-tap "Same Number" button:
+     e.g., "Thank you {{user_name}}! 🙏\n\n📱 We already have your WhatsApp number (*{{phone}}*).\n\nTap *Same Number* below to confirm, or reply with an alternate calling number:" with button [{ "id": "btn_same_phone", "text": "📱 Same Number" }].
+6. The closing node should be type "message" with crmSync: true that thanks {{user_name}}, confirms next steps at {{user_phone}}, and confirms lead capture.
 7. Language: Craft all messages and buttons strictly in the requested language (${language}). If Gujarati or Hindi or Bilingual, use polite native greetings.
 8. Output ONLY raw JSON. No markdown code blocks or conversational text.`;
 

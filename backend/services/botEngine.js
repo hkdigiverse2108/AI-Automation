@@ -848,20 +848,23 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
 
         // Phone number validation
         if (varName.toLowerCase().includes('phone') || varName.toLowerCase().includes('mobile')) {
+          const isSameKeyword = ['same', 'same number', 'same phone', 'यही नंबर', 'આ જ નંબર', 'yes', 'ha', 'haa', 'yep'].includes(textVal) || /same/i.test(textVal);
           const isHkUser = userId.toString() === '6a4256a6f959e4aa133771ab';
           const cleanedPhone = textVal.replace(/[+\s\-]/g, '');
           
-          let isPhoneValid = false;
-          if (isHkUser) {
-            let localNumber = cleanedPhone;
-            if (localNumber.startsWith('91') && localNumber.length === 12) {
-              localNumber = localNumber.substring(2);
-            } else if (localNumber.startsWith('0') && localNumber.length === 11) {
-              localNumber = localNumber.substring(1);
+          let isPhoneValid = isSameKeyword;
+          if (!isPhoneValid) {
+            if (isHkUser) {
+              let localNumber = cleanedPhone;
+              if (localNumber.startsWith('91') && localNumber.length === 12) {
+                localNumber = localNumber.substring(2);
+              } else if (localNumber.startsWith('0') && localNumber.length === 11) {
+                localNumber = localNumber.substring(1);
+              }
+              isPhoneValid = /^[6-9]\d{9}$/.test(localNumber);
+            } else {
+              isPhoneValid = /^\d{8,15}$/.test(cleanedPhone);
             }
-            isPhoneValid = /^[6-9]\d{9}$/.test(localNumber);
-          } else {
-            isPhoneValid = /^\d{8,15}$/.test(cleanedPhone);
           }
           
           if (!isPhoneValid) {
@@ -954,7 +957,14 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
           conversation.flowVariables.set(varName, content.mediaUrl || content.mediaId || '');
           await syncFlowVariablesToCRM(userId, contact, conversation);
         } else {
-          conversation.flowVariables.set(varName, content.text || content.interactive?.title || '');
+          let savedVal = content.text || content.interactive?.title || '';
+          if (varName.toLowerCase().includes('phone') || varName.toLowerCase().includes('mobile')) {
+            const isSame = /same/i.test(savedVal) || savedVal.includes('यही नंबर') || savedVal.includes('આ જ નંબર');
+            if (isSame && contact?.phone) {
+              savedVal = contact.phone;
+            }
+          }
+          conversation.flowVariables.set(varName, savedVal);
           await syncFlowVariablesToCRM(userId, contact, conversation);
         }
       }
@@ -1091,6 +1101,12 @@ async function executeNode(userId, conversation, contact, flow, node, phoneNumbe
   const vars = Object.fromEntries(conversation.flowVariables || new Map());
   if (!vars['features']) {
     vars['features'] = 'None';
+  }
+  if (!vars['phone'] && contact?.phone) {
+    vars['phone'] = contact.phone;
+  }
+  if (!vars['sender_phone'] && contact?.phone) {
+    vars['sender_phone'] = contact.phone;
   }
 
   // Track visited nodes for "Go Back" navigation

@@ -480,6 +480,22 @@ export default function AIBotBuilderModal({ isOpen, onClose, onApplyFlow, onOpen
                             </div>
                           )}
 
+                          {/* Interactive List Menu Sections / Rows */}
+                          {Array.isArray(node.data?.message?.sections) && node.data.message.sections.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {node.data.message.sections.flatMap(s => s.rows || []).map((row, ri) => (
+                                <span
+                                  key={ri}
+                                  className="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 text-[10px] font-semibold flex items-center gap-1"
+                                  title={row.description || ''}
+                                >
+                                  <ChevronRight className="w-3 h-3 opacity-60" />
+                                  {row.title || row.text || `Row ${ri + 1}`}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
                           {/* Variable Capture Badge */}
                           {node.data?.variable && (
                             <div className="text-[10px] font-mono text-purple-600 dark:text-purple-400 pt-0.5">
