@@ -71,7 +71,13 @@ const PRESET_TEMPLATES = [
   }
 ];
 
-export default function AIBotBuilderModal({ isOpen, onClose, onApplyFlow, onOpenSimulator }) {
+export default function AIBotBuilderModal({ 
+  isOpen, 
+  onClose, 
+  onApplyFlow, 
+  onOpenSimulator, 
+  initialFlowToRefine = null 
+}) {
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
@@ -93,13 +99,24 @@ export default function AIBotBuilderModal({ isOpen, onClose, onApplyFlow, onOpen
   const [refining, setRefining] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      if (initialFlowToRefine && Array.isArray(initialFlowToRefine.nodes) && initialFlowToRefine.nodes.length > 0) {
+        setGeneratedResult({
+          flow: initialFlowToRefine,
+          source: 'Active Flow from Simulator'
+        });
+        setBusinessName(initialFlowToRefine.name || 'Active Bot Flow');
+        setPrompt(initialFlowToRefine.description || '');
+      } else if (!initialFlowToRefine) {
+        setGeneratedResult(null);
+      }
+    } else {
       setGenerating(false);
       setGenerationStep(0);
       setRefinePrompt('');
       setRefining(false);
     }
-  }, [isOpen]);
+  }, [isOpen, initialFlowToRefine]);
 
   if (!isOpen) return null;
 

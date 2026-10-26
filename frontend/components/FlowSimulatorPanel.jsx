@@ -2,11 +2,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Bot, Phone, Video, MoreVertical, Send, Smile, Paperclip, X,
-  Play, Pause, RotateCcw, AlertTriangle, CheckCircle, Bug, Terminal
+  Play, Pause, RotateCcw, AlertTriangle, CheckCircle, Bug, Terminal, Sparkles
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
+export default function FlowSimulatorPanel({ flow, isOpen, onClose, onModifyWithAI }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [simVariables, setSimVariables] = useState({});
@@ -376,31 +376,41 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="w-96 border-l border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel h-full flex flex-col justify-between shrink-0 relative z-30 shadow-2xl overflow-hidden glass-card animate-slide-in">
+    <div className="w-96 sm:w-[400px] border-l border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel h-full flex flex-col justify-between shrink-0 relative z-30 shadow-2xl overflow-hidden glass-card animate-slide-in">
       
       {/* Header */}
-      <div className="p-4 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between bg-wa-bg dark:bg-wa-dark-header/40 shrink-0">
-        <div className="flex items-center gap-2">
-          <Phone className="w-4.5 h-4.5 text-wa-green animate-pulse" />
-          <div>
-            <h4 className="font-bold text-xs text-wa-text-primary dark:text-white">WABA Simulator Shell</h4>
-            <span className="text-[9px] font-bold text-wa-green uppercase tracking-wide">Dynamic Sandbox</span>
+      <div className="px-3.5 py-3 border-b border-wa-border dark:border-wa-dark-border flex items-center justify-between gap-2 bg-wa-bg dark:bg-wa-dark-header/40 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <Phone className="w-4 h-4 text-wa-green animate-pulse shrink-0" />
+          <div className="min-w-0">
+            <h4 className="font-bold text-xs text-wa-text-primary dark:text-white whitespace-nowrap leading-tight">WABA Simulator</h4>
+            <span className="text-[9px] font-bold text-wa-green uppercase tracking-wider block leading-tight">Dynamic Sandbox</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onModifyWithAI && (
+            <button
+              onClick={onModifyWithAI}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-purple-200/90 dark:border-purple-800/70 bg-gradient-to-b from-purple-50/90 via-white to-purple-50/50 dark:from-purple-950/40 dark:via-wa-dark-panel dark:to-wa-dark-panel hover:bg-purple-100/70 dark:hover:bg-purple-900/40 hover:border-purple-300 dark:hover:border-purple-600 text-purple-700 dark:text-purple-300 text-[11px] font-bold transition-all shadow-2xs hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap shrink-0"
+              title="Enhance this simulated flow directly with AI"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+              <span className="whitespace-nowrap">Enhance with AI</span>
+            </button>
+          )}
           <button 
             onClick={() => setIsDebugMode(!isDebugMode)}
-            className={`p-1.5 rounded-lg border transition-colors ${
+            className={`p-1.5 rounded-lg border transition-colors shrink-0 ${
               isDebugMode 
                 ? 'bg-wa-green/10 text-wa-green border-wa-green/20' 
                 : 'text-wa-text-secondary border-transparent hover:bg-wa-border dark:hover:bg-wa-dark-border'
             }`}
             title="Toggle Debug Mode"
           >
-            <Bug className="w-4.5 h-4.5" />
+            <Bug className="w-4 h-4" />
           </button>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-wa-border dark:hover:bg-wa-dark-border text-wa-text-secondary">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-wa-border dark:hover:bg-wa-dark-border text-wa-text-secondary shrink-0">
+            <X className="w-4.5 h-4.5" />
           </button>
         </div>
       </div>

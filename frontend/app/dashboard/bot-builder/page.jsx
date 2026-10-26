@@ -38,6 +38,7 @@ export default function BotBuilderPage() {
   
   // AI Bot Builder state
   const [isAIBotBuilderOpen, setIsAIBotBuilderOpen] = useState(false);
+  const [flowToRefineWithAI, setFlowToRefineWithAI] = useState(null);
   
   // Simulator state
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
@@ -390,9 +391,12 @@ export default function BotBuilderPage() {
             </div>
           )}
 
-          {/* AI Bot Builder Button */}
+          {/* AI Bot Builder Button (Fresh / New Generation) */}
           <button 
-            onClick={() => setIsAIBotBuilderOpen(true)}
+            onClick={() => {
+              setFlowToRefineWithAI(null);
+              setIsAIBotBuilderOpen(true);
+            }}
             className="flex items-center gap-2 px-3.5 py-2 border border-purple-200/90 dark:border-purple-800/70 bg-gradient-to-b from-purple-50/70 via-white to-purple-50/30 dark:from-purple-950/30 dark:via-wa-dark-panel dark:to-wa-dark-panel hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:border-purple-300 dark:hover:border-purple-600 text-purple-950 dark:text-purple-100 rounded-xl text-sm font-semibold transition-all duration-200 shadow-xs hover:shadow-sm active:scale-[0.98]"
             title="Generate a complete WhatsApp chatbot flow automatically using AI"
           >
@@ -568,6 +572,15 @@ export default function BotBuilderPage() {
               flow={currentFlow}
               isOpen={isSimulatorOpen}
               onClose={() => setIsSimulatorOpen(false)}
+              onModifyWithAI={() => {
+                const liveData = canvasRef.current?.getFlowData?.() || currentFlow;
+                setFlowToRefineWithAI({
+                  ...currentFlow,
+                  ...liveData,
+                  name: currentFlow?.name || liveData?.name || 'Active Bot Flow'
+                });
+                setIsAIBotBuilderOpen(true);
+              }}
             />
           </div>
         ) : (
@@ -805,7 +818,11 @@ export default function BotBuilderPage() {
         <Portal>
           <AIBotBuilderModal
             isOpen={isAIBotBuilderOpen}
-            onClose={() => setIsAIBotBuilderOpen(false)}
+            onClose={() => {
+              setIsAIBotBuilderOpen(false);
+              setFlowToRefineWithAI(null);
+            }}
+            initialFlowToRefine={flowToRefineWithAI}
             onApplyFlow={handleApplyAIFlow}
             onOpenSimulator={() => {
               setIsSimulatorOpen(true);
