@@ -413,11 +413,11 @@ CRITICAL LANGUAGE & COMMUNICATION RULES (STRICT ENFORCEMENT):
    - GUJARATI: If the customer writes in Gujarati (e.g. "kem cho", "tamari service shu che"), reply in polite Gujarati.
 2. DYNAMIC & CONTEXTUAL RESPONSES (NO CANNED TEMPLATES):
    - Analyze the customer's actual query and answer intelligently using the business catalog and profile.
-   - If they ask "which service you provide", describe the actual attractions, rides, wave pools, services, or packages of ${orgName}.
-   - If they say "i am interested", enthusiastically ask what specifically they are interested in (e.g. day tickets, group discounts, event bookings) and provide actionable details.
+   - If they ask "which service you provide" or "what do you do", describe the core products, services, or solutions of ${orgName} based on the business catalog and profile.
+   - If they say "i am interested", enthusiastically ask what specific service, product, or solution they would like to explore and provide actionable details.
 3. WHATSAPP FORMATTING:
    - Use short, readable paragraphs (1-3 sentences) or neat bullet points.
-   - Use tasteful emojis (✨, 🌊, 🎟️, 👍) naturally without overdoing them.
+   - Use tasteful emojis (✨, 💼, 🚀, 👍) naturally without overdoing them.
 ${config.systemPrompt ? `\nADDITIONAL BUSINESS INSTRUCTIONS FROM ADMIN:\n${config.systemPrompt}\n` : ''}`;
 
     // 5. Build cleaned, strictly alternating messages array
@@ -483,9 +483,9 @@ ${config.systemPrompt ? `\nADDITIONAL BUSINESS INSTRUCTIONS FROM ADMIN:\n${confi
         if (/^(hi|hello|hey|good\s*(morning|afternoon|evening))/i.test(lower)) {
           reply = `Hello! 👋 Welcome to ${orgName}. How can I assist you today? ✨`;
         } else if (lower.includes('service') || lower.includes('provide') || lower.includes('what do you')) {
-          reply = `At ${orgName}, we offer complete water park entertainment including thrilling water slides, a giant wave pool, rain dance, family rides, delicious food options, and party packages! 🌊 How can I help you plan your visit? ✨`;
-        } else if (lower.includes('interested') || lower.includes('book') || lower.includes('ticket')) {
-          reply = `That's great! 🎟️ Are you looking for entry tickets, family packages, or group bookings at ${orgName}? Let me know and I'll share all the details! 👍`;
+          reply = `At ${orgName}, we provide professional services and tailored solutions to meet your requirements. 💼 How can I assist you today? ✨`;
+        } else if (lower.includes('interested') || lower.includes('pricing') || lower.includes('price') || lower.includes('cost') || lower.includes('quote')) {
+          reply = `That's great! 👍 I'd be happy to share details and pricing for our services at ${orgName}. Could you share a few details about what you're looking for? ✨`;
         } else {
           reply = `Hello! 👋 Thank you for messaging ${orgName}. How can I assist you with our services today? ✨`;
         }
@@ -494,9 +494,9 @@ ${config.systemPrompt ? `\nADDITIONAL BUSINESS INSTRUCTIONS FROM ADMIN:\n${confi
         if (/^(namaste|pranam|ram ram|kem cho)/i.test(lower)) {
           reply = `Namaste! 🙏 ${orgName} mein aapka swagat hai. Main aapki kya sahayata kar sakta hoon? ✨`;
         } else if (lower.includes('service') || lower.includes('kya') || lower.includes('su')) {
-          reply = `${orgName} mein hum thrilling water slides, wave pool, rain dance, family rides aur event packages provide karte hain. 🌊 Aap kis bare mein jankari chahte hain? ✨`;
-        } else if (lower.includes('interested') || lower.includes('ticket') || lower.includes('book') || lower.includes('price')) {
-          reply = `Bahut badiya! 🎟️ Aap ${orgName} ke ticket prices, family packages ya group booking mein se kis bare mein janna chahte hain? Main aapko sari details bata deta hoon. 👍`;
+          reply = `${orgName} mein hum aapke liye professional services aur customized solutions provide karte hain. 💼 Aap kis specific service ke bare mein jankari chahte hain? ✨`;
+        } else if (lower.includes('interested') || lower.includes('price') || lower.includes('cost') || lower.includes('rate') || lower.includes('kitna')) {
+          reply = `Bahut badiya! 👍 Hum aapko ${orgName} ki pricing aur details provide kar sakte hain. Aap apni requirement thoda detail mein bata sakte hain? ✨`;
         } else {
           reply = `Namaste! 🙏 ${orgName} mein contact karne ke liye dhanyawad. Main aapki kya madad kar sakta hoon? ✨`;
         }
@@ -840,7 +840,7 @@ Example format:
       fallbackSuggestions = [
         `Hello ${contactName}! We have special packages and competitive pricing available. Would you like me to share our full pricing brochure with you? 📄`,
         `Hi! We'd love to help you with the rates. How many people or which specific package are you planning for? 😊`,
-        `Sure! I can send you all ticket and package details right here on WhatsApp. Let me know if you would also like to check slot availability! 🎟️`
+        `Sure! I can send you all pricing and service details right here on WhatsApp. Let me know if you would like to proceed! 📄`
       ];
     } else if (lowerInbound.includes('hi') || lowerInbound.includes('hello') || lowerInbound.includes('hey') || lowerInbound.includes('namaste') || lowerInbound.includes('kem cho')) {
       fallbackSuggestions = [
@@ -850,9 +850,9 @@ Example format:
       ];
     } else if (lowerInbound.includes('book') || lowerInbound.includes('timing') || lowerInbound.includes('open') || lowerInbound.includes('location') || lowerInbound.includes('address')) {
       fallbackSuggestions = [
-        `Hi ${contactName}! We are open and welcoming guests. What date would you like to visit or book? 📅`,
-        `Hello! I can share our exact location map and visiting hours with you right now. 📍`,
-        `Sure, I can assist you with booking right away. How many people will be joining? 👥`
+        `Hi ${contactName}! We're happy to assist you. What date or schedule works best for you? 📅`,
+        `Hello! I can share our exact location map and working hours with you right now. 📍`,
+        `Sure, I can assist you with your booking or inquiry right away. What are your preferred details? 👥`
       ];
     } else {
       fallbackSuggestions = [

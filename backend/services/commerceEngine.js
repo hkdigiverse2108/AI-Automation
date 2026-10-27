@@ -82,7 +82,12 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
     }
 
     // Only proceed if the user actually has active commerce products configured
-    const activeProductsCount = await Product.countDocuments({ userId, isActive: true });
+    const activeProductsCount = await Product.countDocuments({
+      $or: [
+        { organizationId: conversation.organization_id, isArchived: false },
+        { userId, isArchived: false }
+      ]
+    });
     if (activeProductsCount === 0 && !inCommerce && !commerceState) {
       return false;
     }
@@ -100,7 +105,7 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
                             ['view_cart', 'back_catalog', 'clear_cart', 'cancel_checkout'].includes(textVal);
 
     // Check if message is commerce related
-    const isCommerce = (isTriggerKeyword || isCartKeyword || inCommerce || commerceState || isInteractiveId) && activeProductsCount > 0;
+    const isCommerce = isInteractiveId || inCommerce || commerceState || ((isTriggerKeyword || isCartKeyword) && activeProductsCount > 0);
 
     try {
       const ApiLog = require('../models/ApiLog');
@@ -131,6 +136,13 @@ async function handleCommerceMessage(userId, conversation, contact, savedMsg, ph
     } catch (_) {}
 
     if (!isCommerce) return false; // Hand over to normal bot flow
+
+    // Clear active bot flow question so commerce session is isolated
+    if (conversation.currentNodeId || conversation.currentFlowId) {
+      conversation.currentNodeId = null;
+      conversation.currentFlowId = null;
+      await conversation.save();
+    }
 
     logger.info(`[COMMERCE ENGINE] Processing message for ${contact.phone}. Current State: ${commerceState}`);
 
@@ -257,6 +269,8 @@ async function renderCategories(userId, conversation, contact, phoneNumberId, to
     return;
   }
 
+  conversation.currentNodeId = null;
+  conversation.currentFlowId = null;
   conversation.flowVariables.set('commerce_state', 'browsing_categories');
   conversation.flowVariables.set('in_commerce', 'true');
   await conversation.save();

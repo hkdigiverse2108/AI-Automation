@@ -378,5 +378,5 @@ process.on('uncaughtException', (err) => { logger.error('Uncaught exception:', e
 
 startServer();
 
-// Reload trigger: ai bot builder scraping category & offer detection updated
+// Reload trigger: commerceEngine & botEngine edge isolation updated
 module.exports = { app, server };

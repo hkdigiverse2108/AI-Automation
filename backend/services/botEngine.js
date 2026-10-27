@@ -468,23 +468,20 @@ async function processIncomingMessage(messageData, phoneNumberId, io) {
     const handledByAutomations = await runAutomations(userId, conversation, contact, savedMsg, phoneNumberId, token, io);
     if (handledByAutomations) return;
 
-    // If the customer is HK user and clicks/says "Start Registration", release takeover to trigger the bot flow
-    const isHkUser = userId.toString() === '6a4256a6f959e4aa133771ab';
-    if (isHkUser) {
-      const userText = (content.text || '').toLowerCase().trim();
-      if (userText === 'start registration' || userText === 'start_registration') {
-        logger.info(`Customer initiated registration for HK user. Releasing human takeover.`);
-        conversation.status = 'bot';
-        conversation.takeover_status = 'ai';
-        conversation.lock_status = false;
-        conversation.assignedAgent = null;
-        conversation.assigned_agent_id = null;
-        conversation.currentNodeId = null;
-        conversation.currentFlowId = null;
-        conversation.flowVariables = new Map();
-        conversation.markModified('flowVariables');
-        await conversation.save();
-      }
+    // If the customer clicks/says "Start Registration", release takeover to trigger the bot flow
+    const userText = (content.text || '').toLowerCase().trim();
+    if (userText === 'start registration' || userText === 'start_registration') {
+      logger.info(`Customer initiated registration. Releasing human takeover to start bot flow.`);
+      conversation.status = 'bot';
+      conversation.takeover_status = 'ai';
+      conversation.lock_status = false;
+      conversation.assignedAgent = null;
+      conversation.assigned_agent_id = null;
+      conversation.currentNodeId = null;
+      conversation.currentFlowId = null;
+      conversation.flowVariables = new Map();
+      conversation.markModified('flowVariables');
+      await conversation.save();
     }
 
     if (conversation.status === 'human' || conversation.lock_status || conversation.takeover_status === 'human') {
@@ -621,57 +618,18 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
     if (!flow || !currentNode) {
       // Find matching flow
       const activeFlows = await BotFlow.find({ userId, isActive: true }).lean();
+      const userText = (content.text || '').toLowerCase().trim();
 
-      const isHkUser = userId.toString() === '6a4256a6f959e4aa133771ab';
-      if (isHkUser) {
-        const userText = (content.text || '').toLowerCase().trim();
-        if (userText === 'start registration' || userText === 'start_registration') {
-          flow = activeFlows.find(f => f.name === 'Event Registration & Payment Bot');
-          if (flow) {
-            currentNode = flow.nodes.find((n) => n.id === 'node_reg_name');
-            if (currentNode) {
-              conversation.currentFlowId = flow._id;
-              conversation.currentNodeId = currentNode.id;
-              conversation.flowVariables = new Map();
-              conversation.markModified('flowVariables');
-              await conversation.save();
-              await BotFlow.updateOne({ _id: flow._id }, { $inc: { totalSessions: 1 } });
-              await executeNode(userId, conversation, contact, flow, currentNode, phoneNumberId, token, io, content);
-              return;
-            }
-          }
-        }
-
-        let isQualified = false;
-        if (isNew) {
-          // If conversation is deleted or brand new, reset qualification/registration custom fields in CRM
-          if (contact.customFields) {
-            contact.customFields.set('conversationStatus', undefined);
-            contact.customFields.set('registrationStatus', undefined);
-            contact.customFields.set('paymentScreenshotReceived', undefined);
-            contact.customFields.set('leadStatus', undefined);
-            contact.customFields.set('interestStatus', undefined);
-            contact.customFields.set('businessCategory', undefined);
-            contact.customFields.set('companySize', undefined);
-            contact.customFields.set('city', undefined);
-            contact.customFields.set('paymentScreenshot', undefined);
-            contact.customFields.set('paymentStatus', undefined);
-            contact.markModified('customFields');
-            await contact.save();
-          }
-        } else {
-          isQualified = contact.customFields && contact.customFields.get('conversationStatus') === 'Qualified Lead';
-        }
-
-        if (isQualified) {
-          // Qualified leads sending normal messages should NOT trigger any bot flow automatically
-          return;
-        }
-
-        flow = activeFlows.find(f => f.name.includes('IT Solutions') || f.name.includes('IT Company')) ||
-               activeFlows.find(f => f.name === 'Digital Business Transformation Campaign Bot');
+      // 1. Check for explicit registration initiation command
+      if (userText === 'start registration' || userText === 'start_registration') {
+        flow = activeFlows.find(f => 
+          f.name === 'Event Registration & Payment Bot' || 
+          f.name?.toLowerCase().includes('registration') ||
+          f.trigger?.keywords?.some(kw => kw.toLowerCase().includes('registration'))
+        );
         if (flow) {
-          currentNode = flow.nodes.find((n) => n.id === (flow.entryNodeId || flow.nodes[0]?.id));
+          currentNode = flow.nodes.find((n) => n.id === 'node_reg_name') ||
+                        flow.nodes.find((n) => n.id === (flow.entryNodeId || flow.nodes[0]?.id));
           if (currentNode) {
             conversation.currentFlowId = flow._id;
             conversation.currentNodeId = currentNode.id;
@@ -685,31 +643,69 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
         }
       }
 
-      if (!flow) {
-        flow = activeFlows.find(f => (f.name.includes('IT Solutions') || f.name.includes('IT Company')) && f.isActive);
+      // 2. Lead qualification handling
+      let isQualified = false;
+      if (isNew) {
+        // If conversation is deleted or brand new, reset qualification/registration custom fields in CRM
+        if (contact.customFields) {
+          contact.customFields.set('conversationStatus', undefined);
+          contact.customFields.set('registrationStatus', undefined);
+          contact.customFields.set('paymentScreenshotReceived', undefined);
+          contact.customFields.set('leadStatus', undefined);
+          contact.customFields.set('interestStatus', undefined);
+          contact.customFields.set('businessCategory', undefined);
+          contact.customFields.set('companySize', undefined);
+          contact.customFields.set('city', undefined);
+          contact.customFields.set('paymentScreenshot', undefined);
+          contact.customFields.set('paymentStatus', undefined);
+          contact.markModified('customFields');
+          await contact.save();
+        }
+      } else {
+        isQualified = contact.customFields && contact.customFields.get('conversationStatus') === 'Qualified Lead';
       }
 
+      if (isQualified && !isResetCommand) {
+        // Qualified leads sending normal messages should NOT trigger any bot flow automatically
+        return;
+      }
+
+      // 3. Match flow dynamically by triggers
+      // Priority A: Keyword match
       if (!flow) {
         for (const f of activeFlows) {
-          if (f.trigger.type === 'any') {
-            flow = f;
-            break;
-          }
-          if (f.trigger.type === 'keyword' && f.trigger.keywords?.length) {
-            if (f.trigger.keywords.some((kw) => userText.includes(kw.toLowerCase()))) {
+          if (f.trigger?.type === 'keyword' && f.trigger.keywords?.length) {
+            if (f.trigger.keywords.some((kw) => kw && (userText === kw.toLowerCase() || userText.includes(kw.toLowerCase()) || (kw.length > 2 && kw.toLowerCase().includes(userText))))) {
               flow = f;
               break;
             }
           }
-          if (f.trigger.type === 'source' && f.trigger.source === contact.source) {
+        }
+      }
+
+      // Priority B: Source match
+      if (!flow) {
+        for (const f of activeFlows) {
+          if (f.trigger?.type === 'source' && f.trigger.source === contact.source) {
             flow = f;
             break;
           }
         }
       }
 
+      // Priority C: Catch-all 'any' trigger
+      if (!flow) {
+        for (const f of activeFlows) {
+          if (f.trigger?.type === 'any') {
+            flow = f;
+            break;
+          }
+        }
+      }
+
+      // Priority D: Fallback to active IT/Services bot if present, or first active flow
       if (!flow && activeFlows.length > 0) {
-        flow = activeFlows[0];
+        flow = activeFlows.find(f => f.name?.includes('IT Solutions') || f.name?.includes('IT Company') || f.name === 'Digital Business Transformation Campaign Bot') || activeFlows[0];
       }
 
       if (flow) {
@@ -801,8 +797,8 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
         const hasMatch = (val) => {
           if (!val) return false;
           if (validChoices.includes(val) || validEdges.includes(val)) return true;
-          if (validChoices.some(c => c.includes(val) || val.includes(c))) return true;
-          if (validEdges.some(e => e.includes(val) || val.includes(e))) return true;
+          if (validChoices.some(c => c.includes(val) || (c.length > 1 && val.includes(c)))) return true;
+          if (validEdges.some(e => e.includes(val) || (e.length > 1 && val.includes(e)))) return true;
           return false;
         };
 
@@ -849,28 +845,22 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
         // Phone number validation
         if (varName.toLowerCase().includes('phone') || varName.toLowerCase().includes('mobile')) {
           const isSameKeyword = ['same', 'same number', 'same phone', 'यही नंबर', 'આ જ નંબર', 'yes', 'ha', 'haa', 'yep'].includes(textVal) || /same/i.test(textVal);
-          const isHkUser = userId.toString() === '6a4256a6f959e4aa133771ab';
           const cleanedPhone = textVal.replace(/[+\s\-]/g, '');
           
           let isPhoneValid = isSameKeyword;
           if (!isPhoneValid) {
-            if (isHkUser) {
-              let localNumber = cleanedPhone;
-              if (localNumber.startsWith('91') && localNumber.length === 12) {
-                localNumber = localNumber.substring(2);
-              } else if (localNumber.startsWith('0') && localNumber.length === 11) {
-                localNumber = localNumber.substring(1);
-              }
-              isPhoneValid = /^[6-9]\d{9}$/.test(localNumber);
-            } else {
-              isPhoneValid = /^\d{8,15}$/.test(cleanedPhone);
+            let localNumber = cleanedPhone;
+            if (localNumber.startsWith('91') && localNumber.length === 12) {
+              localNumber = localNumber.substring(2);
+            } else if (localNumber.startsWith('0') && localNumber.length === 11) {
+              localNumber = localNumber.substring(1);
             }
+            // Valid if 10-digit Indian mobile number OR 8-15 digit international phone number
+            isPhoneValid = /^[6-9]\d{9}$/.test(localNumber) || /^\d{8,15}$/.test(cleanedPhone);
           }
           
           if (!isPhoneValid) {
-            let errorText = isHkUser 
-              ? "Please enter a valid Indian mobile number (e.g., 9876543210)."
-              : "Please enter a valid phone number (digits only, e.g., 9876543210).";
+            let errorText = "Please enter a valid mobile or phone number (e.g., 9876543210).";
             if (isGuj) {
               errorText = "કૃપા કરીને સાચો ફોન નંબર દાખલ કરો (ફક્ત અંકો, જેમ કે 9876543210).";
             }
@@ -995,8 +985,8 @@ async function processBotFlow(userId, conversation, contact, content, msgType, p
             const labels = edgeLabel.split(',').map(s => s.trim());
             return labels.some(l => 
               l === val || 
-              (l && val.includes(l)) || 
-              (val && l.includes(val))
+              (l && l.length > 1 && val.includes(l)) || 
+              (val && val.length > 1 && l.includes(val))
             ) || condVal === val;
           });
         };
@@ -1870,7 +1860,7 @@ async function syncFlowVariablesToCRM(userId, contact, conversation) {
     if (vars.business_type) contact.customFields.set('businessType', vars.business_type);
     if (vars.company_size) contact.customFields.set('companySize', vars.company_size);
     if (vars.meeting_preference) contact.customFields.set('meetingPreference', vars.meeting_preference);
-    // Event specific mappings for Digital Business Transformation
+    // Lead interest mappings
     if (vars.interest) {
       const isInterested = vars.interest === 'Interested' || vars.interest.includes('Interested');
       contact.customFields.set('leadStatus', isInterested ? 'Interested' : 'Not Interested');
@@ -1881,8 +1871,14 @@ async function syncFlowVariablesToCRM(userId, contact, conversation) {
     }
     if (vars.business_category) {
       contact.customFields.set('businessCategory', vars.business_category);
-      contact.customFields.set('eventName', 'Digital Business Transformation');
-      contact.customFields.set('leadSource', 'WhatsApp Event Campaign');
+      if (vars.event_name) {
+        contact.customFields.set('eventName', vars.event_name);
+      }
+      if (vars.lead_source) {
+        contact.customFields.set('leadSource', vars.lead_source);
+      } else if (!contact.customFields.get('leadSource')) {
+        contact.customFields.set('leadSource', contact.source === 'direct' ? 'WhatsApp Bot Flow' : contact.source);
+      }
       contact.customFields.set('conversationStatus', 'Qualified Lead');
       contact.customFields.set('qualificationTime', new Date().toISOString());
       contact.segment = 'hot';

@@ -8,12 +8,13 @@ import {
   FileText, Clock, CreditCard, Truck, History, XCircle, CheckCircle, TrendingUp
 } from 'lucide-react';
 import api from '../../../lib/api';
-import { useAuthStore } from '../../../lib/store';
+import { useAuthStore, useConfirmStore } from '../../../lib/store';
 import { getFastCache, setFastCache } from '../../../lib/usePageData';
 import Portal from '../../../components/Portal';
 
 export default function CatalogDashboard() {
   const { user } = useAuthStore();
+  const confirm = useConfirmStore((state) => state.confirm);
   const [activeTab, setActiveTab] = useState('browse'); // 'browse' | 'cart' | 'manage'
   
   // Contacts/Customers context
@@ -456,7 +457,7 @@ export default function CatalogDashboard() {
   };
 
   const handleDeleteCategory = async (catId) => {
-    if (!window.confirm('Delete this category?')) return;
+    if (!await confirm('Are you sure you want to delete this category?', 'Delete Category')) return;
     try {
       const { data } = await api.delete(`/categories/${catId}`);
       if (data.success) {
@@ -542,7 +543,7 @@ export default function CatalogDashboard() {
   };
 
   const handleDeleteProduct = async (productId) => {
-    if (!window.confirm('Delete this product and all associated images permanently?')) return;
+    if (!await confirm('Are you sure you want to delete this product and all associated images permanently?', 'Delete Product')) return;
     try {
       const { data } = await api.delete(`/products/${productId}`);
       if (data.success) {
@@ -608,7 +609,7 @@ export default function CatalogDashboard() {
   };
 
   const handleDeleteProductImage = async (imageId) => {
-    if (!window.confirm('Delete this image?')) return;
+    if (!await confirm('Are you sure you want to delete this product image?', 'Delete Product Image')) return;
     try {
       const { data } = await api.delete(`/products/${editingProduct._id}/images/${imageId}`);
       if (data.success) {

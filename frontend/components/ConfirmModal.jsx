@@ -10,7 +10,7 @@ export default function ConfirmModal() {
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[100001] flex items-center justify-center p-4">
       {/* Backdrop with soft blur */}
       <div 
         className="absolute inset-0 bg-slate-950/40 backdrop-blur-md transition-opacity duration-300 animate-fade-in"

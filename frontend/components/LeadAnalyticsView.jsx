@@ -1209,7 +1209,7 @@ export default function LeadAnalyticsView({ allLeads = [], agents = [], onBackTo
               <span>Team & Agent Performance Scorecard</span>
             </h3>
             <p className="text-[11px] text-wa-text-secondary mt-0.5">
-              Breakdown of lead allocation (aayi), conversions, drops (gayi), and win rate per salesperson.
+              Breakdown of lead allocation, conversions, drops, and win rate per salesperson.
             </p>
           </div>
           <div className="text-xs font-semibold text-wa-text-secondary">
@@ -1222,9 +1222,9 @@ export default function LeadAnalyticsView({ allLeads = [], agents = [], onBackTo
             <thead>
               <tr className="border-b border-wa-border dark:border-wa-dark-border bg-wa-bg dark:bg-wa-dark-header/40 text-[10px] uppercase font-bold text-wa-text-secondary tracking-wider">
                 <th className="px-5 py-3.5">Sales Person / Agent</th>
-                <th className="px-5 py-3.5 text-center">Total Assigned (Aayi)</th>
+                <th className="px-5 py-3.5 text-center">Total Assigned</th>
                 <th className="px-5 py-3.5 text-center">Won Deals (Convert)</th>
-                <th className="px-5 py-3.5 text-center">Lost Deals (Gayi)</th>
+                <th className="px-5 py-3.5 text-center">Lost Deals</th>
                 <th className="px-5 py-3.5 text-center">In Pipeline</th>
                 <th className="px-5 py-3.5">Conversion / Win Rate</th>
                 <th className="px-5 py-3.5 text-emerald-700 dark:text-emerald-400 font-bold">🏆 Top Win Factor</th>
@@ -1326,7 +1326,7 @@ export default function LeadAnalyticsView({ allLeads = [], agents = [], onBackTo
                 <span>Deal Win Drivers (Winning Reasons)</span>
               </h4>
               <p className="text-[11px] text-wa-text-secondary">
-                Why deals closed successfully (Kyu convert hui)
+                Why deals closed successfully
               </p>
             </div>
             <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/50 dark:border-emerald-800/40 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
@@ -1396,7 +1396,7 @@ export default function LeadAnalyticsView({ allLeads = [], agents = [], onBackTo
                 <span>Lead Drop Analysis (Loss Reasons)</span>
               </h4>
               <p className="text-[11px] text-wa-text-secondary">
-                Top reasons why inquiries failed to convert (Kyu gayi)
+                Top reasons why inquiries failed to convert
               </p>
             </div>
             <span className="text-xs font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200/50 dark:border-rose-800/40 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
