@@ -17,7 +17,7 @@ const PRESET_TEMPLATES = [
     websiteUrl: 'https://hkdigiverse.com',
     offers: 'Flat 20% OFF on all custom automation & website builds this month!',
     language: 'English',
-    prompt: 'Create a multi-step WhatsApp bot that warmly welcomes visitors when they say hi, showcases our core services (Web Development, WhatsApp Automation, AI Agents, SEO) with quick reply buttons, explains each service when clicked, captures user name and phone number for a free proposal quote, and confirms next steps.'
+    prompt: 'Build a comprehensive 12-16 node WhatsApp bot modeled after HK DigiVerse IT Solutions Bot. Welcome visitors with an interactive menu (Explore Services, Get Quote, Portfolio, Special Offers, Talk to Expert), 4 dedicated detail cards for Web, Mobile, AI Automation & Cloud, a 2-step qualification funnel (project scope & launch timeline), client testimonials, smart WhatsApp phone capture with "Same Number" button, live agent escalation, and instant CRM sync confirmation.'
   },
   {
     id: 'clinic',
@@ -27,7 +27,7 @@ const PRESET_TEMPLATES = [
     websiteUrl: '',
     offers: 'Free initial health consultation & dental checkup on first visit!',
     language: 'English',
-    prompt: 'Build a patient consultation bot. Greet patients warmly, show options (Book Doctor Appointment, Clinic Timings, Emergency Contact, Services), capture patient name, preferred department/specialist, date, and phone number, and provide instant booking confirmation.'
+    prompt: 'Create a multi-tier patient consultation bot. Welcome patients with an interactive menu, 4 dedicated cards for Doctor Consultations, Preventive Checkup Packages, Dental Care, and Clinic Hours/Emergency, 2-step appointment triage (visit type & preferred day), patient name and smart phone capture, and instant booking confirmation with CRM sync.'
   },
   {
     id: 'real_estate',
@@ -37,7 +37,7 @@ const PRESET_TEMPLATES = [
     websiteUrl: '',
     offers: 'Zero brokerage fees + exclusive pre-launch booking discounts!',
     language: 'English',
-    prompt: 'Create a property inquiry bot. Greet leads, offer options (Browse 2BHK/3BHK Flats, Luxury Villas, Schedule Site Visit, Download Brochure), ask for their budget and location preference, collect contact details, and arrange an immediate callback.'
+    prompt: 'Create an enterprise property consultation bot. Welcome leads with options (2/3 BHK Flats, Gated Villas, Commercial Spaces, Free VIP Site Visit), dedicated cards with floor plans & amenities, 2-step buyer qualification (possession timeline & investment tier), lead name and WhatsApp phone capture, and instant callback confirmation.'
   },
   {
     id: 'food_dining',
@@ -47,7 +47,7 @@ const PRESET_TEMPLATES = [
     websiteUrl: '',
     offers: 'Get a complimentary beverage or dessert on orders above ₹500!',
     language: 'English',
-    prompt: 'Create an engaging food ordering and reservation bot. Greet customers, show buttons (Today\'s Specials, Reserve Table, Order Online, Location & Hours), collect guest count and booking time, capture mobile number, and confirm table reservation.'
+    prompt: 'Create a rich dining and ordering bot. Greet food lovers with an interactive hub (Chef Specials, Table Reservation, Doorstep Delivery, Banquet Catering), dedicated cards for each category with pricing & preparation timelines, 2-step booking qualification (dining occasion & timing), contact details capture, and instant table reservation confirmation.'
   },
   {
     id: 'ecommerce',
@@ -57,17 +57,17 @@ const PRESET_TEMPLATES = [
     websiteUrl: '',
     offers: 'Use code FESTIVE15 for flat 15% discount on checkout!',
     language: 'English',
-    prompt: 'Design an automated store assistant. Greet shoppers, provide buttons (Shop New Arrivals, Track Order, Return & Exchange, Customer Support), help them find products, and capture their email or phone for order updates.'
+    prompt: 'Build a multi-tier automated store assistant. Greet shoppers warmly, showcase 4 dedicated cards for Bestsellers, Live Order Tracking, Value Gift Bundles, and Bulk Orders/Support, 2-step shopping triage, customer name and WhatsApp phone capture, and instant dispatch/support confirmation.'
   },
   {
     id: 'bilingual_gujarati',
     label: '🇮🇳 Bilingual (English + ગુજરાતી)',
-    businessName: 'Shreeji Enterprise',
-    industry: 'Trading & Services',
-    websiteUrl: '',
-    offers: 'નવા ગ્રાહકો માટે ખાસ 15% ડિસ્કાઉન્ટ!',
+    businessName: 'HK DigiVerse',
+    industry: 'IT & Software / Digital Marketing',
+    websiteUrl: 'https://hkdigiverse.com',
+    offers: 'નવા ગ્રાહકો માટે ખાસ 20% ડિસ્કાઉન્ટ!',
     language: 'Bilingual (English + Gujarati)',
-    prompt: 'નમસ્તેથી સ્વાગત કરો. અમારી સેવાઓ, ખાસ ઑફર અને એક્સપર્ટ સાથે વાત કરવાના ઓપ્શન બટન આપો. ગ્રાહકનું નામ અને ફોન નંબર કલેક્ટ કરો અને કન્ફર્મેશન મેસેજ મોકલો.'
+    prompt: 'નમસ્તેથી વ્યાવસાયિક સ્વાગત કરો. અમારી 4 મુખ્ય સેવાઓ (વેબસાઇટ, મોબાઇલ એપ, AI વોટ્સએપ ઓટોમેશન, ક્લાઉડ ERP) માટે વિગતવાર કાર્ડ્સ, પ્રોજેક્ટ સ્કોપ અને સમય-મર્યાદા પૂછવા માટે 2-સ્ટેપ ક્વોટેશન, પોર્ટફોલિયો, ખાસ ઑફર, એક્સપર્ટ સાથે લાઈવ હેન્ડઓફ, ગ્રાહકનું નામ અને સ્માર્ટ ફોન નંબર કલેક્ટ કરો અને CRM કન્ફર્મેશન મેસેજ આપો.'
   }
 ];
 

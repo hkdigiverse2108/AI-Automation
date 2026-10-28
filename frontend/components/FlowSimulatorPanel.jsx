@@ -44,33 +44,52 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose, onModifyWith
 
     const cleanInput = String(userText || '').toLowerCase().trim();
 
-    // 1. Exact match across comma-separated labels or condition values
+    // 1. Exact match across label, button, title, text, name, condition value
     const exactMatch = node.edges.find(e => {
-      const label = (e.label || '').toLowerCase();
-      const condVal = (e.condition?.value || '').toLowerCase();
-      const parts = label.split(',').map(s => s.trim());
-      return parts.some(p => p === cleanInput) || condVal === cleanInput;
+      const candidates = [
+        e.label, e.button, e.title, e.text, e.name,
+        e.condition?.value
+      ].filter(Boolean).map(s => String(s).toLowerCase().trim());
+
+      return candidates.some(c => {
+        const parts = c.split(',').map(p => p.trim());
+        return parts.includes(cleanInput) || c === cleanInput;
+      });
     });
     if (exactMatch) return exactMatch;
 
-    // 2. Partial match
+    // 2. Partial match (cleanInput contains candidate or vice-versa)
     const partialMatch = node.edges.find(e => {
-      const label = (e.label || '').toLowerCase();
-      const condVal = (e.condition?.value || '').toLowerCase();
-      const parts = label.split(',').map(s => s.trim()).filter(Boolean);
-      return parts.some(p => cleanInput.includes(p) || p.includes(cleanInput)) ||
-             (condVal && cleanInput.includes(condVal));
+      const candidates = [
+        e.label, e.button, e.title, e.text, e.name,
+        e.condition?.value
+      ].filter(Boolean).map(s => String(s).toLowerCase().trim());
+
+      return candidates.some(c => {
+        const parts = c.split(',').map(p => p.trim()).filter(Boolean);
+        return parts.some(p => p.length > 2 && (cleanInput.includes(p) || p.includes(cleanInput)));
+      });
     });
     if (partialMatch) return partialMatch;
 
-    // 3. Default edge
+    // 3. Match by button index if user clicked a button
+    const buttons = node.data?.message?.buttons || [];
+    const btnIndex = buttons.findIndex(b => {
+      const bTitle = (typeof b === 'string' ? b : (b.text || b.title || b.id || '')).toLowerCase().trim();
+      return bTitle === cleanInput || cleanInput.includes(bTitle) || bTitle.includes(cleanInput);
+    });
+    if (btnIndex >= 0 && node.edges[btnIndex]) {
+      return node.edges[btnIndex];
+    }
+
+    // 4. Default edge
     const defaultEdge = node.edges.find(e => {
       const label = (e.label || '').toLowerCase();
       return label.includes('default');
     });
     if (defaultEdge) return defaultEdge;
 
-    // 4. Fallback to first edge
+    // 5. Fallback to first edge
     return node.edges[0];
   };
 
@@ -154,6 +173,38 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose, onModifyWith
 
     switch (nodeType) {
       case 'message': {
+        const hasInteractive = (node.data?.message?.buttons && node.data?.message?.buttons.length > 0) ||
+                               (node.data?.message?.sections && node.data?.message?.sections.length > 0);
+
+        if (hasInteractive && userMsgText === null) {
+          // Interactive message with buttons/list: send and wait for user to select or reply
+          setTyping(true);
+          await sleep(800);
+          setTyping(false);
+
+          const rawText = extractNodeText(node);
+          const parsedText = interpolateVars(rawText);
+          addBotMessage(parsedText, {
+            type: node.data?.message?.type,
+            header: interpolateVars(node.data?.message?.header || ''),
+            footer: interpolateVars(node.data?.message?.footer || ''),
+            buttons: node.data?.message?.buttons,
+            sections: node.data?.message?.sections
+          });
+          // Wait for user click/response
+          break;
+        } else if (hasInteractive && userMsgText !== null) {
+          // User selected an option or replied to this interactive message
+          const nextEdge = findMatchingEdge(node, userMsgText);
+          if (nextEdge) {
+            executeStep(nextEdge.targetNodeId);
+          } else {
+            executeStep(null);
+          }
+          break;
+        }
+
+        // Standard pure-text message without buttons: send and auto-advance to nextEdge
         setTyping(true);
         await sleep(800);
         setTyping(false);
@@ -338,10 +389,12 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose, onModifyWith
     setMessages(prev => [...prev, { sender: 'user', text: userText, timestamp: new Date() }]);
     setInputText('');
 
-    // Advance simulator if we are waiting for a question reply
+    // Advance simulator if we are waiting for a question or interactive message reply
     const node = flow.nodes.find(n => n.id === currentNodeId);
     const nodeType = node?.data?.nodeType || (node?.type ? node.type.replace(/Node$/, '') : 'message');
-    if (nodeType === 'question') {
+    const hasInteractive = (node?.data?.message?.buttons && node.data.message.buttons.length > 0) ||
+                           (node?.data?.message?.sections && node.data.message.sections.length > 0);
+    if (nodeType === 'question' || hasInteractive) {
       executeStep(currentNodeId, userText);
     } else {
       addSystemMessage('💡 Chatbot flow is currently executing action blocks. Input ignored.');
@@ -355,7 +408,9 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose, onModifyWith
 
     const node = flow.nodes.find(n => n.id === currentNodeId);
     const nodeType = node?.data?.nodeType || (node?.type ? node.type.replace(/Node$/, '') : 'message');
-    if (nodeType === 'question') {
+    const hasInteractive = (node?.data?.message?.buttons && node.data.message.buttons.length > 0) ||
+                           (node?.data?.message?.sections && node.data.message.sections.length > 0);
+    if (nodeType === 'question' || hasInteractive) {
       executeStep(currentNodeId, optionTitle);
     }
   };

@@ -1386,8 +1386,8 @@ export default function CatalogDashboard() {
                         Commerce History
                       </button>
                     </div>
-                    <h5 className="font-extrabold text-xs text-wa-text-primary dark:text-white">{selectedOrder.customerName || 'N/A'}</h5>
-                    <span className="block text-[10px] text-wa-text-secondary font-mono">{selectedOrder.phoneNumber || 'N/A'}</span>
+                    <h5 className="font-extrabold text-xs text-wa-text-primary dark:text-white">{selectedOrder.customerName || selectedOrder.contactId?.name || 'N/A'}</h5>
+                    <span className="block text-[10px] text-wa-text-secondary font-mono">{selectedOrder.phoneNumber || selectedOrder.contactId?.phone || 'N/A'}</span>
                     {selectedOrder.address && (
                       <p className="text-[10px] text-wa-text-secondary mt-1 block bg-white dark:bg-wa-dark-panel p-2 rounded border border-wa-border/50">
                         <strong>Address:</strong> {selectedOrder.address}

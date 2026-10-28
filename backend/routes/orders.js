@@ -13,6 +13,39 @@ const { verifyToken } = require('../middleware/auth');
 const { validateObjectId } = require('../middleware/validator');
 const { createNotification } = require('../services/notificationService');
 const { decryptField } = require('../services/encryption');
+const { getOekForUser, decryptContact, decryptAES, generateHMAC } = require('../services/oekService');
+
+// Helper: Decrypt contact and order fields using user's OEK
+function formatAndDecryptOrder(o, rawOek) {
+  if (!o) return o;
+  if (rawOek) {
+    if (o.contactId && typeof o.contactId === 'object') {
+      o.contactId = decryptContact(o.contactId, rawOek);
+    }
+    if (o.customerName) {
+      o.customerName = decryptAES(o.customerName, rawOek);
+    }
+    if (o.phoneNumber) {
+      o.phoneNumber = decryptAES(o.phoneNumber, rawOek);
+    }
+    if (o.address) {
+      o.address = decryptAES(o.address, rawOek);
+    }
+    if (o.notes) {
+      o.notes = decryptAES(o.notes, rawOek);
+    }
+  }
+
+  // Populate fallback customerName / phoneNumber from populated contact if missing
+  if (!o.customerName && o.contactId?.name) {
+    o.customerName = o.contactId.name;
+  }
+  if (!o.phoneNumber && o.contactId?.phone) {
+    o.phoneNumber = o.contactId.phone;
+  }
+
+  return o;
+}
 
 router.use(verifyToken);
 const checkFeatureAccess = require('../middleware/checkFeatureAccess');
@@ -142,12 +175,41 @@ router.get('/', async (req, res) => {
     if (status) query.status = status;
     if (contactId && mongoose.Types.ObjectId.isValid(contactId)) query.contactId = contactId;
 
+    const rawOek = await getOekForUser(req.userId);
+
     if (search.trim()) {
-      query.$or = [
-        { orderNumber: new RegExp(search.trim(), 'i') },
-        { customerName: new RegExp(search.trim(), 'i') },
-        { phoneNumber: new RegExp(search.trim(), 'i') }
+      const cleanSearch = search.trim();
+      const escaped = cleanSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const orConditions = [
+        { orderNumber: new RegExp(escaped, 'i') },
+        { customerName: new RegExp(escaped, 'i') },
+        { phoneNumber: new RegExp(escaped, 'i') }
       ];
+
+      try {
+        const contactConditions = [
+          { name: new RegExp(escaped, 'i') },
+          { phone: new RegExp(escaped, 'i') }
+        ];
+        if (rawOek) {
+          contactConditions.push(
+            { nameHash: generateHMAC(cleanSearch, rawOek) },
+            { phoneHash: generateHMAC(cleanSearch, rawOek) }
+          );
+          const digits = cleanSearch.replace(/\D/g, '');
+          if (digits) {
+            contactConditions.push({ phoneHash: generateHMAC(digits, rawOek) });
+          }
+        }
+        const matchedContacts = await Contact.find({ $or: contactConditions }).select('_id').lean();
+        if (matchedContacts.length > 0) {
+          orConditions.push({ contactId: { $in: matchedContacts.map(c => c._id) } });
+        }
+      } catch (searchErr) {
+        console.error('Failed to resolve search contacts:', searchErr.message);
+      }
+
+      query.$or = orConditions;
     }
 
     const pageNum = parseInt(page, 10);
@@ -196,6 +258,7 @@ router.get('/', async (req, res) => {
       o.items = itemsByOrder[o._id] || [];
       o.paymentSubmissions = submissionsByOrder[o._id] || [];
       o.statusHistory = historyByOrder[o._id] || [];
+      formatAndDecryptOrder(o, rawOek);
     });
 
     res.json({
@@ -224,6 +287,9 @@ router.get('/:id', ...validateObjectId('id'), async (req, res) => {
     if (!order) {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
+
+    const rawOek = await getOekForUser(req.userId);
+    formatAndDecryptOrder(order, rawOek);
 
     const [items, paymentSubmissions, statusHistory] = await Promise.all([
       OrderItem.find({ orderId: order._id }).populate('productId', 'name price discountPrice sku quantity').lean(),
@@ -407,6 +473,11 @@ router.get('/customer/:customerId/history', ...validateObjectId('customerId'), a
     }
 
     const orders = await Order.find({ contactId: customerId, organizationId: req.organizationId }).sort({ createdAt: -1 }).lean();
+
+    const rawOek = await getOekForUser(req.userId);
+    orders.forEach(o => {
+      formatAndDecryptOrder(o, rawOek);
+    });
 
     const totalOrders = orders.length;
     let lifetimeValue = 0;

@@ -797,12 +797,16 @@ async function handleCheckoutConfirm(userId, conversation, contact, textVal, pho
   const address = conversation.flowVariables.get('checkout_address');
   const notes = conversation.flowVariables.get('checkout_notes');
 
+  const { getOekForUser, decryptContact } = require('./oekService');
+  const rawOek = await getOekForUser(conversation.userId);
+  const decContact = rawOek ? decryptContact(contact, rawOek) : contact;
+
   const order = await Order.create({
     organizationId: conversation.organization_id,
     orderNumber,
     contactId: contact._id,
-    customerName: name,
-    phoneNumber: contact.phone,
+    customerName: name || decContact.name || decContact.phone,
+    phoneNumber: decContact.phone,
     address,
     notes,
     totalAmount: grandTotal,

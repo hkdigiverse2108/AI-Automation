@@ -339,6 +339,10 @@ router.post('/checkout', async (req, res) => {
     const contact = await Contact.findOne({ _id: customerId, userId: req.userId });
     if (!contact) return res.status(404).json({ success: false, error: 'Customer not found' });
 
+    const { getOekForUser, decryptContact } = require('../services/oekService');
+    const rawOek = await getOekForUser(req.userId);
+    const decContact = rawOek ? decryptContact(contact, rawOek) : contact;
+
     const cart = await Cart.findOne({
       organizationId: req.organizationId,
       customerId,
@@ -405,8 +409,8 @@ router.post('/checkout', async (req, res) => {
       organizationId: req.organizationId,
       orderNumber,
       contactId: customerId,
-      customerName: customerName || contact.name || contact.phone,
-      phoneNumber: phoneNumber || contact.phone,
+      customerName: customerName || decContact.name || decContact.phone,
+      phoneNumber: phoneNumber || decContact.phone,
       address,
       notes,
       assignedTo,
@@ -447,7 +451,7 @@ router.post('/checkout', async (req, res) => {
         organizationId: req.organizationId,
         type: 'order',
         title: 'New Order Created 📦',
-        message: `Order #${orderNumber} (₹${data.totals.grandTotal}) has been created for ${contact.name || contact.phone}.`,
+        message: `Order #${orderNumber} (₹${data.totals.grandTotal}) has been created for ${decContact.name || decContact.phone}.`,
         link: '/dashboard/catalog',
         metadata: { orderId: order._id }
       });
