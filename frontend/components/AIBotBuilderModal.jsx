@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, Bot, Globe, Tag, Languages, Wand2, ArrowRight, CheckCircle2, 
   RotateCcw, Play, X, Loader2, Layers, MessageSquare, HelpCircle, 
-  ChevronRight, Compass, ShieldCheck, Flame, ExternalLink, Zap
+  ChevronRight, Compass, ShieldCheck, Flame, ExternalLink, Zap, AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../lib/api';
@@ -79,11 +79,15 @@ export default function AIBotBuilderModal({
   initialFlowToRefine = null 
 }) {
   const [businessName, setBusinessName] = useState('');
+  const [businessNameError, setBusinessNameError] = useState('');
+  const businessNameInputRef = useRef(null);
   const [industry, setIndustry] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [offers, setOffers] = useState('');
   const [language, setLanguage] = useState('English');
   const [prompt, setPrompt] = useState('');
+  const [promptError, setPromptError] = useState('');
+  const promptInputRef = useRef(null);
   
   // Scraper State
   const [scraping, setScraping] = useState(false);
@@ -100,6 +104,8 @@ export default function AIBotBuilderModal({
 
   useEffect(() => {
     if (isOpen) {
+      setBusinessNameError('');
+      setPromptError('');
       if (initialFlowToRefine && Array.isArray(initialFlowToRefine.nodes) && initialFlowToRefine.nodes.length > 0) {
         setGeneratedResult({
           flow: initialFlowToRefine,
@@ -115,6 +121,8 @@ export default function AIBotBuilderModal({
       setGenerationStep(0);
       setRefinePrompt('');
       setRefining(false);
+      setBusinessNameError('');
+      setPromptError('');
     }
   }, [isOpen, initialFlowToRefine]);
 
@@ -122,11 +130,13 @@ export default function AIBotBuilderModal({
 
   const handleClearForm = () => {
     setBusinessName('');
+    setBusinessNameError('');
     setIndustry('');
     setWebsiteUrl('');
     setOffers('');
     setLanguage('English');
     setPrompt('');
+    setPromptError('');
     setScrapedData(null);
     setRefinePrompt('');
     toast('Form cleared. Ready for your custom details or website scan.', { icon: '🧹' });
@@ -134,11 +144,13 @@ export default function AIBotBuilderModal({
 
   const handleApplyPreset = (preset) => {
     setBusinessName(preset.businessName);
+    setBusinessNameError('');
     setIndustry(preset.industry);
     setWebsiteUrl(preset.websiteUrl);
     setOffers(preset.offers);
     setLanguage(preset.language);
     setPrompt(preset.prompt);
+    setPromptError('');
     setScrapedData(null);
     toast.success(`Loaded preset: ${preset.label}`);
   };
@@ -160,6 +172,7 @@ export default function AIBotBuilderModal({
         const detectedName = info.brandName || (info.title ? info.title.split(/[-|–•:;]/)[0].trim() : '');
         if (detectedName) {
           setBusinessName(detectedName);
+          setBusinessNameError('');
         }
 
         // 2. Auto-fill Industry / Category from Scanned Website
@@ -175,6 +188,7 @@ export default function AIBotBuilderModal({
         // 4. Auto-fill Smart Prompt with Extracted Services
         if (info.suggestedPrompt) {
           setPrompt(info.suggestedPrompt);
+          setPromptError('');
         }
 
         const offerNote = info.detectedOffer ? ' & Offers' : '';
@@ -193,11 +207,40 @@ export default function AIBotBuilderModal({
   };
 
   const handleGenerate = async () => {
-    if (!businessName.trim() && !prompt.trim()) {
-      toast.error('Please provide a business name or requirements prompt');
+    const trimmedBusinessName = businessName.trim();
+    const trimmedPrompt = prompt.trim();
+    let hasError = false;
+
+    if (!trimmedBusinessName) {
+      setBusinessNameError('Business / Brand Name is required.');
+      hasError = true;
+    } else {
+      setBusinessNameError('');
+    }
+
+    if (!trimmedPrompt) {
+      setPromptError('Bot requirements prompt is required to design your flow.');
+      hasError = true;
+    } else {
+      setPromptError('');
+    }
+
+    if (hasError) {
+      if (!trimmedBusinessName && !trimmedPrompt) {
+        toast.error('Please enter Business Name and Bot Requirements Prompt');
+        if (businessNameInputRef.current) businessNameInputRef.current.focus();
+      } else if (!trimmedBusinessName) {
+        toast.error('Please enter your Business / Brand Name');
+        if (businessNameInputRef.current) businessNameInputRef.current.focus();
+      } else {
+        toast.error('Please describe what your bot should do in the requirements prompt');
+        if (promptInputRef.current) promptInputRef.current.focus();
+      }
       return;
     }
 
+    setBusinessNameError('');
+    setPromptError('');
     setGenerating(true);
     setGenerationStep(1);
     setGeneratedResult(null);
@@ -592,7 +635,7 @@ export default function AIBotBuilderModal({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Business / Brand Name *
+                      Business / Brand Name <span className="text-rose-500 font-bold">*</span>
                     </label>
                     {scrapedData?.brandName && businessName === scrapedData.brandName && (
                       <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
@@ -601,12 +644,26 @@ export default function AIBotBuilderModal({
                     )}
                   </div>
                   <input
+                    ref={businessNameInputRef}
                     type="text"
                     value={businessName}
-                    onChange={(e) => setBusinessName(e.target.value)}
+                    onChange={(e) => {
+                      setBusinessName(e.target.value);
+                      if (businessNameError) setBusinessNameError('');
+                    }}
                     placeholder="e.g. My Brand, Sunrise Clinic, or Royal Realty"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all focus:outline-none ${
+                      businessNameError
+                        ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/20 text-slate-900 dark:text-white ring-2 ring-rose-500/20 dark:ring-rose-500/30 focus:border-rose-500'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/40'
+                    }`}
                   />
+                  {businessNameError && (
+                    <p className="text-xs text-rose-500 dark:text-rose-400 font-medium flex items-center gap-1.5 pt-0.5 animate-fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{businessNameError}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Industry Selector */}
@@ -752,7 +809,9 @@ export default function AIBotBuilderModal({
                 <div className="sm:col-span-2 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                      <span>Specific Bot Requirements / Conversational Steps</span>
+                      <span>
+                        Specific Bot Requirements / Conversational Steps <span className="text-rose-500 font-bold">*</span>
+                      </span>
                     </label>
                     {scrapedData?.suggestedPrompt && prompt === scrapedData.suggestedPrompt && (
                       <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
@@ -761,12 +820,26 @@ export default function AIBotBuilderModal({
                     )}
                   </div>
                   <textarea
+                    ref={promptInputRef}
                     rows={3}
                     value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe what your bot should do, or simply scan a website URL above to automatically generate everything..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 resize-none"
+                    onChange={(e) => {
+                      setPrompt(e.target.value);
+                      if (promptError) setPromptError('');
+                    }}
+                    placeholder="Describe what your bot should do (e.g. greeting menu, showcase services, capture customer name & phone, book appointments)..."
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all focus:outline-none resize-none ${
+                      promptError
+                        ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/20 text-slate-900 dark:text-white ring-2 ring-rose-500/20 dark:ring-rose-500/30 focus:border-rose-500'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/40'
+                    }`}
                   />
+                  {promptError && (
+                    <p className="text-xs text-rose-500 dark:text-rose-400 font-medium flex items-center gap-1.5 pt-0.5 animate-fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{promptError}</span>
+                    </p>
+                  )}
                 </div>
 
               </div>

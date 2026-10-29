@@ -157,6 +157,13 @@ function isSafeHost(hostname) {
   return true;
 }
 
+function ldAddress(a) {
+  if (!a) return "";
+  if (typeof a === "string") return a;
+  return [a.streetAddress, a.addressLocality, a.addressRegion, a.postalCode].filter(Boolean).join(", ");
+}
+const GENERIC_CATEGORY = /^(all( products)?|view all|shop all|shop now|collections?|categories|products|catalog(ue)?|home|menu|more|sale|offers?)$/i;
+
 async function scrapeWebsite(rawUrl) {
   if (!rawUrl || typeof rawUrl !== "string") return null;
   let targetUrl = rawUrl.trim();
@@ -182,19 +189,27 @@ async function scrapeWebsite(rawUrl) {
     if (!html) return null;
 
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].replace(/\s+/g, " ").trim() : "";
+    const title = titleMatch ? decodeEntities(titleMatch[1]).replace(/\s+/g, " ").trim() : "";
 
-    const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
-    const description = descMatch ? descMatch[1].replace(/\s+/g, " ").trim() : "";
-
-    const ogDescMatch = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i);
-    const ogDesc = ogDescMatch ? ogDescMatch[1].replace(/\s+/g, " ").trim() : "";
+    // meta tags: handle both "double" and 'single' quoted content, and apostrophes inside the text
+    const metaContent = function (attr, name) {
+      const tag = html.match(new RegExp("<meta[^>]*" + attr + "=[\"']" + name + "[\"'][^>]*>", "i"));
+      if (!tag) return "";
+      const c = tag[0].match(/content=(?:"([^"]*)"|'([^']*)')/i);
+      return c
+        ? decodeEntities(c[1] != null ? c[1] : c[2])
+            .replace(/\s+/g, " ")
+            .trim()
+        : "";
+    };
+    const description = metaContent("name", "description");
+    const ogDesc = metaContent("property", "og:description");
 
     const headings = [];
     const hRegex = /<h[1-3][^>]*>([^<]+)<\/h[1-3]>/gi;
     let match;
     while ((match = hRegex.exec(html)) !== null && headings.length < 10) {
-      const cleanH = match[1]
+      const cleanH = decodeEntities(match[1])
         .replace(/<[^>]+>/g, "")
         .replace(/\s+/g, " ")
         .trim();
@@ -205,7 +220,7 @@ async function scrapeWebsite(rawUrl) {
     const navRegex = /<a[^>]*href=["'][^"']*["'][^>]*>([^<]{3,40})<\/a>/gi;
     const skipWords = ["home", "login", "sign", "contact", "search", "privacy", "terms", "blog", "cart", "account", "cookie", "skip"];
     while ((match = navRegex.exec(html)) !== null && navLinks.length < 15) {
-      const linkText = match[1].replace(/\s+/g, " ").trim();
+      const linkText = decodeEntities(match[1]).replace(/\s+/g, " ").trim();
       if (
         linkText &&
         !skipWords.some(function (s) {
@@ -216,8 +231,59 @@ async function scrapeWebsite(rawUrl) {
         navLinks.push(linkText);
     }
 
+    // product / collection categories (Shopify, WooCommerce and similar URL patterns)
+    const categories = [];
+    const catRegex = /<a[^>]*href=["']([^"']*)["'][^>]*>([^<]{2,40})<\/a>/gi;
+    while ((match = catRegex.exec(html)) !== null && categories.length < 8) {
+      if (!/\/(?:collections?|product-category|categor(?:y|ies)|shop)\/[^\/?#]+\/?(?:[?#].*)?$/i.test(match[1])) continue;
+      const txt = decodeEntities(match[2])
+        .replace(/\s+/g, " ")
+        .replace(/\(\d+\)$/, "")
+        .trim();
+      if (
+        !txt ||
+        GENERIC_CATEGORY.test(txt) ||
+        categories.some(function (c) {
+          return norm(c) === norm(txt);
+        })
+      )
+        continue;
+      categories.push(txt);
+    }
+
+    // business details from structured data, tel: and mailto: links
+    const ld = [];
+    const ldRe = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+    let lm;
+    while ((lm = ldRe.exec(html)) !== null && ld.length < 20) {
+      try {
+        const j = JSON.parse(lm[1].trim());
+        (Array.isArray(j) ? j : [j]).forEach(function (o) {
+          ld.push(o);
+          if (o && Array.isArray(o["@graph"]))
+            o["@graph"].forEach(function (g) {
+              ld.push(g);
+            });
+        });
+      } catch (e) {
+        /* ignore broken JSON-LD */
+      }
+    }
+    const org = ld.find(function (o) {
+      return o && /Organization|LocalBusiness|Store|OnlineStore/i.test([].concat(o["@type"] || []).join(" "));
+    });
+    const telLink = html.match(/href=["']tel:([+\d\s().-]{7,20})["']/i);
+    const mailLink = html.match(/href=["']mailto:([^"'?\s]+)/i);
+    const contact = {
+      phone: String((org && org.telephone) || (telLink ? telLink[1].trim() : "")),
+      email: String((org && org.email) || (mailLink ? mailLink[1] : "")),
+      address: org ? ldAddress(org.address) : "",
+      timings: org && org.openingHours ? [].concat(org.openingHours).join("; ").slice(0, 80) : "",
+    };
+
     let brandName = "";
-    if (title) {
+    if (org && org.name && String(org.name).length <= 40) brandName = String(org.name).trim();
+    if (!brandName && title) {
       brandName = title
         .split(/[-|–•:;]/)[0]
         .trim()
@@ -229,7 +295,7 @@ async function scrapeWebsite(rawUrl) {
       brandName = h ? h.charAt(0).toUpperCase() + h.slice(1) : "Our Business";
     }
 
-    const combinedContent = [targetUrl, title, description, ogDesc, headings.join(" "), navLinks.join(" ")].join(" ");
+    const combinedContent = [targetUrl, title, description, ogDesc, headings.join(" "), navLinks.join(" "), categories.join(" ")].join(" ");
     const detectedIndustry = detectIndustryFromText(combinedContent);
 
     const offerPatterns = [/(?:use promo code|use code|promo code|coupon code|discount code)\s*:?\s*["']?([A-Z0-9_-]{3,15})["']?[^<.,\n]{0,60}/i, /(?:flat|get|upto|up to)?\s*(\d{1,2}%\s*(?:off|discount)[^<.,\n]{0,50})/i, /(free\s+shipping\s*(?:on orders above|on orders over|worldwide|across india)?[^<.,\n]{0,35})/i, /(buy\s+\d+\s+get\s+\d+[^<.,\n]{0,40})/i, /(special\s+festive\s+offer[^<.,\n]{0,50})/i];
@@ -246,7 +312,7 @@ async function scrapeWebsite(rawUrl) {
       }
     }
 
-    const servicesSnippet = Array.from(new Set(headings.slice(0, 5).concat(navLinks.slice(0, 5)))).join(", ");
+    const servicesSnippet = Array.from(new Set((categories.length ? categories : headings.slice(0, 5).concat(navLinks.slice(0, 5))).slice(0, 8))).join(", ");
     const metaInfo = description || ogDesc || "";
     const suggestedPrompt = "Create an automated WhatsApp bot for " + brandName + '. About the business: "' + metaInfo + '". Main sections: ' + (servicesSnippet || "products, services, support") + ". The bot should welcome visitors, show each offering with its own details, " + "let people order/book/enquire, and connect them with a human when needed.";
 
@@ -259,6 +325,8 @@ async function scrapeWebsite(rawUrl) {
       description: (description || ogDesc).slice(0, 300),
       headings: headings.slice(0, 8),
       navLinks: navLinks.slice(0, 10),
+      categories: categories.slice(0, 6),
+      contact: contact,
       suggestedPrompt: suggestedPrompt,
     };
   } catch (err) {
@@ -996,35 +1064,274 @@ const INDUSTRY = {
 // ─────────────────────────────────────────────────────────────────────────────
 // PARSE USER INPUT: menu items and contact details from the free-text prompt
 // ─────────────────────────────────────────────────────────────────────────────
-function extractListFromPrompt(prompt) {
-  const p = String(prompt || "");
-  const m = p.match(/(?:categories|category|collections?|services|products|menu|courses|packages|departments|plans)\s*(?:are|include|includes|:|-)\s*([^\n.]{3,300})/i);
-  if (!m) return [];
-  let parts = m[1].split(/[,;|•]/);
-  if (parts.length === 1) parts = m[1].split(/\s+and\s+/i);
-  const out = [];
-  parts.forEach(function (s) {
-    const v = s
-      .replace(/^(and|&)\s+/i, "")
-      .replace(/[()"']/g, "")
-      .trim();
-    if (v.length >= 2 && v.length <= 30 && out.indexOf(v) === -1) out.push(v);
-  });
-  return out.length >= 2 ? out.slice(0, 6) : [];
+// Plain text by default: no *bold* markers (many previews and some API setups show the stars literally).
+// Set BOT_TEXT_STYLE=whatsapp in .env to keep WhatsApp-style *bold*.
+const PLAIN_TEXT = String(process.env.BOT_TEXT_STYLE || "plain").toLowerCase() !== "whatsapp";
+
+function decodeEntities(s) {
+  return String(s == null ? "" : s)
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0?39;|&#x27;|&apos;/gi, "'")
+    .replace(/&#x2F;|&#47;/gi, "/")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&");
 }
 
-function extractDetails(prompt, websiteData, explicit) {
+// Everything the owner types goes through this: entities decoded, template-injection and control chars removed.
+function cleanText(s, keepNewlines) {
+  let t = decodeEntities(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+  t = t.replace(/\{\{/g, "{ {").replace(/\}\}/g, "} }");
+  return keepNewlines ? t.replace(/[ \t]+/g, " ").trim() : t.replace(/\s+/g, " ").trim();
+}
+function cleanName(s) {
+  return clip(
+    cleanText(s)
+      .replace(/<[^>]*>/g, " ")
+      .replace(/[<>*]/g, "")
+      .replace(/\s+/g, " ")
+      .trim(),
+    60,
+  );
+}
+
+// "<your shop address>", "[address]", "e.g. 10 AM", "your phone number", "XXXX" are unfilled template text
+function isPlaceholder(v) {
+  const s = String(v == null ? "" : v).trim();
+  if (!s) return true;
+  if (/[<>\[\]{}]/.test(s)) return true;
+  if (/\b(your|apna|apni)\s+(shop|store|business|office|full|complete)?\s*(address|phone|number|mobile|timings?|hours|email|name)\b/i.test(s)) return true;
+  if (/\be\.g\.?(\s|$)/i.test(s)) return true;
+  if (/^[x*#._\s-]+$/i.test(s) || /x{4,}/i.test(s)) return true;
+  return false;
+}
+
+function limitText(s, max) {
+  const chars = Array.from(s);
+  if (chars.length <= max) return s;
+  let cut = chars.slice(0, max - 1).join("");
+  const lastBreak = Math.max(cut.lastIndexOf("\n"), cut.lastIndexOf(" "));
+  if (lastBreak > cut.length - 80) cut = cut.slice(0, lastBreak);
+  return cut.trim() + "…";
+}
+
+function finalizeText(s, interactive) {
+  let t = decodeEntities(s).replace(/[<>]/g, "");
+  if (PLAIN_TEXT) t = t.replace(/\*/g, "");
+  t = t
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return limitText(t, interactive ? 1024 : 4096); // WhatsApp: 1024 for buttons/list bodies
+}
+
+// Final pass over every node: no entity codes, no stray stars/angle brackets, WhatsApp length limits.
+// (Button/row titles and ids are never touched, so edge routing stays intact.)
+function finalizeFlow(flow) {
+  const nodes = Array.isArray(flow) ? flow : (flow && flow.nodes) || [];
+  nodes.forEach(function (n) {
+    const m = n && n.data && n.data.message;
+    if (!m) return;
+    const interactive = !!((m.buttons && m.buttons.length) || (m.sections && m.sections.length));
+    ["text", "body"].forEach(function (k) {
+      if (m[k] != null) m[k] = finalizeText(m[k], interactive);
+    });
+    if (m.buttonText) m.buttonText = clip(finalizeText(m.buttonText, false), BTN_TITLE_MAX);
+    (m.sections || []).forEach(function (sec) {
+      (sec.rows || []).forEach(function (r) {
+        if (r.description) r.description = clip(finalizeText(r.description, false), ROW_DESC_MAX);
+      });
+    });
+  });
+  return flow;
+}
+
+function cleanInputs(input) {
+  input = input || {};
+  const out = Object.assign({}, input);
+  if ("businessName" in input) out.businessName = input.businessName ? cleanName(input.businessName) : input.businessName;
+  if ("industry" in input) out.industry = input.industry ? cleanText(input.industry) : input.industry;
+  if ("prompt" in input) out.prompt = input.prompt ? cleanText(input.prompt, true) : input.prompt;
+  if ("offers" in input) out.offers = input.offers ? cleanText(input.offers).replace(/[<>*]/g, "") : input.offers;
+  if (input.details && typeof input.details === "object") {
+    out.details = {};
+    Object.keys(input.details).forEach(function (k) {
+      out.details[k] = cleanText(input.details[k]);
+    });
+  }
+  return out;
+}
+
+function sameTopic(a, b) {
+  const stems = function (x) {
+    return norm(x)
+      .split(" ")
+      .filter(function (w) {
+        return w.length >= 5;
+      })
+      .map(function (w) {
+        return w.slice(0, 5);
+      });
+  };
+  const wb = stems(b);
+  return stems(a).some(function (w) {
+    return wb.indexOf(w) !== -1;
+  });
+}
+
+// Indian grouping for display text: 149999 -> ₹1,49,999
+function fmtINR(n) {
+  const parts = String(Math.round(Number(n) * 100) / 100).split(".");
+  const int = parts[0];
+  const last3 = int.slice(-3);
+  let rest = int.slice(0, -3);
+  if (rest) rest = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + ",";
+  return "₹" + rest + last3 + (parts[1] ? "." + parts[1] : "");
+}
+// No commas: used inside button / list titles, because edge labels are comma-separated
+function fmtPlain(n) {
+  return "₹" + String(Math.round(Number(n) * 100) / 100);
+}
+
+function splitList(str) {
+  let parts = String(str || "").split(/[;|•]|,(?!\d{3}\b)/);
+  if (parts.length === 1) parts = parts[0].split(/\s+and\s+/i);
+  return parts;
+}
+
+// "Sarees - 1499", "Sarees: Rs. 1,499", "Kurtis ₹799", "Gowns" -> { title, price }
+function parseItemToken(tok) {
+  const t = String(tok || "")
+    .replace(/^\s*(and|&)\s+/i, "")
+    .replace(/[()"'*<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return null;
+  const m = t.match(/^(.*?)\s*(?:[-–—:=@]|\bat\b|\bfrom\b|\bstarting\b|\bonly\b)?\s*₹?\s*(\d[\d,]*(?:\.\d+)?)\s*(?:\/-|\/pc|\/piece|per piece|per pc|onwards|only)?$/i);
+  if (m) {
+    const price = parseFloat(m[2].replace(/,/g, ""));
+    const title = m[1]
+      .replace(/[\s\-–—:=@₹]+$/, "")
+      .replace(/\b(at|from|starting|only|price)$/i, "")
+      .trim();
+    if (title && price >= 10) return { title: title, price: price };
+  }
+  return { title: t, price: null };
+}
+
+const LIST_HEADER_RE = /(categories|category|collections?|services|products|menu|courses|packages|departments|plans|price list|prices?|rate list|rates?)\s*(?:are|include|includes|:|-)\s*(.*)$/i;
+
+// finds "Categories: A, B" on one line AND bullet lists written on the lines below a header
+function collectBlocks(p) {
+  const lines = p.split("\n");
+  const blocks = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(LIST_HEADER_RE);
+    if (!m) continue;
+    let tokens = [];
+    const inline = m[2].replace(/\.(?!\d).*$/, "").trim();
+    if (inline) tokens = tokens.concat(splitList(inline));
+    for (let j = i + 1; j < lines.length; j++) {
+      const b = lines[j].match(/^\s*(?:[-•*▪●]|\d+[.)])\s+(.+)$/);
+      if (!b) break;
+      tokens.push(b[1].replace(/\.(?!\d).*$/, ""));
+    }
+    blocks.push({ isPrice: /price|rate/i.test(m[1]), tokens: tokens });
+  }
+  return blocks;
+}
+
+// Reads the owner's categories and prices from the free-text requirements box
+function extractItemsFromPrompt(prompt) {
+  const p = String(prompt || "")
+    .replace(/\bRs\.?\s*/gi, "₹")
+    .replace(/\bINR\s*/gi, "₹");
+  const parseTokens = function (tokens) {
+    const out = [];
+    tokens.forEach(function (tok) {
+      const it = parseItemToken(tok);
+      if (
+        it &&
+        it.title.length >= 2 &&
+        it.title.length <= 30 &&
+        /\p{L}/u.test(it.title) &&
+        !isPlaceholder(it.title) &&
+        !out.some(function (x) {
+          return norm(x.title) === norm(it.title);
+        })
+      )
+        out.push(it);
+    });
+    return out;
+  };
+  let items = [];
+  const priceList = [];
+  collectBlocks(p).forEach(function (b) {
+    const parsed = parseTokens(b.tokens);
+    if (b.isPrice) priceList.push.apply(priceList, parsed);
+    else if (!items.length && parsed.length >= 2) items = parsed;
+  });
+  if (!items.length) {
+    const priced = priceList.filter(function (x) {
+      return x.price;
+    });
+    if (priced.length >= 2)
+      items = priced.map(function (x) {
+        return { title: x.title, price: x.price };
+      });
+  }
+  priceList.forEach(function (pr) {
+    if (!pr.price) return;
+    items.forEach(function (it) {
+      if (!it.price && sameTopic(it.title, pr.title)) it.price = pr.price;
+    });
+  });
+  return items.slice(0, LIST_ROW_MAX);
+}
+
+// Menu items: the owner's own list wins; otherwise categories found on the scanned website
+function resolveItems(prompt, websiteData) {
+  const fromPrompt = extractItemsFromPrompt(prompt);
+  if (fromPrompt.length) return fromPrompt;
+  const cats = (websiteData && websiteData.categories) || [];
+  return cats.length >= 2
+    ? cats.slice(0, LIST_ROW_MAX).map(function (c) {
+        return { title: clip(c, 30), price: null };
+      })
+    : [];
+}
+
+function extractDetails(prompt, websiteData, explicit, notes) {
   const p = String(prompt || "");
-  const d = Object.assign({}, explicit || {});
+  const d = {};
+  const ignored = [];
+  const take = function (k, v) {
+    v = cleanText(v);
+    if (!v) return;
+    if (isPlaceholder(v)) {
+      if (ignored.indexOf(k) === -1) ignored.push(k);
+      return;
+    }
+    if (!d[k]) d[k] = v;
+  };
+  Object.keys(explicit || {}).forEach(function (k) {
+    take(k, explicit[k]);
+  });
   const ph = p.match(/(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}/);
-  if (!d.phone && ph) d.phone = ph[0].trim();
+  if (ph) take("phone", ph[0]);
   const em = p.match(/[\w.+-]+@[\w-]+\.[\w.]+/);
-  if (!d.email && em) d.email = em[0];
+  if (em) take("email", em[0]);
   const tm = p.match(/(?:timings?|hours|open(?:ing)?(?: hours)?)\s*[:\-]\s*([^\n]{4,80}?)(?:\.\s+[A-Z]|\n|$)/i);
-  if (!d.timings && tm) d.timings = tm[1].trim();
+  if (tm) take("timings", tm[1]);
   const ad = p.match(/address\s*[:\-]\s*([^\n]{6,140}?)(?:\.\s+[A-Z]|\n|$)/i);
-  if (!d.address && ad) d.address = ad[1].trim();
-  if (!d.website && websiteData && websiteData.url) d.website = websiteData.url;
+  if (ad) take("address", ad[1]);
+  const c = (websiteData && websiteData.contact) || {};
+  ["phone", "email", "address", "timings"].forEach(function (k) {
+    if (!d[k] && c[k]) take(k, c[k]);
+  });
+  if (websiteData && websiteData.url) take("website", websiteData.url);
+  if (ignored.length && notes) notes.push("Ignored unfilled placeholder text for: " + ignored.join(", ") + ". Fill real details or delete those lines.");
   return d;
 }
 
@@ -1062,40 +1369,70 @@ function mkNode(id, type, x, y, data, edges) {
   return { id: id, type: type, position: { x: x, y: y }, data: data, edges: edges || [] };
 }
 
-function buildBlueprint(ctx) {
+const SHOP_LABEL = { en: "🛍️ Shop Collection", hi: "🛍️ खरीदारी करें", gu: "🛍️ ખરીદી કરો" };
+
+const GET_PRICE_CTA = "💬 Get Price & Order";
+
+function buildBlueprint(ctx, notes) {
+  notes = notes || [];
   const bName = ctx.bName,
     cfg = ctx.cfg,
     t = ctx.t,
     lang = ctx.lang,
     details = ctx.details || {},
     offers = ctx.offers;
+  const custom = ctx.customItems || [];
   const nodes = [];
 
-  // menu items: user's own categories win over the industry preset
+  // menu items: the owner's own categories (with prices) win over the industry preset
   let items = cfg.items.map(function (it) {
-    return { e: it[0], t: it[1], d: it[2] };
+    return { e: it[0], t: it[1], full: it[1], d: it[2], price: null };
   });
-  if (ctx.customItems && ctx.customItems.length) {
-    items = ctx.customItems.map(function (title) {
-      const nt = norm(title);
+  if (custom.length) {
+    items = custom.map(function (ci) {
       const preset = cfg.items.find(function (p) {
-        return norm(p[1])
-          .split(" ")
-          .some(function (w) {
-            return w.length >= 4 && nt.indexOf(w.slice(0, 4)) !== -1;
-          });
+        return sameTopic(p[1], ci.title);
       });
       return {
         e: preset ? preset[0] : cfg.e,
-        t: clip(title, ROW_TITLE_MAX - 3),
-        d: preset ? preset[2] : "Explore our " + title + " range at " + bName + ". Tap the button below to continue, or chat with our team for details.",
+        t: clip(ci.title, ROW_TITLE_MAX - 3),
+        full: ci.title,
+        d: preset ? preset[2] : "Explore our " + ci.title + " range at " + bName + ". Tap the button below to continue, or chat with our team for details.",
+        price: ci.price || null,
       };
     });
   }
-  items = items.slice(0, 6);
+  const maxItems = LIST_ROW_MAX - 2 - (offers ? 1 : 0); // keep room for About, Offers and Talk to Expert in one list
+  if (items.length > maxItems) notes.push("WhatsApp lists hold 10 rows, so only the first " + maxItems + " categories were used.");
+  items = items.slice(0, maxItems);
+
+  // order flow (with quantity x price) for fashion shops, and for other shops when the owner gave real categories
+  const orderMode = cfg.order ? "fashion" : ctx.key === "retail" && custom.length ? "product" : null;
+  const allPriced =
+    items.length > 0 &&
+    items.every(function (i) {
+      return i.price;
+    });
+  const ctaFor = function (it) {
+    return orderMode && !it.price ? GET_PRICE_CTA : cfg.cta;
+  };
+  if (orderMode && !allPriced) {
+    notes.push(
+      "Prices missing for: " +
+        items
+          .filter(function (i) {
+            return !i.price;
+          })
+          .map(function (i) {
+            return i.full;
+          })
+          .join(", ") +
+        '. Those items show "price on request" and orders are treated as requests. To show prices and totals write e.g. "Categories: Sarees - 1499, Kurtis - 799".',
+    );
+  }
 
   const wOpts = items.map(function (it, i) {
-    return { id: "row_item_" + (i + 1), text: it.e + " " + it.t, desc: it.d, to: "node_item_" + (i + 1) };
+    return { id: "row_item_" + (i + 1), text: it.e + " " + it.t, desc: (it.price ? fmtINR(it.price) + " per piece · " : "") + it.d, to: "node_item_" + (i + 1) };
   });
   wOpts.push({ id: "row_about", text: t.about, desc: t.aboutDesc, to: "node_about" });
   if (offers) wOpts.push({ id: "row_offers", text: t.offers, desc: t.offersDesc, to: "node_offers" });
@@ -1109,16 +1446,21 @@ function buildBlueprint(ctx) {
   // one dedicated info node per menu item
   const perRow = 4;
   items.forEach(function (it, i) {
-    const text = it.e + " *" + it.t + "*\n\n" + it.d + "\n\n" + t.footer;
+    let priceLine = "";
+    if (it.price) priceLine = "\n\n💰 *Price:* " + fmtINR(it.price) + " per piece";
+    else if (orderMode) priceLine = "\n\n💰 *Price:* On request. Our team will share the exact price for your selection before your order is confirmed.";
+    const ctaLabel = ctaFor(it).replace(/^\S+\s*/, "");
+    const footer = orderMode && lang === "en" ? "Tap *" + ctaLabel + "* to " + (it.price ? "place your order" : "continue") + ", or talk to our team for any help." : t.footer;
+    const text = it.e + " *" + it.full + "*\n\n" + it.d + priceLine + "\n\n" + footer;
     const opts = [
-      { id: "btn_cta_" + (i + 1), text: cfg.cta, to: "node_lead_name" },
+      { id: "btn_cta_" + (i + 1), text: ctaFor(it), to: orderMode ? "node_order_qty_" + (i + 1) : "node_lead_name" },
       { id: "btn_menu_" + (i + 1), text: t.mainMenu, to: "node_welcome" },
       { id: "btn_expert_" + (i + 1), text: t.expert, to: "node_handoff" },
     ];
     nodes.push(mkNode("node_item_" + (i + 1), "question", 80 + (i % perRow) * 340, 360 + Math.floor(i / perRow) * 300, { variable: "item_choice_" + (i + 1), message: btnMsg(text, opts) }, edgesFor(opts)));
   });
 
-  // about / contact (only real details the owner provided)
+  // about / contact (only real details the owner or the website provided)
   const lines = [];
   if (details.address) lines.push("📍 " + details.address);
   if (details.timings) lines.push("⏰ " + details.timings);
@@ -1126,9 +1468,12 @@ function buildBlueprint(ctx) {
   if (details.email) lines.push("📧 " + details.email);
   if (details.website) lines.push("🌐 " + details.website);
   const desc = ctx.websiteData && ctx.websiteData.description ? ctx.websiteData.description + "\n\n" : "";
+  if (!lines.length) notes.push('No address, phone or timings were provided, so About & Contact asks customers to talk to the team. Add them as "Address: ... Timings: ... Call ..." in the requirements box.');
   const aboutText = t.aboutHead(bName) + "\n\n" + desc + (lines.length ? lines.join("\n") : t.noDetails);
+  // in an order flow, "Order Now" must come from a category so the order always knows what was chosen
+  const cta2 = orderMode ? { text: SHOP_LABEL[lang] || SHOP_LABEL.en, to: "node_welcome" } : { text: cfg.cta, to: "node_lead_name" };
   const aboutOpts = [
-    { id: "btn_about_cta", text: cfg.cta, to: "node_lead_name" },
+    { id: "btn_about_cta", text: cta2.text, to: cta2.to },
     { id: "btn_about_menu", text: t.mainMenu, to: "node_welcome" },
     { id: "btn_about_expert", text: t.expert, to: "node_handoff" },
   ];
@@ -1138,7 +1483,7 @@ function buildBlueprint(ctx) {
 
   if (offers) {
     const offOpts = [
-      { id: "btn_offer_cta", text: cfg.cta, to: "node_lead_name" },
+      { id: "btn_offer_cta", text: cta2.text, to: cta2.to },
       { id: "btn_offer_menu", text: t.mainMenu, to: "node_welcome" },
       { id: "btn_offer_expert", text: t.expert, to: "node_handoff" },
     ];
@@ -1150,35 +1495,66 @@ function buildBlueprint(ctx) {
   const hoOpts = [{ id: "btn_handoff_menu", text: t.mainMenu, to: "node_welcome" }];
   nodes.push(mkNode("node_handoff", "handoff", 1300, 360, { action: "assign_agent", actionType: "human_takeover", message: btnMsg(t.handoff(bName), hoOpts) }, edgesFor(hoOpts)));
 
-  // lead / order flow
   const y0 = 360 + itemRows * 300 + 120;
   const menuBtn = [{ id: "btn_conf_menu", text: t.mainMenu, to: "node_welcome" }];
 
-  if (cfg.order) {
-    const sizes = ["S", "M", "L", "XL", "XXL"].map(function (s) {
-      return { id: "size_" + s.toLowerCase(), text: s, desc: "Size " + s, to: "node_order_color" };
+  if (orderMode) {
+    // 1) quantity per category (list with the TOTAL already worked out), so price x quantity is always right
+    items.forEach(function (it, i) {
+      const rows = [];
+      for (let n = 1; n <= 8; n++) {
+        rows.push({
+          id: "qty_" + (i + 1) + "_" + n,
+          text: it.price ? n + " pc = " + fmtPlain(it.price * n) : n === 1 ? "1 piece" : n + " pieces",
+          desc: it.price ? fmtINR(it.price) + " × " + n + " = " + fmtINR(it.price * n) : "",
+          to: "node_lead_name",
+        });
+      }
+      rows.push({ id: "qty_" + (i + 1) + "_bulk", text: "Bulk order (9+ pcs)", desc: "Special pricing from our team", to: "node_bulk" });
+      const qText = "🔢 How many pieces of *" + it.full + "* would you like?" + (it.price ? "\n\n💰 Price: " + fmtINR(it.price) + " per piece. Choose a quantity to see your total." : "\n\n💰 Our team will share the exact price after you submit your details.");
+      nodes.push(mkNode("node_order_qty_" + (i + 1), "question", 80 + (i % perRow) * 340, y0 + Math.floor(i / perRow) * 300, { variable: "order_qty", message: listMsg(qText, "🔢 Choose Quantity", "Quantity", rows) }, edgesFor(rows)));
     });
-    nodes.push(mkNode("node_lead_name", "question", 500, y0, { variable: "user_full_name", message: { type: "text", text: "Great choice! 🛍️ May I have your full name?", body: "Great choice! 🛍️ May I have your full name?" } }, [{ targetNodeId: "node_order_size", label: "default" }]));
-    nodes.push(mkNode("node_order_size", "question", 500, y0 + 260, { variable: "order_size", message: listMsg("📏 Which size do you need?", "📏 Choose Size", "Sizes", sizes) }, edgesFor(sizes)));
-    nodes.push(mkNode("node_order_color", "question", 500, y0 + 520, { variable: "order_color", message: { type: "text", text: "🎨 Which colour do you prefer?", body: "🎨 Which colour do you prefer?" } }, [{ targetNodeId: "node_order_qty", label: "default" }]));
-    nodes.push(mkNode("node_order_qty", "question", 500, y0 + 780, { variable: "order_qty", message: { type: "text", text: "🔢 How many pieces would you like?", body: "🔢 How many pieces would you like?" } }, [{ targetNodeId: "node_order_address", label: "default" }]));
-    nodes.push(mkNode("node_order_address", "question", 500, y0 + 1040, { variable: "order_address", message: { type: "text", text: "📍 Please share your full delivery address with pincode.", body: "📍 Please share your full delivery address with pincode." } }, [{ targetNodeId: "node_order_payment", label: "default" }]));
+    const bulkOpts = [{ id: "btn_bulk_menu", text: t.mainMenu, to: "node_welcome" }];
+    nodes.push(mkNode("node_bulk", "handoff", 1300, y0, { action: "assign_agent", actionType: "human_takeover", message: btnMsg("📦 For bulk orders our team shares special pricing. Connecting you with a team member now. Please hold on.", bulkOpts) }, edgesFor(bulkOpts)));
+
+    // 2) shared steps
+    let y = y0 + Math.ceil(items.length / perRow) * 300 + 60;
+    const afterName = orderMode === "fashion" ? "node_order_size" : "node_order_product";
+    nodes.push(mkNode("node_lead_name", "question", 500, y, { variable: "user_full_name", message: { type: "text", text: "Great choice! 🛍️ May I have your full name?", body: "Great choice! 🛍️ May I have your full name?" } }, [{ targetNodeId: afterName, label: "default" }]));
+    y += 260;
+    if (orderMode === "fashion") {
+      const sizeDesc = { S: "Small", M: "Medium", L: "Large", XL: "Extra Large", XXL: "2X Large" };
+      const sizes = ["S", "M", "L", "XL", "XXL"].map(function (s) {
+        return { id: "size_" + s.toLowerCase(), text: s, desc: sizeDesc[s], to: "node_order_color" };
+      });
+      nodes.push(mkNode("node_order_size", "question", 500, y, { variable: "order_size", message: listMsg("📏 Which size do you need?", "📏 Choose Size", "Sizes", sizes) }, edgesFor(sizes)));
+      y += 260;
+      nodes.push(mkNode("node_order_color", "question", 500, y, { variable: "order_color", message: { type: "text", text: "🎨 Which colour do you prefer?", body: "🎨 Which colour do you prefer?" } }, [{ targetNodeId: "node_order_address", label: "default" }]));
+    } else {
+      nodes.push(mkNode("node_order_product", "question", 500, y, { variable: "order_product", message: { type: "text", text: "🛒 Which product or variant would you like? Please type its name or a short description.", body: "🛒 Which product or variant would you like? Please type its name or a short description." } }, [{ targetNodeId: "node_order_address", label: "default" }]));
+    }
+    y += 260;
+    nodes.push(mkNode("node_order_address", "question", 500, y, { variable: "order_address", message: { type: "text", text: "📍 Please share your full delivery address with pincode.", body: "📍 Please share your full delivery address with pincode." } }, [{ targetNodeId: "node_order_payment", label: "default" }]));
+    y += 260;
     const payOpts = [
-      { id: "pay_upi", text: "💳 UPI", to: "node_order_summary" },
-      { id: "pay_cod", text: "💵 Cash on Delivery", to: "node_order_summary" },
+      { id: "pay_upi", text: "UPI", to: "node_order_summary" },
+      { id: "pay_cod", text: "Cash on Delivery", to: "node_order_summary" },
     ];
-    nodes.push(mkNode("node_order_payment", "question", 500, y0 + 1300, { variable: "order_payment", message: btnMsg("💰 How would you like to pay?", payOpts) }, edgesFor(payOpts)));
-    const sumText = "🧾 *Order Summary*\n\n👤 {{user_full_name}}\n🛍️ {{user_selected_menu}}\n📏 Size: {{order_size}}\n🎨 Colour: {{order_color}}\n🔢 Qty: {{order_qty}}\n📍 {{order_address}}\n💳 {{order_payment}}\n\nPlease confirm your order:";
+    nodes.push(mkNode("node_order_payment", "question", 500, y, { variable: "order_payment", message: btnMsg("💰 How would you like to pay?", payOpts) }, edgesFor(payOpts)));
+    y += 260;
+    const itemLines = orderMode === "fashion" ? "📏 Size: {{order_size}}\n🎨 Colour: {{order_color}}" : "🛒 Product: {{order_product}}";
+    const sumText = "🧾 *Order Summary*\n\n👤 Name: {{user_full_name}}\n🛍️ Category: {{user_selected_menu}}\n" + itemLines + "\n🔢 Quantity: {{order_qty}}\n📍 Address: {{order_address}}\n💳 Payment: {{order_payment}}\n\n" + (allPriced ? "Our team will confirm payment details after you confirm.\nPlease confirm your order:" : "💰 Price: our team will send the exact price for your selection on WhatsApp. Your order is processed only after you agree to the price.\nPlease confirm your order request:");
     const sumOpts = [
-      { id: "order_confirm", text: "✅ Confirm Order", to: "node_confirmation" },
-      { id: "order_edit", text: "✏️ Edit Order", to: "node_lead_name" },
+      { id: "order_confirm", text: allPriced ? "✅ Confirm Order" : "✅ Send Request", to: "node_confirmation" },
+      { id: "order_edit", text: "✏️ Edit Order", to: "node_welcome" },
       { id: "order_cancel", text: "❌ Cancel", to: "node_order_cancelled" },
     ];
-    nodes.push(mkNode("node_order_summary", "question", 500, y0 + 1560, { variable: "order_decision", message: btnMsg(sumText, sumOpts) }, edgesFor(sumOpts)));
-    const okText = "🎉 *Your order is confirmed, {{user_full_name}}!*\n\nThe *" + bName + "* team will contact you on *{{phone}}* shortly with the final price and payment details. Thank you for shopping with us! 💖";
-    nodes.push(mkNode("node_confirmation", "message", 500, y0 + 1820, { crmSync: true, notifyOwner: true, capturedVariables: ["user_full_name", "user_selected_menu", "order_size", "order_color", "order_qty", "order_address", "order_payment"], message: btnMsg(okText, menuBtn) }, edgesFor(menuBtn)));
+    nodes.push(mkNode("node_order_summary", "question", 500, y, { variable: "order_decision", message: btnMsg(sumText, sumOpts) }, edgesFor(sumOpts)));
+    y += 260;
+    const okText = allPriced ? "🎉 *Your order is confirmed, {{user_full_name}}!*\n\nThe *" + bName + "* team will contact you on *{{phone}}* shortly with the payment details. Thank you for shopping with us! 💖" : "✅ *Request received, {{user_full_name}}!*\n\nThe *" + bName + "* team will contact you on *{{phone}}* shortly with the exact price. Your order is placed only after you agree to the price. Thank you! 💖";
+    nodes.push(mkNode("node_confirmation", "message", 500, y, { crmSync: true, notifyOwner: true, capturedVariables: ["user_full_name", "user_selected_menu", "order_size", "order_color", "order_product", "order_qty", "order_address", "order_payment"], message: btnMsg(okText, menuBtn) }, edgesFor(menuBtn)));
     const cancelOpts = [{ id: "btn_cancel_menu", text: t.mainMenu, to: "node_welcome" }];
-    nodes.push(mkNode("node_order_cancelled", "message", 900, y0 + 1820, { message: btnMsg("Your order has been cancelled. Let us know if you need anything else. 😊", cancelOpts) }, edgesFor(cancelOpts)));
+    nodes.push(mkNode("node_order_cancelled", "message", 900, y, { message: btnMsg("Your order has been cancelled. Let us know if you need anything else. 😊", cancelOpts) }, edgesFor(cancelOpts)));
   } else {
     nodes.push(mkNode("node_lead_name", "question", 500, y0, { variable: "user_full_name", message: { type: "text", text: t.askName, body: t.askName } }, [{ targetNodeId: "node_lead_extra", label: "default" }]));
     nodes.push(mkNode("node_lead_extra", "question", 500, y0 + 260, { variable: "lead_details", message: { type: "text", text: cfg.extra, body: cfg.extra } }, [{ targetNodeId: "node_lead_phone", label: "default" }]));
@@ -1189,34 +1565,50 @@ function buildBlueprint(ctx) {
 
   return {
     name: bName + " – WhatsApp Bot",
-    description: "WhatsApp assistant for " + bName + ": menu, per-item details, " + (cfg.order ? "order flow" : "lead capture") + " and live-agent handoff.",
+    description: "WhatsApp assistant for " + bName + ": menu, per-item details, " + (orderMode ? "order flow with quantity and total" : "lead capture") + " and live-agent handoff.",
     trigger: { type: "keyword", keywords: ["hi", "hello", "hey", "start", "menu", "help", "namaste", "info"] },
     nodes: nodes,
   };
 }
 
 function generateFallbackFlow(opts) {
-  opts = opts || {};
+  opts = cleanInputs(opts || {});
+  const notes = [];
   const websiteData = opts.websiteData || null;
-  const bName = String(opts.businessName || (websiteData && websiteData.brandName) || (websiteData && websiteData.title ? websiteData.title.split(/[-|–]/)[0].trim() : "") || "Our Business").trim();
+  const bName = cleanName(opts.businessName || (websiteData && websiteData.brandName) || (websiteData && websiteData.title ? websiteData.title.split(/[-|–]/)[0].trim() : "") || "Our Business") || "Our Business";
   const key = resolveIndustryKey({ industry: opts.industry, businessName: bName, prompt: opts.prompt, websiteData: websiteData });
   const lang = getLang(opts.language);
-  return buildBlueprint({
-    bName: bName,
-    cfg: INDUSTRY[key] || INDUSTRY.general,
-    t: I18N[lang],
-    lang: lang,
-    details: extractDetails(opts.prompt, websiteData, opts.details),
-    offers: opts.offers || (websiteData && websiteData.detectedOffer) || "",
-    customItems: extractListFromPrompt(opts.prompt),
-    websiteData: websiteData,
-  });
+  let flow;
+  try {
+    flow = buildBlueprint(
+      {
+        bName: bName,
+        key: key,
+        cfg: INDUSTRY[key] || INDUSTRY.general,
+        t: I18N[lang],
+        lang: lang,
+        details: extractDetails(opts.prompt, websiteData, opts.details, notes),
+        offers: opts.offers || (websiteData && websiteData.detectedOffer) || "",
+        customItems: resolveItems(opts.prompt, websiteData),
+        websiteData: websiteData,
+      },
+      notes,
+    );
+  } catch (err) {
+    // last-resort safety net: never fail to produce a working bot
+    logger.error("Blueprint build failed, using safe default: " + err.message);
+    notes.push("Your input could not be fully applied, so a safe default menu was created.");
+    flow = buildBlueprint({ bName: bName, key: "general", cfg: INDUSTRY.general, t: I18N.en, lang: "en", details: {}, offers: "", customItems: [], websiteData: null }, notes);
+  }
+  finalizeFlow(flow);
+  Object.defineProperty(flow, "_notes", { value: notes, enumerable: false });
+  return flow;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI FLOW GENERATION
 // ─────────────────────────────────────────────────────────────────────────────
-const AI_RULES = ["WHATSAPP LIMITS (hard):", "- A reply-button message has at most 3 buttons, each title at most 20 characters.", '- 4 to 10 options MUST use a list message: data.message.type = "list", data.message.buttonText (max 20 chars), data.message.sections = [{ "title": "Menu", "rows": [{ "id": "row_x", "title": "max 24 chars", "description": "max 72 chars" }] }].', "- Never put more than 10 rows in one list.", "", "ROUTING RULES (most important):", '1. EVERY button and EVERY list row has its OWN edge. For each option add exactly one edge whose label is: "<exact option title>, <option id>, <position number starting at 1>".', '2. Different options must lead to DIFFERENT nodes with DIFFERENT replies. Only "Main Menu" (-> node_welcome), "Talk to Expert" (-> node_handoff) and shared lead-capture nodes may be shared targets.', '3. NEVER use a "default" or empty label on a node that has buttons or a list. "default" is only for free-text input nodes (name, address, quantity...).', "4. Every option id must be unique inside its node. Every edge targetNodeId must be a real node id.", "", "MESSAGE FIELDS (hard):", "- EVERY node, including list nodes, must have data.message.text AND data.message.body (the greeting / question the customer reads).", "- Buttons and list rows must be written inside data.message.buttons / data.message.sections. Never express options only through edge labels.", "- A node that shows information must end with its buttons; it must never jump to the next step on its own.", "", "CONTENT RULES:", "1. Welcome node (id node_welcome): greeting + menu of the main topics (list if 4+ topics). Do NOT ask for name or phone here.", "2. Every menu topic gets its OWN information node with real, specific details and exactly these buttons: [action CTA, Main Menu, Talk to Expert].", '3. Ask for name/phone ONLY after the user taps an action CTA (Book / Order / Quote / Claim). Flow: node_lead_name -> (optional extra questions, one per node) -> node_lead_phone (button "Same Number") -> node_confirmation (crmSync true, "Main Menu" button).', "4. For shopping / fashion / food businesses with an order flow: name -> size or item -> colour/options -> quantity -> address -> payment (buttons) -> summary (Confirm / Edit / Cancel). Use {{variables}} to show earlier answers in the summary.", '5. Include node_handoff (type "handoff", data.action "assign_agent") with a "Main Menu" button.', "6. The welcome node variable stores the selected topic; reuse it as {{user_selected_menu}} later so the bot remembers what the customer chose.", '7. NEVER invent phone numbers, addresses, prices, timings, discounts or policies. Use only the details provided by the owner; if a detail is missing, leave it out or tell the customer to tap "Talk to Expert".', "8. If the owner lists categories/services, use those names exactly. Otherwise use the suggested topics.", "9. Write all customer-facing text in the requested language. Use light emojis and *bold* for key info.", "10. Use 10 to 24 nodes. Question nodes must have data.variable.", "", "OUTPUT: ONLY valid JSON, no markdown:", '{ "name": "Bot name", "description": "One line", "trigger": { "type": "keyword", "keywords": ["hi","hello","start","menu"] },', '  "nodes": [ { "id": "node_welcome", "type": "question", "position": { "x": 500, "y": 60 },', '    "data": { "variable": "user_selected_menu", "message": { "type": "buttons|list|text", "text": "...", "body": "...", "buttons": [{ "id": "btn_x", "text": "Title", "title": "Title" }] } },', '    "edges": [ { "targetNodeId": "node_x", "label": "Title, btn_x, 1" } ] } ] }', 'Node types: "question" (buttons/list/text input), "message" (info), "handoff" (live agent).'].join("\n");
+const AI_RULES = ["WHATSAPP LIMITS (hard):", "- A reply-button message has at most 3 buttons, each title at most 20 characters.", '- 4 to 10 options MUST use a list message: data.message.type = "list", data.message.buttonText (max 20 chars), data.message.sections = [{ "title": "Menu", "rows": [{ "id": "row_x", "title": "max 24 chars", "description": "max 72 chars" }] }].', "- Never put more than 10 rows in one list.", "", "ROUTING RULES (most important):", '1. EVERY button and EVERY list row has its OWN edge. For each option add exactly one edge whose label is: "<exact option title>, <option id>, <position number starting at 1>".', '2. Different options must lead to DIFFERENT nodes with DIFFERENT replies. Only "Main Menu" (-> node_welcome), "Talk to Expert" (-> node_handoff) and shared lead-capture nodes may be shared targets.', '3. NEVER use a "default" or empty label on a node that has buttons or a list. "default" is only for free-text input nodes (name, address, quantity...).', "4. Every option id must be unique inside its node. Every edge targetNodeId must be a real node id.", "", "MESSAGE FIELDS (hard):", "- EVERY node, including list nodes, must have data.message.text AND data.message.body (the greeting / question the customer reads).", "- Buttons and list rows must be written inside data.message.buttons / data.message.sections. Never express options only through edge labels.", "- A node that shows information must end with its buttons; it must never jump to the next step on its own.", "", "CONTENT RULES:", "1. Welcome node (id node_welcome): greeting + menu of the main topics (list if 4+ topics). Do NOT ask for name or phone here.", "2. Every menu topic gets its OWN information node with real, specific details and exactly these buttons: [action CTA, Main Menu, Talk to Expert].", '3. Ask for name/phone ONLY after the user taps an action CTA (Book / Order / Quote / Claim). Flow: node_lead_name -> (optional extra questions, one per node) -> node_lead_phone (button "Same Number") -> node_confirmation (crmSync true, "Main Menu" button).', "4. For shopping / fashion / food businesses with an order flow: name -> size or item -> colour/options -> quantity -> address -> payment (buttons) -> summary (Confirm / Edit / Cancel). Use {{variables}} to show earlier answers in the summary.", '5. Include node_handoff (type "handoff", data.action "assign_agent") with a "Main Menu" button.', "6. The welcome node variable stores the selected topic; reuse it as {{user_selected_menu}} later so the bot remembers what the customer chose.", '7. NEVER invent phone numbers, addresses, prices, timings, discounts or policies. Use only the details provided by the owner; if a detail is missing, leave it out or tell the customer to tap "Talk to Expert".', "8. If the owner lists categories/services, use those names exactly. Otherwise use the suggested topics.", "9. Write all customer-facing text in the requested language. Use light emojis. Do NOT use asterisks, markdown, HTML or angle brackets in any text.", "10. Use 10 to 24 nodes. Question nodes must have data.variable.", "", "OUTPUT: ONLY valid JSON, no markdown:", '{ "name": "Bot name", "description": "One line", "trigger": { "type": "keyword", "keywords": ["hi","hello","start","menu"] },', '  "nodes": [ { "id": "node_welcome", "type": "question", "position": { "x": 500, "y": 60 },', '    "data": { "variable": "user_selected_menu", "message": { "type": "buttons|list|text", "text": "...", "body": "...", "buttons": [{ "id": "btn_x", "text": "Title", "title": "Title" }] } },', '    "edges": [ { "targetNodeId": "node_x", "label": "Title, btn_x, 1" } ] } ] }', 'Node types: "question" (buttons/list/text input), "message" (info), "handoff" (live agent).'].join("\n");
 
 const AI_SYSTEM_PROMPT = "You are an expert WhatsApp Business chatbot architect (Meta WABA flows). You design bots that real businesses use to answer customers, take orders and capture leads. " + "Every reply must match the real business domain (a clothing store talks about collections, sizes and orders, never IT quotes).\n\n" + AI_RULES;
 
@@ -1245,7 +1637,7 @@ async function callGroq(model, messages, apiKey) {
 }
 
 async function generateBotFlow(input) {
-  input = input || {};
+  input = cleanInputs(input || {});
   const prompt = input.prompt,
     businessName = input.businessName,
     industry = input.industry;
@@ -1265,8 +1657,9 @@ async function generateBotFlow(input) {
   const effectivePrompt = prompt || (websiteData && websiteData.suggestedPrompt) || "";
   const key = resolveIndustryKey({ industry: industry, businessName: effectiveBusiness, prompt: prompt, websiteData: websiteData });
   const cfg = INDUSTRY[key] || INDUSTRY.general;
-  const details = extractDetails(prompt, websiteData, input.details);
-  const customItems = extractListFromPrompt(prompt);
+  const notes = [];
+  const details = extractDetails(prompt, websiteData, input.details, notes);
+  const customItems = resolveItems(prompt, websiteData);
 
   const detailLines = Object.keys(details)
     .filter(function (k) {
@@ -1277,7 +1670,9 @@ async function generateBotFlow(input) {
     });
   const suggestedTopics = (
     customItems.length
-      ? customItems
+      ? customItems.map(function (i) {
+          return i.title + (i.price ? " (" + fmtINR(i.price) + " per piece)" : "");
+        })
       : cfg.items.map(function (i) {
           return i[1];
         })
@@ -1309,11 +1704,13 @@ async function generateBotFlow(input) {
           continue;
         }
         logger.info("AI Bot Builder: Generated " + nodes.length + " valid nodes via " + model);
+        finalizeFlow(nodes);
         return {
-          flow: { _id: "new_flow", name: parsed.name || effectiveBusiness + " Bot", description: parsed.description || "WhatsApp bot for " + effectiveBusiness, trigger: parsed.trigger || { type: "keyword", keywords: ["hi", "hello", "start", "menu"] }, nodes: nodes },
+          flow: { _id: "new_flow", name: cleanName(parsed.name || effectiveBusiness + " Bot"), description: finalizeText(parsed.description || "WhatsApp bot for " + effectiveBusiness, false), trigger: parsed.trigger || { type: "keyword", keywords: ["hi", "hello", "start", "menu"] }, nodes: nodes },
           websiteData: websiteData,
           source: "AI (" + model + ")",
           validation: check,
+          notes: notes,
         };
       } catch (err) {
         const apiMsg = err.response && err.response.data && err.response.data.error ? err.response.data.error.message : err.message;
@@ -1324,7 +1721,11 @@ async function generateBotFlow(input) {
 
   logger.info("AI Bot Builder: Using tested blueprint (" + key + ")");
   const fallback = generateFallbackFlow({ businessName: effectiveBusiness, industry: industry, websiteData: websiteData, offers: effectiveOffers, language: language, prompt: prompt, details: input.details });
-  return { flow: Object.assign({}, fallback, { _id: "new_flow" }), websiteData: websiteData, source: "Built-in blueprint (" + key + ")", validation: validateFlow(fallback.nodes) };
+  const bpNotes = fallback._notes || [];
+  bpNotes.forEach(function (n) {
+    logger.warn("AI Bot Builder note: " + n);
+  });
+  return { flow: Object.assign({}, fallback, { _id: "new_flow" }), websiteData: websiteData, source: "Built-in blueprint (" + key + ")", validation: validateFlow(fallback.nodes), notes: bpNotes };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1406,9 +1807,9 @@ function applyProgrammaticRefinement(existingNodes, instruction, businessName, l
 
 async function refineBotFlow(input) {
   input = input || {};
-  const flow = input.flow,
-    refineInstruction = input.refineInstruction;
-  const businessName = input.businessName || "Our Business";
+  const flow = input.flow;
+  const refineInstruction = cleanText(input.refineInstruction || "", true);
+  const businessName = input.businessName ? cleanName(input.businessName) : "Our Business";
   const language = input.language || "English";
   if (!flow || !Array.isArray(flow.nodes)) throw new Error("Invalid flow structure to refine");
 
@@ -1438,6 +1839,7 @@ async function refineBotFlow(input) {
             logger.warn("AI Refine: " + model + " result rejected -> " + check.errors.slice(0, 5).join(" | "));
             continue;
           }
+          finalizeFlow(nodes);
           return { flow: Object.assign({}, flow, { name: parsed.name || flow.name, description: parsed.description || flow.description, trigger: parsed.trigger || flow.trigger, nodes: nodes }), note: "Refined using AI (" + model + ")", validation: check };
         }
       } catch (err) {
@@ -1449,10 +1851,13 @@ async function refineBotFlow(input) {
   logger.info("AI Refine: Applying programmatic refinement");
   const updated = applyProgrammaticRefinement(flow.nodes, refineInstruction, businessName, language);
   const normalized = sanitizeAndLayoutFlow(updated, businessName);
+  finalizeFlow(normalized);
   return { flow: Object.assign({}, flow, { nodes: normalized }), note: "Refined with Smart Rule Engine", validation: validateFlow(normalized) };
 }
 
 module.exports = {
+  finalizeFlow: finalizeFlow,
+  cleanText: cleanText,
   scrapeWebsite: scrapeWebsite,
   generateBotFlow: generateBotFlow,
   generateFallbackFlow: generateFallbackFlow,

@@ -484,6 +484,20 @@ router.post('/ai-builder/scrape', async (req, res) => {
 router.post('/ai-builder/generate', async (req, res) => {
   try {
     const { prompt, businessName, industry, websiteUrl, offers, language } = req.body;
+    if (!businessName || !businessName.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Business / Brand Name is required to generate a bot flow.',
+        code: 'BRAND_NAME_REQUIRED'
+      });
+    }
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Bot requirements prompt is required to generate a bot flow.',
+        code: 'PROMPT_REQUIRED'
+      });
+    }
     const result = await generateBotFlow({
       prompt,
       businessName,
