@@ -215,6 +215,7 @@ const invoicesRoute = require('./routes/invoices');
 const myoperatorRoute = require('./routes/myoperator');
 const telephonyAdminRoute = require('./routes/telephonyAdmin');
 const walletRoute = require('./routes/wallet');
+const luscentStoreRoute = require('./routes/luscentStore');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
@@ -250,6 +251,7 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/products`, productsRoute);
   app.use(`${prefix}/cart`, cartRoute);
   app.use(`${prefix}/orders`, ordersRoute);
+  app.use(`${prefix}/store/luscent`, luscentStoreRoute);
 };
 
 // Mount versioned API routes
@@ -351,6 +353,18 @@ async function startServer() {
       logger.warn('Invoice automation cron failed to start:', err.message);
     }
 
+    // Init Delhivery tracking auto-sync cron job (every 30 mins)
+    try {
+      const cron = require('node-cron');
+      const { syncActiveOrdersTracking } = require('./services/delhiveryTrackingService');
+      cron.schedule('*/30 * * * *', () => {
+        syncActiveOrdersTracking().catch(e => logger.error('Delhivery tracking cron error:', e));
+      });
+      logger.info('Delhivery tracking auto-sync cron registered (every 30 mins)');
+    } catch (err) {
+      logger.warn('Delhivery tracking cron failed to start:', err.message);
+    }
+
     server.listen(env.PORT, () => {
       logger.info(`Server running on port ${env.PORT} [${env.NODE_ENV}]`);
     });
@@ -380,3 +394,5 @@ startServer();
 
 // Reload trigger: commerceEngine & botEngine edge isolation updated
 module.exports = { app, server };
+
+// Reload: 1793258238188
