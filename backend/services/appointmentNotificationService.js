@@ -19,6 +19,9 @@ const DEFAULT_CANCEL_REASON = 'Due to some important work';
 const GOOGLE_CALENDAR_ID = 'hrmangukiya3494@gmail.com';
 const BOOKING_URL = 'https://calendar.app.google/ZvhrmRV1dnYSL4XC8';
 
+// Synchronous In-Memory Lock to block concurrent duplicate requests (Debounce)
+const activeProcessingLock = new Map();
+
 /**
  * Retrieve active WhatsApp credentials with approved appointment templates
  */
@@ -101,7 +104,7 @@ function formatAppointmentTime(date) {
 function extractPhoneFromText(text) {
   if (!text) return '';
   
-  // Clean HTML
+  // Clean HTML entities & tags
   const clean = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/<[^>]+>/g, ' ');
 
   // Pattern 1: Explicit labels like "Phone number: +919876543210" or "Mobile: 9876543210"
@@ -134,20 +137,10 @@ function extractNameFromPayload(payload) {
     const rawDesc = payload.description
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
-      .replace(/<[^>]+>/g, ' ');
+      .replace(/<[^>]+>/g, '\n');
     const bookedByMatch = rawDesc.match(/Booked by\s*[:\s]*([^\(\n\r<]+)/i);
     if (bookedByMatch && bookedByMatch[1] && bookedByMatch[1].trim()) {
       return bookedByMatch[1].trim();
-    }
-  }
-
-  // Check attendees list for non-host attendee
-  if (Array.isArray(payload.attendees)) {
-    const guest = payload.attendees.find(
-      a => a.email && !a.email.toLowerCase().includes('hrmangukiya3494') && (a.name || a.displayName)
-    );
-    if (guest && (guest.name || guest.displayName)) {
-      return (guest.name || guest.displayName).trim();
     }
   }
 
@@ -158,9 +151,20 @@ function extractNameFromPayload(payload) {
       return parenMatch[1].trim();
     }
     let clean = payload.summary.replace(/Het\s+Mangukiya\s+(?:and|&)\s+/i, '');
+    clean = clean.replace(/Let[’']s\s+Talk\s*[-–]?\s*/i, '');
     clean = clean.replace(/Business meeting with HK DigiVerse LLP/i, '');
     clean = clean.trim();
     if (clean.length > 1 && clean.length < 50) return clean;
+  }
+
+  // Check attendees list for non-host attendee
+  if (Array.isArray(payload.attendees)) {
+    const guest = payload.attendees.find(
+      a => a.email && !a.email.toLowerCase().includes('hrmangukiya3494') && (a.name || a.displayName)
+    );
+    if (guest && (guest.name || guest.displayName)) {
+      return (guest.name || guest.displayName).trim();
+    }
   }
 
   return 'Valued Client';
@@ -346,7 +350,7 @@ async function sendAppointmentRescheduledNotification(appointment) {
         error: result.error || 'Failed to send template',
       };
       await appointment.save();
-      logger.error(`[AppointmentNotification] Failed to send rescheduled template to ${recipient}: ${result.error}`);
+      logger.warn(`[AppointmentNotification] Rescheduled template queued/failed for ${recipient}: ${result.error}`);
     }
 
     return result;
@@ -414,7 +418,7 @@ async function sendAppointmentCancelledNotification(appointment, reason) {
         error: result.error || 'Failed to send template',
       };
       await appointment.save();
-      logger.error(`[AppointmentNotification] Failed to send cancelled template to ${recipient}: ${result.error}`);
+      logger.warn(`[AppointmentNotification] Cancelled template queued/failed for ${recipient}: ${result.error}`);
     }
 
     return result;
@@ -485,7 +489,7 @@ async function ensureContact(clientName, clientPhone, clientEmail, organizationI
         email: clientEmail || '',
         userId: userId,
         organizationId: organizationId,
-        source: 'google_calendar_appointment',
+        source: 'api',
       });
     } else if (clientName && (!contact.name || contact.name === 'Customer')) {
       contact.name = clientName;
@@ -504,16 +508,35 @@ async function ensureContact(clientName, clientPhone, clientEmail, organizationI
  */
 async function processGoogleCalendarEvent(payload) {
   try {
-    logger.info(`[AppointmentNotification] Processing event: ${JSON.stringify({
-      action: payload.action,
-      eventId: payload.eventId || payload.id,
-      summary: payload.summary || payload.title,
-      startTime: payload.startTime || payload.scheduledAt
-    })}`);
-
     const googleEventId = payload.eventId || payload.id;
     const action = (payload.action || 'created').toLowerCase();
     const scheduledAtRaw = payload.startTime || payload.start?.dateTime || payload.scheduledAt;
+
+    // 1. Anti-Duplicate Lock (Debounce 20 seconds per eventId + action)
+    if (googleEventId) {
+      const lockKey = `${googleEventId}_${action}_${scheduledAtRaw || ''}`;
+      const lastRun = activeProcessingLock.get(lockKey);
+      if (lastRun && (Date.now() - lastRun) < 20000) {
+        logger.warn(`[AppointmentNotification] Anti-Duplicate blocked repeated signal for ${lockKey}`);
+        return { success: true, duplicate: true, message: 'Duplicate event ignored within debounce window' };
+      }
+      activeProcessingLock.set(lockKey, Date.now());
+
+      // Periodic cleanup of lock map
+      if (activeProcessingLock.size > 2000) {
+        const threshold = Date.now() - 60000;
+        for (const [key, ts] of activeProcessingLock.entries()) {
+          if (ts < threshold) activeProcessingLock.delete(key);
+        }
+      }
+    }
+
+    logger.info(`[AppointmentNotification] Processing event: ${JSON.stringify({
+      action,
+      eventId: googleEventId,
+      summary: payload.summary || payload.title,
+      startTime: scheduledAtRaw
+    })}`);
 
     if (!scheduledAtRaw && action !== 'cancelled') {
       return { success: false, error: 'Start time is required for appointment' };
@@ -525,7 +548,13 @@ async function processGoogleCalendarEvent(payload) {
     const clientPhone = payload.clientPhone || extractPhoneFromText(payload.description || '');
     const clientName = extractNameFromPayload(payload);
     const clientEmail = payload.clientEmail || (payload.attendees?.find(a => !a.email?.includes('hrmangukiya3494'))?.email) || '';
-    const subject = payload.subject || payload.title || payload.summary || DEFAULT_SUBJECT;
+    
+    // Clean subject (default to professional business meeting)
+    let subject = DEFAULT_SUBJECT;
+    if (payload.subject && payload.subject !== DEFAULT_SUBJECT) {
+      subject = payload.subject;
+    }
+
     const cancelReason = payload.reason || payload.cancellationReason || DEFAULT_CANCEL_REASON;
     const duration = payload.duration || 30;
 
@@ -568,6 +597,9 @@ async function processGoogleCalendarEvent(payload) {
     // ACTION: CANCELLED
     if (action === 'cancelled' || action === 'deleted') {
       if (appointment) {
+        if (appointment.status === 'cancelled') {
+          return { success: true, message: 'Appointment was already cancelled' };
+        }
         appointment.status = 'cancelled';
         appointment.cancellationReason = cancelReason;
         await appointment.save();
@@ -651,6 +683,15 @@ async function processGoogleCalendarEvent(payload) {
     }
 
     // ACTION: NEW APPOINTMENT (CREATED)
+    // Double check: If appointment with this googleEventId already exists, don't create duplicate
+    if (googleEventId) {
+      const existing = await Appointment.findOne({ googleEventId });
+      if (existing) {
+        logger.info(`[AppointmentNotification] Duplicate creation prevented for event ${googleEventId}`);
+        return { success: true, message: 'Appointment already exists' };
+      }
+    }
+
     const newAppointment = await Appointment.create({
       googleEventId: googleEventId || `appt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       googleCalendarId: GOOGLE_CALENDAR_ID,
