@@ -367,6 +367,15 @@ async function startServer() {
       logger.warn('Delhivery tracking cron failed to start:', err.message);
     }
 
+    // Init Luscent Glow live order watcher (auto-sync every 10s)
+    try {
+      const { startLuscentOrderWatcher } = require('./services/luscentOrderSyncService');
+      startLuscentOrderWatcher(10000);
+      logger.info('Luscent Glow live order watcher initialized (every 10s)');
+    } catch (err) {
+      logger.warn('Luscent Glow order watcher failed to start:', err.message);
+    }
+
     server.listen(env.PORT, () => {
       logger.info(`Server running on port ${env.PORT} [${env.NODE_ENV}]`);
     });

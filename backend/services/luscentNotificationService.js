@@ -95,10 +95,23 @@ async function sendOrderConfirmedNotification(storeOrder) {
           { type: 'text', text: expectedDelivery },
         ],
       },
+      {
+        type: 'button',
+        sub_type: 'url',
+        index: '0',
+        parameters: [
+          { type: 'text', text: orderId },
+        ],
+      },
     ];
 
     logger.info(`Sending order_confirmed_template to ${recipient} for order ${orderId}`);
-    const result = await sendTemplateMessage(phoneNumberId, token, recipient, 'order_confirmed_template', 'en', components);
+    let result = await sendTemplateMessage(phoneNumberId, token, recipient, 'order_confirmed_template', 'en', components);
+
+    // If button parameter failed (e.g. if button is still quick reply during approval), fallback to body only
+    if (!result.success && result.error && (result.error.includes('button') || result.error.includes('component'))) {
+      result = await sendTemplateMessage(phoneNumberId, token, recipient, 'order_confirmed_template', 'en', [components[0]]);
+    }
 
     if (result.success) {
       storeOrder.notifications.orderConfirmed = {
