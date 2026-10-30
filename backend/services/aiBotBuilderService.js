@@ -774,6 +774,7 @@ const I18N = {
     offers: "🎁 Special Offers",
     offersDesc: "Current deals",
     footer: "Tap the button below to continue, or talk to our team for prices and availability.",
+    footer2: "Tap the button below to continue, or talk to our team if you need help.",
     askName: "✍️ Please enter your full name:",
     phone: "🙏 Thank you, *{{user_full_name}}*!\n\n📱 We have your WhatsApp number (*{{phone}}*).\n\nTap *Same Number* to confirm, or type a different number:",
     samePhone: "📱 Same Number",
@@ -804,6 +805,7 @@ const I18N = {
     offers: "🎁 विशेष ऑफर",
     offersDesc: "चालू ऑफर",
     footer: "आगे बढ़ने के लिए नीचे बटन दबाएँ, या कीमत और उपलब्धता के लिए हमारी टीम से बात करें।",
+    footer2: "आगे बढ़ने के लिए नीचे बटन दबाएँ, या मदद के लिए हमारी टीम से बात करें।",
     askName: "✍️ कृपया अपना पूरा नाम लिखें:",
     phone: "🙏 धन्यवाद, *{{user_full_name}}*!\n\n📱 आपका WhatsApp नंबर (*{{phone}}*) हमारे पास है।\n\nपुष्टि के लिए *यही नंबर* दबाएँ, या दूसरा नंबर लिखें:",
     samePhone: "📱 यही नंबर",
@@ -834,6 +836,7 @@ const I18N = {
     offers: "🎁 ખાસ ઑફર",
     offersDesc: "ચાલુ ઑફર",
     footer: "આગળ વધવા માટે નીચે બટન દબાવો, અથવા કિંમત અને ઉપલબ્ધતા માટે અમારી ટીમ સાથે વાત કરો.",
+    footer2: "આગળ વધવા માટે નીચે બટન દબાવો, અથવા મદદ માટે અમારી ટીમ સાથે વાત કરો.",
     askName: "✍️ કૃપા કરીને તમારું પૂરું નામ લખો:",
     phone: "🙏 આભાર, *{{user_full_name}}*!\n\n📱 તમારો WhatsApp નંબર (*{{phone}}*) અમારી પાસે છે.\n\nપુષ્ટિ માટે *આ જ નંબર* દબાવો, અથવા બીજો નંબર લખો:",
     samePhone: "📱 આ જ નંબર",
@@ -892,11 +895,11 @@ const INDUSTRY = {
   fitness: {
     e: "🏋️",
     cta: "🎟️ Book Free Trial",
-    sub: "Transform your fitness with certified trainers, modern equipment and personalised plans!",
+    sub: "Reach your fitness goals with us. Choose an option below to get started!",
     extra: "🕒 Which day and time would you like to visit?",
     items: [
       ["💪", "Membership Plans", "Monthly, quarterly and annual memberships to suit your goals and budget."],
-      ["🏋️", "Personal Training", "One-to-one coaching with certified trainers for strength, weight loss or muscle gain."],
+      ["🏋️", "Personal Training", "One-to-one coaching sessions focused on your fitness goals."],
       ["🧘", "Group Classes", "Yoga, Zumba, cardio and functional training in energetic group sessions."],
       ["🥗", "Diet & Nutrition", "Customised diet guidance to support your workout results."],
     ],
@@ -904,23 +907,23 @@ const INDUSTRY = {
   healthcare: {
     e: "🏥",
     cta: "📅 Book Appointment",
-    sub: "Caring, expert healthcare from qualified doctors and specialists.",
+    sub: "We are here to help with your health and appointments.",
     extra: "📅 Preferred date & time for the appointment, and a short note on the concern:",
     items: [
       ["🩺", "General Medicine", "Consultation, check-ups and treatment for common and chronic conditions."],
       ["🦷", "Dental Care", "Check-ups, cleaning, fillings, braces and complete dental treatments."],
-      ["👶", "Child Care", "Child health, vaccinations and growth monitoring by paediatric specialists."],
+      ["👶", "Child Care", "Child health, vaccinations and growth monitoring."],
       ["🦴", "Ortho & Joint Care", "Bone, joint and mobility care, including injury and pain management."],
-      ["🔬", "Lab & Diagnostics", "Blood tests, X-ray and other diagnostics with quick, reliable reports."],
+      ["🔬", "Lab & Diagnostics", "Blood tests, X-ray and other diagnostic tests."],
     ],
   },
   restaurant: {
     e: "🍽️",
     cta: "📅 Book a Table",
-    sub: "Freshly prepared food, warm hospitality and an unforgettable dining experience!",
+    sub: "Good food and warm hospitality. Choose an option below to get started!",
     extra: "📅 Date, time and number of guests (or your order details):",
     items: [
-      ["🍽️", "Food Menu", "Starters, mains, breads and rice, freshly prepared by our chefs."],
+      ["🍽️", "Food Menu", "Starters, mains, breads and rice."],
       ["🍰", "Desserts & Drinks", "Desserts, beverages, shakes and mocktails to complete your meal."],
       ["🥘", "Todays Specials", "Chef specials and seasonal dishes available for a limited time."],
       ["🎉", "Party & Catering", "Birthday, family and corporate events with custom menus and catering."],
@@ -929,12 +932,12 @@ const INDUSTRY = {
   realestate: {
     e: "🏢",
     cta: "🚗 Book Site Visit",
-    sub: "Find your ideal apartment, villa or commercial space with expert guidance!",
+    sub: "Find the right apartment, villa or commercial space with us.",
     extra: "🏠 Which property type and budget are you looking for, and your preferred visit date?",
     items: [
-      ["🏠", "Apartments", "Well-planned apartments in prime locations with modern amenities."],
+      ["🏠", "Apartments", "Apartment options to suit your needs and budget."],
       ["🏡", "Villas & Row Houses", "Independent villas and row houses for comfortable family living."],
-      ["🏢", "Commercial Spaces", "Offices and shops in high-visibility business locations."],
+      ["🏢", "Commercial Spaces", "Office and shop spaces for your business."],
       ["🏦", "Home Loan & EMI", "Guidance on home loans, eligibility and EMI planning."],
     ],
   },
@@ -954,11 +957,11 @@ const INDUSTRY = {
   it: {
     e: "🚀",
     cta: "💡 Get Free Quote",
-    sub: "Your trusted technology partner for web, mobile, AI automation and digital growth!",
+    sub: "Websites, apps, automation and digital growth for your business.",
     extra: "💡 Please describe your project or requirement briefly:",
     items: [
-      ["🌐", "Web Development", "Business websites, e-commerce stores and web applications built to convert."],
-      ["📱", "Mobile Apps", "Android and iOS apps with smooth design and reliable performance."],
+      ["🌐", "Web Development", "Business websites, e-commerce stores and web applications."],
+      ["📱", "Mobile Apps", "Android and iOS apps for your business."],
       ["🤖", "AI & Automation", "WhatsApp bots, CRM integration and workflow automation for your business."],
       ["📈", "Digital Marketing", "SEO, social media and performance marketing to grow your reach."],
       ["☁️", "Cloud & Support", "Hosting, maintenance and ongoing technical support."],
@@ -967,19 +970,19 @@ const INDUSTRY = {
   education: {
     e: "🎓",
     cta: "🎟️ Book Demo Class",
-    sub: "Build your career with expert faculty, practical learning and placement guidance!",
+    sub: "Learn new skills and build your career with us.",
     extra: "📚 Which course are you interested in?",
     items: [
-      ["📚", "Courses", "Industry-focused courses with practical projects and certification."],
+      ["📚", "Courses", "Courses designed to help you learn new skills."],
       ["👥", "Batches & Timings", "Weekday, weekend and flexible batches to fit your schedule."],
-      ["💼", "Placement Support", "Resume building, interview preparation and job guidance."],
+      ["📝", "Admission Process", "Know how to join, the documents needed and the next steps."],
       ["💳", "Fees & Scholarships", "Course fees, instalment options and scholarship details."],
     ],
   },
   travel: {
     e: "✈️",
     cta: "📋 Get Free Quote",
-    sub: "Curated holidays, flights, hotels and hassle-free visa assistance!",
+    sub: "Holidays, flights, hotels and visa help, planned around you.",
     extra: "🧳 Destination, travel dates and number of travellers?",
     items: [
       ["🗺️", "Tour Packages", "Domestic and international packages with hotels, sightseeing and transfers."],
@@ -991,10 +994,10 @@ const INDUSTRY = {
   salon: {
     e: "💇‍♀️",
     cta: "📅 Book Slot",
-    sub: "Pamper yourself with expert hair, skin, makeup and spa services!",
+    sub: "Hair, skin, makeup and spa services. Choose an option below to get started!",
     extra: "💇 Which service would you like, and your preferred date & time?",
     items: [
-      ["✂️", "Hair Services", "Cuts, colour, spa and smoothing treatments by experienced stylists."],
+      ["✂️", "Hair Services", "Haircuts, colour, hair spa and styling."],
       ["💆", "Skin & Facials", "Facials, cleanups and skin treatments for a healthy glow."],
       ["👰", "Bridal & Makeup", "Bridal, party and occasion makeup with a personalised look."],
       ["💅", "Nails & Spa", "Manicure, pedicure, nail art and relaxing spa therapies."],
@@ -1003,7 +1006,7 @@ const INDUSTRY = {
   finance: {
     e: "💼",
     cta: "📞 Get Callback",
-    sub: "Smart financial solutions for loans, insurance, investments and tax planning!",
+    sub: "Loans, insurance, investments and tax support. How can we help?",
     extra: "💼 Which product are you interested in (loan / insurance / investment)?",
     items: [
       ["💰", "Loans", "Personal, home and business loan guidance with eligibility support."],
@@ -1015,10 +1018,10 @@ const INDUSTRY = {
   auto: {
     e: "🚗",
     cta: "📅 Book Service",
-    sub: "Reliable servicing, repairs and care for your vehicle!",
+    sub: "Servicing, repairs and care for your vehicle.",
     extra: "🚗 Please share your vehicle model and the service you need:",
     items: [
-      ["🔧", "Service & Repair", "Regular servicing, repairs and diagnostics by skilled mechanics."],
+      ["🔧", "Service & Repair", "Regular servicing, repairs and diagnostics."],
       ["🚿", "Wash & Detailing", "Car wash, polishing and interior and exterior detailing."],
       ["🛞", "Tyres & Batteries", "Tyre replacement, alignment, balancing and battery service."],
       ["📋", "Insurance & Papers", "Help with insurance claims and vehicle paperwork."],
@@ -1027,13 +1030,13 @@ const INDUSTRY = {
   legal: {
     e: "⚖️",
     cta: "📅 Book Consultation",
-    sub: "Trusted legal guidance and representation for individuals and businesses.",
+    sub: "Legal help for individuals and businesses.",
     extra: "⚖️ Please describe your legal matter briefly:",
     items: [
       ["⚖️", "Practice Areas", "Civil, criminal, family, property and corporate legal matters."],
       ["📄", "Documentation", "Agreements, notices, affidavits and other legal documents."],
       ["🏢", "Business & Compliance", "Company registration, contracts and regulatory compliance."],
-      ["👨‍⚖️", "Consult a Lawyer", "Discuss your case with an experienced advocate."],
+      ["👨‍⚖️", "Consult a Lawyer", "Discuss your case with our team."],
     ],
   },
   events: {
@@ -1054,9 +1057,8 @@ const INDUSTRY = {
     sub: "We are happy to help. Choose an option below to get started.",
     extra: "📝 Please describe your requirement briefly:",
     items: [
-      ["🔍", "Our Services", "Everything we offer, explained clearly so you can choose what suits you."],
-      ["⭐", "Why Choose Us", "Quality, reliability and dedicated customer support."],
-      ["❓", "FAQs", "Quick answers to the questions customers ask us most."],
+      ["🔍", "Our Services", "Tell us what you need and our team will guide you with the details."],
+      ["❓", "Ask a Question", "Have a question? Tap the button below and our team will reply."],
     ],
   },
 };
@@ -1163,12 +1165,13 @@ function cleanInputs(input) {
   return out;
 }
 
+const TOPIC_STOPWORDS = ["general", "service", "services", "special", "premium", "basic", "standard", "package", "packages", "collection", "collections", "product", "products", "classes", "online", "offline", "regular", "complete", "advanced", "common", "price", "offer", "offers"];
 function sameTopic(a, b) {
   const stems = function (x) {
     return norm(x)
       .split(" ")
       .filter(function (w) {
-        return w.length >= 5;
+        return w.length >= 5 && TOPIC_STOPWORDS.indexOf(w) === -1;
       })
       .map(function (w) {
         return w.slice(0, 5);
@@ -1287,6 +1290,23 @@ function extractItemsFromPrompt(prompt) {
       if (!it.price && sameTopic(it.title, pr.title)) it.price = pr.price;
     });
   });
+  // owner-written descriptions: lines like "- Teeth Cleaning: removes plaque and stains."
+  const descRe = /^\s*(?:[-•*▪●]|\d+[.)])\s*([^:–—\n]{2,40}?)\s*[:–—]\s+(.{8,220})$/gm;
+  let dm;
+  while ((dm = descRe.exec(p)) !== null) {
+    const title = dm[1].replace(/[()"'*<>]/g, "").trim();
+    const text = dm[2]
+      .replace(/["*<>]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (isPlaceholder(text) || /->|=>/.test(text)) continue;
+    items.forEach(function (it) {
+      if (!it.desc && (norm(it.title) === norm(title) || sameTopic(it.title, title))) {
+        const full = /[.!?]$/.test(text) ? text : text + ".";
+        it.desc = full.charAt(0).toUpperCase() + full.slice(1);
+      }
+    });
+  }
   return items.slice(0, LIST_ROW_MAX);
 }
 
@@ -1322,10 +1342,24 @@ function extractDetails(prompt, websiteData, explicit, notes) {
   if (ph) take("phone", ph[0]);
   const em = p.match(/[\w.+-]+@[\w-]+\.[\w.]+/);
   if (em) take("email", em[0]);
-  const tm = p.match(/(?:timings?|hours|open(?:ing)?(?: hours)?)\s*[:\-]\s*([^\n]{4,80}?)(?:\.\s+[A-Z]|\n|$)/i);
-  if (tm) take("timings", tm[1]);
-  const ad = p.match(/address\s*[:\-]\s*([^\n]{6,140}?)(?:\.\s+[A-Z]|\n|$)/i);
-  if (ad) take("address", ad[1]);
+  // scan ALL matches and take the first real one, so template lines like "Address: {{order_address}}" can never hide the real address
+  const grab = function (key, re) {
+    const g = new RegExp(re.source, "gi");
+    let m,
+      first = null;
+    while ((m = g.exec(p)) !== null) {
+      const v = cleanText(m[1]);
+      if (first === null) first = v;
+      if (v && !isPlaceholder(v)) {
+        take(key, v);
+        return;
+      }
+      if (m[0].length === 0) g.lastIndex++;
+    }
+    if (first !== null) take(key, first); // registers it as an ignored placeholder
+  };
+  grab("timings", /(?:timings?|open(?:ing)?(?: hours)?)\s*[:\-]\s*([^\n]{4,80}?)(?:\.\s+[A-Z]|\n|$)/);
+  grab("address", /address\s*[:\-]\s*([^\n]{6,140}?)(?:\.\s+[A-Z]|\n|$)/);
   const c = (websiteData && websiteData.contact) || {};
   ["phone", "email", "address", "timings"].forEach(function (k) {
     if (!d[k] && c[k]) take(k, c[k]);
@@ -1383,6 +1417,8 @@ function buildBlueprint(ctx, notes) {
     offers = ctx.offers;
   const custom = ctx.customItems || [];
   const nodes = [];
+  const isProduct = !!cfg.order || ctx.key === "retail";
+  const unit = isProduct ? " per piece" : ""; // only products are sold "per piece"; services just show the price
 
   // menu items: the owner's own categories (with prices) win over the industry preset
   let items = cfg.items.map(function (it) {
@@ -1397,7 +1433,7 @@ function buildBlueprint(ctx, notes) {
         e: preset ? preset[0] : cfg.e,
         t: clip(ci.title, ROW_TITLE_MAX - 3),
         full: ci.title,
-        d: preset ? preset[2] : "Explore our " + ci.title + " range at " + bName + ". Tap the button below to continue, or chat with our team for details.",
+        d: ci.desc ? ci.desc : preset ? preset[2] : isProduct ? "Explore our " + ci.title + " collection at " + bName + "." : ci.title + " at " + bName + ". Our team is happy to help with the details.",
         price: ci.price || null,
       };
     });
@@ -1405,6 +1441,7 @@ function buildBlueprint(ctx, notes) {
   const maxItems = LIST_ROW_MAX - 2 - (offers ? 1 : 0); // keep room for About, Offers and Talk to Expert in one list
   if (items.length > maxItems) notes.push("WhatsApp lists hold 10 rows, so only the first " + maxItems + " categories were used.");
   items = items.slice(0, maxItems);
+  if (!custom.length) notes.push('No categories were given, so the default menu topics for this industry were used. Add "Categories: A - price, B - price" to use your own.');
 
   // order flow (with quantity x price) for fashion shops, and for other shops when the owner gave real categories
   const orderMode = cfg.order ? "fashion" : ctx.key === "retail" && custom.length ? "product" : null;
@@ -1432,7 +1469,7 @@ function buildBlueprint(ctx, notes) {
   }
 
   const wOpts = items.map(function (it, i) {
-    return { id: "row_item_" + (i + 1), text: it.e + " " + it.t, desc: (it.price ? fmtINR(it.price) + " per piece · " : "") + it.d, to: "node_item_" + (i + 1) };
+    return { id: "row_item_" + (i + 1), text: it.e + " " + it.t, desc: (it.price ? fmtINR(it.price) + unit + " · " : "") + it.d, to: "node_item_" + (i + 1) };
   });
   wOpts.push({ id: "row_about", text: t.about, desc: t.aboutDesc, to: "node_about" });
   if (offers) wOpts.push({ id: "row_offers", text: t.offers, desc: t.offersDesc, to: "node_offers" });
@@ -1447,10 +1484,10 @@ function buildBlueprint(ctx, notes) {
   const perRow = 4;
   items.forEach(function (it, i) {
     let priceLine = "";
-    if (it.price) priceLine = "\n\n💰 *Price:* " + fmtINR(it.price) + " per piece";
+    if (it.price) priceLine = "\n\n💰 *Price:* " + fmtINR(it.price) + unit;
     else if (orderMode) priceLine = "\n\n💰 *Price:* On request. Our team will share the exact price for your selection before your order is confirmed.";
     const ctaLabel = ctaFor(it).replace(/^\S+\s*/, "");
-    const footer = orderMode && lang === "en" ? "Tap *" + ctaLabel + "* to " + (it.price ? "place your order" : "continue") + ", or talk to our team for any help." : t.footer;
+    const footer = orderMode && lang === "en" ? "Tap *" + ctaLabel + "* to " + (it.price ? "place your order" : "continue") + ", or talk to our team for any help." : it.price ? t.footer2 : t.footer;
     const text = it.e + " *" + it.full + "*\n\n" + it.d + priceLine + "\n\n" + footer;
     const opts = [
       { id: "btn_cta_" + (i + 1), text: ctaFor(it), to: orderMode ? "node_order_qty_" + (i + 1) : "node_lead_name" },
@@ -1470,8 +1507,8 @@ function buildBlueprint(ctx, notes) {
   const desc = ctx.websiteData && ctx.websiteData.description ? ctx.websiteData.description + "\n\n" : "";
   if (!lines.length) notes.push('No address, phone or timings were provided, so About & Contact asks customers to talk to the team. Add them as "Address: ... Timings: ... Call ..." in the requirements box.');
   const aboutText = t.aboutHead(bName) + "\n\n" + desc + (lines.length ? lines.join("\n") : t.noDetails);
-  // in an order flow, "Order Now" must come from a category so the order always knows what was chosen
-  const cta2 = orderMode ? { text: SHOP_LABEL[lang] || SHOP_LABEL.en, to: "node_welcome" } : { text: cfg.cta, to: "node_lead_name" };
+  // the booking / order must always start from a menu item, so the team knows exactly what the customer asked for
+  const cta2 = orderMode ? { text: SHOP_LABEL[lang] || SHOP_LABEL.en, to: "node_welcome" } : { text: t.viewMenu, to: "node_welcome" };
   const aboutOpts = [
     { id: "btn_about_cta", text: cta2.text, to: cta2.to },
     { id: "btn_about_menu", text: t.mainMenu, to: "node_welcome" },
@@ -1560,7 +1597,7 @@ function buildBlueprint(ctx, notes) {
     nodes.push(mkNode("node_lead_extra", "question", 500, y0 + 260, { variable: "lead_details", message: { type: "text", text: cfg.extra, body: cfg.extra } }, [{ targetNodeId: "node_lead_phone", label: "default" }]));
     const phoneOpts = [{ id: "btn_same_phone", text: t.samePhone, to: "node_confirmation" }];
     nodes.push(mkNode("node_lead_phone", "question", 500, y0 + 520, { variable: "user_phone_number", message: btnMsg(t.phone, phoneOpts) }, [{ targetNodeId: "node_confirmation", label: labelFor("btn_same_phone", t.samePhone, 0) + ", same, default" }]));
-    nodes.push(mkNode("node_confirmation", "message", 500, y0 + 780, { crmSync: true, notifyOwner: true, capturedVariables: ["user_full_name", "lead_details", "user_phone_number"], message: btnMsg(t.confirm(bName), menuBtn) }, edgesFor(menuBtn)));
+    nodes.push(mkNode("node_confirmation", "message", 500, y0 + 780, { crmSync: true, notifyOwner: true, capturedVariables: ["user_full_name", "user_selected_menu", "lead_details", "user_phone_number"], message: btnMsg(t.confirm(bName) + "\n\n📋 {{user_selected_menu}}\n📝 {{lead_details}}", menuBtn) }, edgesFor(menuBtn)));
   }
 
   return {

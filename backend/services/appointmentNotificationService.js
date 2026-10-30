@@ -63,7 +63,7 @@ function sanitizePhoneNumber(phone) {
 }
 
 /**
- * Format date in IST (e.g. "Sat 31 Oct 2026")
+ * Format date in IST (e.g. "Fri 30 Oct 2026")
  */
 function formatAppointmentDate(date) {
   if (!date) return '';
@@ -101,15 +101,18 @@ function formatAppointmentTime(date) {
 function extractPhoneFromText(text) {
   if (!text) return '';
   
+  // Clean HTML
+  const clean = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/<[^>]+>/g, ' ');
+
   // Pattern 1: Explicit labels like "Phone number: +919876543210" or "Mobile: 9876543210"
-  const labelMatch = text.match(/(?:phone(?:\s*number)?|mobile|whatsapp|contact|tel)[\s:*-]+([+0-9\s-]{10,16})/i);
+  const labelMatch = clean.match(/(?:phone(?:\s*number)?|mobile|whatsapp|contact|tel)[\s:*-]+([+0-9\s-]{10,16})/i);
   if (labelMatch && labelMatch[1]) {
     const cleaned = sanitizePhoneNumber(labelMatch[1]);
     if (cleaned.length >= 10) return cleaned;
   }
 
   // Pattern 2: Generic Indian phone numbers (+91 or 10-digit starting with 6-9)
-  const phoneMatch = text.match(/(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}/);
+  const phoneMatch = clean.match(/(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}/);
   if (phoneMatch && phoneMatch[0]) {
     const cleaned = sanitizePhoneNumber(phoneMatch[0]);
     if (cleaned.length >= 10) return cleaned;
@@ -119,16 +122,20 @@ function extractPhoneFromText(text) {
 }
 
 /**
- * Parse client name from description or attendee list
+ * Parse client name from description, summary or attendee list
  */
 function extractNameFromPayload(payload) {
   if (payload.clientName && payload.clientName.trim()) {
     return payload.clientName.trim();
   }
 
-  // Check description for "Booked by: Name (email)"
+  // Check description for "Booked by" with HTML tags like <b>Booked by</b>\nPratvi Jikadra
   if (payload.description) {
-    const bookedByMatch = payload.description.match(/Booked by:\s*([^\(\n\r]+)/i);
+    const rawDesc = payload.description
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/<[^>]+>/g, ' ');
+    const bookedByMatch = rawDesc.match(/Booked by\s*[:\s]*([^\(\n\r<]+)/i);
     if (bookedByMatch && bookedByMatch[1] && bookedByMatch[1].trim()) {
       return bookedByMatch[1].trim();
     }
@@ -144,8 +151,12 @@ function extractNameFromPayload(payload) {
     }
   }
 
-  // Check event summary (e.g. "Het Mangukiya and John Doe" or "John Doe - Consultation")
+  // Check event summary (e.g. "Let’s Talk – Het Mangukiya (Pratvi Jikadra)" -> extract inside parentheses)
   if (payload.summary) {
+    const parenMatch = payload.summary.match(/\(([^)]+)\)/);
+    if (parenMatch && parenMatch[1] && parenMatch[1].trim()) {
+      return parenMatch[1].trim();
+    }
     let clean = payload.summary.replace(/Het\s+Mangukiya\s+(?:and|&)\s+/i, '');
     clean = clean.replace(/Business meeting with HK DigiVerse LLP/i, '');
     clean = clean.trim();
@@ -695,4 +706,3 @@ module.exports = {
   GOOGLE_CALENDAR_ID,
   BOOKING_URL,
 };
-
