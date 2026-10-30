@@ -164,6 +164,37 @@ function ldAddress(a) {
 }
 const GENERIC_CATEGORY = /^(all( products)?|view all|shop all|shop now|collections?|categories|products|catalog(ue)?|home|menu|more|sale|offers?)$/i;
 
+function isNoiseHeading(text) {
+  if (!text || typeof text !== "string") return true;
+  const t = text.trim();
+  if (t.length < 3 || t.length > 70) return true;
+  if (!/[a-zA-Z\u0900-\u0D7F]/.test(t)) return true;
+
+  // 1. Broad substring patterns for unambiguous noise
+  const broadNoise = /\b(testimonials?|customer reviews?|client reviews?|newsletter|subscribe|privacy policy|terms (of|&|and) conditions?|why choose us|who we are|how it works|frequently asked questions|our mission|our vision|all rights reserved)\b/i;
+  if (broadNoise.test(t)) return true;
+
+  const junkPatterns = [
+    /^(about(\s+us)?|contact(\s+us)?|reach(\s+us)?|get\s+in\s+touch|send\s+us\s+a\s+message)$/i,
+    /^(why\s+choose\s+us|who\s+we\s+are|our\s+story|our\s+mission|our\s+vision|our\s+values|our\s+history)$/i,
+    /^(testimonials?|reviews?|client\s+reviews?|what\s+clients?\s+say|client\s+feedback|customer\s+stories|what\s+people\s+say)$/i,
+    /^(blogs?|latest\s+blogs?|news|articles?|latest\s+updates?|press|resources?|insights?|case\s+studies)$/i,
+    /^(faqs?|frequently\s+asked|frequently\s+asked\s+questions?|help|support|need\s+help\??)$/i,
+    /^(privacy(\s+policy)?|terms(\s+(&|and)\s+conditions)?|disclaimer|cookies?(\s+policy)?|legal|gdpr|refund\s+policy)$/i,
+    /^(careers?|jobs?|join\s+our\s+team|hiring|work\s+with\s+us|openings)$/i,
+    /^(login|sign\s*in|sign\s*up|register|my\s+account|cart|checkout|shopping\s+cart|wishlist|profile)$/i,
+    /^(subscribe|newsletter|join\s+our\s+newsletter|stay\s+updated|follow\s+us|connect\s+with\s+us|social)$/i,
+    /^(copyright|all\s+rights?\s+reserved|powered\s+by|designed\s+by|site\s+credits?)$/i,
+    /^(quick\s+links?|useful\s+links?|footer\s+links?|navigation|menu|explore\s+more|view\s+all|more)$/i,
+    /^(read\s+more|learn\s+more|click\s+here|get\s+started|see\s+more|load\s+more|view\s+details)$/i,
+    /^(table\s+of\s+contents|share\s+this|comments?|leave\s+a\s+reply|recent\s+posts)$/i
+  ];
+  return junkPatterns.some(function (p) {
+    return p.test(t);
+  });
+}
+
+
 async function scrapeWebsite(rawUrl) {
   if (!rawUrl || typeof rawUrl !== "string") return null;
   let targetUrl = rawUrl.trim();
@@ -213,7 +244,7 @@ async function scrapeWebsite(rawUrl) {
         .replace(/<[^>]+>/g, "")
         .replace(/\s+/g, " ")
         .trim();
-      if (cleanH && cleanH.length > 3 && cleanH.length < 100 && headings.indexOf(cleanH) === -1) headings.push(cleanH);
+      if (cleanH && cleanH.length > 3 && cleanH.length < 80 && !isNoiseHeading(cleanH) && headings.indexOf(cleanH) === -1) headings.push(cleanH);
     }
 
     const navLinks = [];
@@ -226,6 +257,7 @@ async function scrapeWebsite(rawUrl) {
         !skipWords.some(function (s) {
           return linkText.toLowerCase().indexOf(s) !== -1;
         }) &&
+        !isNoiseHeading(linkText) &&
         navLinks.indexOf(linkText) === -1
       )
         navLinks.push(linkText);
@@ -243,6 +275,7 @@ async function scrapeWebsite(rawUrl) {
       if (
         !txt ||
         GENERIC_CATEGORY.test(txt) ||
+        isNoiseHeading(txt) ||
         categories.some(function (c) {
           return norm(c) === norm(txt);
         })
@@ -312,9 +345,35 @@ async function scrapeWebsite(rawUrl) {
       }
     }
 
-    const servicesSnippet = Array.from(new Set((categories.length ? categories : headings.slice(0, 5).concat(navLinks.slice(0, 5))).slice(0, 8))).join(", ");
-    const metaInfo = description || ogDesc || "";
-    const suggestedPrompt = "Create an automated WhatsApp bot for " + brandName + '. About the business: "' + metaInfo + '". Main sections: ' + (servicesSnippet || "products, services, support") + ". The bot should welcome visitors, show each offering with its own details, " + "let people order/book/enquire, and connect them with a human when needed.";
+    const genuineOfferings = [];
+    (categories.length ? categories : []).forEach(function (c) {
+      if (!isNoiseHeading(c) && genuineOfferings.indexOf(c) === -1) genuineOfferings.push(c);
+    });
+    headings.forEach(function (h) {
+      if (!isNoiseHeading(h) && genuineOfferings.indexOf(h) === -1) genuineOfferings.push(h);
+    });
+    navLinks.forEach(function (n) {
+      if (!isNoiseHeading(n) && genuineOfferings.indexOf(n) === -1) genuineOfferings.push(n);
+    });
+
+    const topOfferings = genuineOfferings.slice(0, 5);
+    const servicesSnippet = topOfferings.join(", ");
+    const metaInfo = (description || ogDesc || "").trim();
+
+    const isEcommerce = /e-commerce|store|shop|retail|boutique|products/i.test(detectedIndustry || "");
+    const actionCta = isEcommerce ? "Order Now" : "Get Quote / Book Appointment";
+
+    const promptParts = [
+      "Build a complete, production-ready WhatsApp bot for " + brandName + ".",
+      metaInfo ? 'About: "' + metaInfo + '".' : "",
+      topOfferings.length ? "Primary Offerings: " + servicesSnippet + "." : "",
+      "Include: 1. Welcome menu with interactive options for these offerings.",
+      "2. Dedicated detail cards for each offering with clear highlights and direct action button (" + actionCta + ").",
+      "3. High-converting qualification funnel capturing customer requirement, full name, and WhatsApp phone number with 'Same Number' quick reply.",
+      "4. Instant CRM sync confirmation message.",
+      "5. Live agent escalation ('Talk to Expert')."
+    ];
+    const suggestedPrompt = promptParts.filter(Boolean).join(" ");
 
     return {
       url: targetUrl,
@@ -342,6 +401,17 @@ function inferTarget(opt, node, nodes, welcome, handoff) {
   const t = norm(opt.title);
   if (welcome && /^(main menu|menu|home|back|back to menu|main)$|main menu|back to (menu|main)|मुख्य मेनू|મુખ્ય મેનુ/.test(t)) return welcome.id;
   if (handoff && /(expert|agent|human|talk to|specialist|support|विशेषज्ञ|નિષ્ણાત)/.test(t)) return handoff.id;
+
+  // Action CTA buttons (Book, Quote, Order, Enquiry, Claim, Buy, Consult, Register, Hire, Apply, Get Started)
+  if (/(book|quote|order|enquir|claim|buy|consult|register|hire|apply|enroll|get started|schedule|appointment)/i.test(t)) {
+    const leadNode = nodes.find(function(n) {
+      const nid = n.id.toLowerCase();
+      return (/lead|order|funnel|triage|scope|book|appointment|user_name|customer/i.test(nid) || 
+             (n.data && /name|scope|choice|date|service/i.test(n.data.variable || ''))) &&
+             n.id !== node.id && (!welcome || n.id !== welcome.id) && (!handoff || n.id !== handoff.id);
+    });
+    if (leadNode) return leadNode.id;
+  }
 
   const words = t.split(" ").filter(function (w) {
     return w.length >= 3;
@@ -547,7 +617,14 @@ function sanitizeAndLayoutFlow(nodes, businessName) {
       return n.id;
     }),
   );
+  // Check if positions are already valid & distinct
+  const rawPositions = nodes.map(function (n) { return n.position || {}; });
+  const hasDistinctPositions = rawPositions.length > 2 &&
+    rawPositions.filter(function (p) { return p.x && p.y; }).length === rawPositions.length &&
+    new Set(rawPositions.map(function (p) { return Math.round(p.x / 50) + "_" + Math.round(p.y / 50); })).size >= rawPositions.length * 0.85;
+
   let detailCardIndex = 0;
+  let funnelIndex = 0;
 
   const processed = nodes.map(function (node, index) {
     const nodeId = node.id;
@@ -603,17 +680,20 @@ function sanitizeAndLayoutFlow(nodes, businessName) {
     }
 
     let pos = node.position || {};
-    if (!pos.x || !pos.y) {
-      if (index === 0 || /welcome|start/.test(id)) pos = { x: 500, y: 50 };
-      else if (/handoff|agent/.test(id)) pos = { x: 950, y: 350 };
-      else if (/lead_name|user_name/.test(id)) pos = { x: 500, y: 950 };
-      else if (/lead_phone|user_phone/.test(id)) pos = { x: 500, y: 1250 };
-      else if (id.indexOf("email") !== -1) pos = { x: 500, y: 1550 };
-      else if (/confirm|thank|success/.test(id)) pos = { x: 500, y: 1850 };
-      else {
+    if (!hasDistinctPositions || !pos.x || !pos.y) {
+      if (index === 0 || /welcome|start/.test(id)) {
+        pos = { x: 550, y: 60 };
+      } else if (/handoff|agent|human/.test(id)) {
+        pos = { x: 1050, y: 340 };
+      } else if (/lead|user_name|user_phone|email|order|funnel|scope|triage|schedule|date/.test(id)) {
+        pos = { x: 550, y: 700 + funnelIndex * 260 };
+        funnelIndex++;
+      } else if (/confirm|thank|success/.test(id)) {
+        pos = { x: 550, y: 700 + (funnelIndex + 1) * 260 };
+      } else {
         const col = detailCardIndex % 3;
         const row = Math.floor(detailCardIndex / 3);
-        pos = { x: 100 + col * 400, y: 350 + row * 300 };
+        pos = { x: 100 + col * 420, y: 340 + row * 280 };
         detailCardIndex++;
       }
     }
@@ -749,6 +829,21 @@ function sanitizeAndLayoutFlow(nodes, businessName) {
       n.data.message.buttons = [{ id: "btn_" + n.id + "_menu", text: "🏠 Main Menu", title: "🏠 Main Menu" }];
     }
   });
+
+  // Ensure funnel nodes start below the lowest detail card
+  const maxDetailY = 340 + Math.ceil(Math.max(detailCardIndex, 1) / 3) * 280;
+  if (!hasDistinctPositions && maxDetailY > 600) {
+    let fStep = 0;
+    processed.forEach(function (n) {
+      const nid = n.id.toLowerCase();
+      if (/lead|user_name|user_phone|email|order|funnel|scope|triage|schedule|date/.test(nid)) {
+        n.position.y = maxDetailY + 60 + fStep * 260;
+        fStep++;
+      } else if (/confirm|thank|success/.test(nid)) {
+        n.position.y = maxDetailY + 60 + (fStep + 1) * 260;
+      }
+    });
+  }
 
   repairEdges(processed);
   return processed;
@@ -1717,7 +1812,8 @@ async function generateBotFlow(input) {
   const userContent = ["Business: " + effectiveBusiness, "Industry type: " + key + (industry ? " (selected: " + industry + ")" : ""), "Language: " + language, customItems.length ? "OWNER-PROVIDED MENU ITEMS (use exactly): " + suggestedTopics : "Suggested menu topics: " + suggestedTopics, "Action button label to use: " + cfg.cta, cfg.order ? "This business needs a full ORDER FLOW (name, size, colour, quantity, address, payment, summary, confirm)." : "", detailLines.length ? "OWNER-PROVIDED DETAILS (use verbatim, do not invent others):\n" + detailLines.join("\n") : "No address/phone/timings were provided. Do NOT invent any.", effectiveOffers ? "Current offer: " + effectiveOffers : "", websiteData ? "Website scan: " + [websiteData.title, websiteData.description, websiteData.headings.join(" | ")].filter(Boolean).join(" || ") : "", effectivePrompt ? "OWNER REQUIREMENTS:\n" + effectivePrompt : ""].filter(Boolean).join("\n");
 
   const groqApiKey = process.env.GROQ_API_KEY;
-  const useAI = groqApiKey && BUILDER_MODE !== "blueprint" && (BUILDER_MODE === "ai" || key === "general");
+  // Always use Groq LLM as primary generator when API key is available
+  const useAI = Boolean(groqApiKey) && BUILDER_MODE !== "blueprint";
   if (useAI) {
     for (let mi = 0; mi < GROQ_MODELS.length; mi++) {
       const model = GROQ_MODELS[mi];

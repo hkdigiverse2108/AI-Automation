@@ -14,7 +14,7 @@ const PRESET_TEMPLATES = [
     label: '🚀 IT & Digital Agency',
     businessName: 'HK DigiVerse',
     industry: 'IT & Software / Digital Marketing',
-    websiteUrl: 'https://hkdigiverse.com',
+    websiteUrl: '',
     offers: 'Flat 20% OFF on all custom automation & website builds this month!',
     language: 'English',
     prompt: 'Build a comprehensive 12-16 node WhatsApp bot modeled after HK DigiVerse IT Solutions Bot. Welcome visitors with an interactive menu (Explore Services, Get Quote, Portfolio, Special Offers, Talk to Expert), 4 dedicated detail cards for Web, Mobile, AI Automation & Cloud, a 2-step qualification funnel (project scope & launch timeline), client testimonials, smart WhatsApp phone capture with "Same Number" button, live agent escalation, and instant CRM sync confirmation.'
@@ -64,7 +64,7 @@ const PRESET_TEMPLATES = [
     label: '🇮🇳 Bilingual (English + ગુજરાતી)',
     businessName: 'HK DigiVerse',
     industry: 'IT & Software / Digital Marketing',
-    websiteUrl: 'https://hkdigiverse.com',
+    websiteUrl: '',
     offers: 'નવા ગ્રાહકો માટે ખાસ 20% ડિસ્કાઉન્ટ!',
     language: 'Bilingual (English + Gujarati)',
     prompt: 'નમસ્તેથી વ્યાવસાયિક સ્વાગત કરો. અમારી 4 મુખ્ય સેવાઓ (વેબસાઇટ, મોબાઇલ એપ, AI વોટ્સએપ ઓટોમેશન, ક્લાઉડ ERP) માટે વિગતવાર કાર્ડ્સ, પ્રોજેક્ટ સ્કોપ અને સમય-મર્યાદા પૂછવા માટે 2-સ્ટેપ ક્વોટેશન, પોર્ટફોલિયો, ખાસ ઑફર, એક્સપર્ટ સાથે લાઈવ હેન્ડઓફ, ગ્રાહકનું નામ અને સ્માર્ટ ફોન નંબર કલેક્ટ કરો અને CRM કન્ફર્મેશન મેસેજ આપો.'
