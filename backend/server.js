@@ -216,6 +216,7 @@ const myoperatorRoute = require('./routes/myoperator');
 const telephonyAdminRoute = require('./routes/telephonyAdmin');
 const walletRoute = require('./routes/wallet');
 const luscentStoreRoute = require('./routes/luscentStore');
+const appointmentsRoute = require('./routes/appointments');
 
 const mountRoutes = (prefix) => {
   app.use(`${prefix}/auth`, authRoute);
@@ -252,6 +253,7 @@ const mountRoutes = (prefix) => {
   app.use(`${prefix}/cart`, cartRoute);
   app.use(`${prefix}/orders`, ordersRoute);
   app.use(`${prefix}/store/luscent`, luscentStoreRoute);
+  app.use(`${prefix}/appointments`, appointmentsRoute);
 };
 
 // Mount versioned API routes

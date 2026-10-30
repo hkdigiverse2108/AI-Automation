@@ -5,14 +5,15 @@ const appointmentSchema = new mongoose.Schema(
     organizationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Organization',
-      required: true,
+      required: false,
       index: true,
       alias: 'organization_id'
     },
     title: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      default: 'Business meeting with HK DigiVerse LLP'
     },
     description: {
       type: String,
@@ -21,14 +22,14 @@ const appointmentSchema = new mongoose.Schema(
     contactId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Contact',
-      required: true,
+      required: false,
       index: true,
       alias: 'contact_id'
     },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
       index: true,
       alias: 'assigned_to'
     },
@@ -45,12 +46,12 @@ const appointmentSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ['pending', 'confirmed', 'cancelled', 'completed'],
-      default: 'pending',
+      default: 'confirmed',
       index: true
     },
     reminderTime: {
-      type: Number, // reminder window in minutes before scheduledAt
-      default: 15,
+      type: Number, // reminder window in minutes before scheduledAt (120 mins = 2 hours)
+      default: 120,
       alias: 'reminder_time'
     },
     reminded: {
@@ -61,8 +62,74 @@ const appointmentSchema = new mongoose.Schema(
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
       alias: 'created_by'
+    },
+    // Google Calendar Integration Fields
+    googleEventId: {
+      type: String,
+      sparse: true,
+      index: true
+    },
+    googleCalendarId: {
+      type: String,
+      default: 'hrmangukiya3494@gmail.com'
+    },
+    bookingUrl: {
+      type: String,
+      default: 'https://calendar.app.google/ZvhrmRV1dnYSL4XC8'
+    },
+    clientName: {
+      type: String,
+      default: ''
+    },
+    clientPhone: {
+      type: String,
+      default: ''
+    },
+    clientEmail: {
+      type: String,
+      default: ''
+    },
+    meetingLink: {
+      type: String,
+      default: ''
+    },
+    cancellationReason: {
+      type: String,
+      default: ''
+    },
+    notifications: {
+      confirmed: {
+        sent: { type: Boolean, default: false },
+        sentAt: { type: Date },
+        messageId: { type: String },
+        error: { type: String }
+      },
+      reminder: {
+        sent: { type: Boolean, default: false },
+        sentAt: { type: Date },
+        messageId: { type: String },
+        error: { type: String }
+      },
+      rescheduled: {
+        sent: { type: Boolean, default: false },
+        sentAt: { type: Date },
+        messageId: { type: String },
+        error: { type: String }
+      },
+      cancelled: {
+        sent: { type: Boolean, default: false },
+        sentAt: { type: Date },
+        messageId: { type: String },
+        error: { type: String }
+      },
+      thankYou: {
+        sent: { type: Boolean, default: false },
+        sentAt: { type: Date },
+        messageId: { type: String },
+        error: { type: String }
+      }
     }
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' }, strict: true }
@@ -71,5 +138,7 @@ const appointmentSchema = new mongoose.Schema(
 // Compound indexes for dashboard listings
 appointmentSchema.index({ organizationId: 1, status: 1, scheduledAt: 1 });
 appointmentSchema.index({ assignedTo: 1, scheduledAt: 1 });
+appointmentSchema.index({ googleEventId: 1 });
+appointmentSchema.index({ clientPhone: 1 });
 
 module.exports = mongoose.model('Appointment', appointmentSchema);
