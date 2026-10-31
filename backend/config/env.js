@@ -1,6 +1,10 @@
 const dotenv = require('dotenv');
 const path = require('path');
+// Multi-path .env resolution: checks root .env, backend/.env, and current working directory
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config({ path: path.join(process.cwd(), '.env') });
+dotenv.config();
 const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: parseInt(process.env.PORT, 10) || 5000,
@@ -33,8 +37,8 @@ const env = {
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
 
   // Razorpay
-  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
-  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_live_TebfZmDda1fxtW',
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'c77jtpZyGzdMdWlCCn25BMHe',
 
   // Cloudinary
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
