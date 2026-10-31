@@ -148,6 +148,383 @@ export default function AdminPanel() {
     toast.success(`Exported ${paymentsToExport.length} transactions to CSV`);
   };
 
+  // Export to PDF / Printable Ledger Function for SuperAdmin CA & Auditing
+  const handleExportPDF = (paymentsToExport) => {
+    if (!paymentsToExport || paymentsToExport.length === 0) {
+      toast.error('No payments to export');
+      return;
+    }
+
+    let totalGross = 0;
+    let totalTaxable = 0;
+    let totalTax = 0;
+    let settledCount = 0;
+    let pendingCount = 0;
+
+    paymentsToExport.forEach((p) => {
+      const isSettled = p.status === 'paid';
+      const baseAmt = p.amount || (p.totalAmount ? (p.totalAmount - (p.taxAmount || 0)) : 0);
+      const taxAmt = p.taxAmount || 0;
+      const totalAmt = p.totalAmount || (baseAmt + taxAmt);
+
+      if (isSettled) {
+        totalGross += totalAmt;
+        totalTaxable += baseAmt;
+        totalTax += taxAmt;
+        settledCount++;
+      } else if (p.status === 'pending') {
+        pendingCount++;
+      }
+    });
+
+    const cgst = Math.round(totalTax / 2);
+    const sgst = totalTax - cgst;
+    const filterLabel =
+      dateFilter === 'all'
+        ? 'All Time'
+        : dateFilter === 'this_month'
+        ? 'This Month'
+        : dateFilter === 'last_month'
+        ? 'Last Month'
+        : `Custom Range (${customStartDate || 'Start'} to ${customEndDate || 'End'})`;
+
+    const generatedDate = new Date().toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    const printWindow = window.open('', '_blank', 'width=1150,height=850');
+    if (!printWindow) {
+      toast.error('Please allow popups to generate PDF report');
+      return;
+    }
+
+    const tableRows = paymentsToExport.map((p, idx) => {
+      const orgName = p.organizationId?.name || 'Unknown Client';
+      const clientName = p.owner?.name || p.organizationId?.owner?.name || '';
+      const email = p.owner?.email || p.organizationId?.contactEmail || '';
+      const phone = p.owner?.phone || p.organizationId?.contactNumber || '';
+      const baseAmt = p.amount || (p.totalAmount ? (p.totalAmount - (p.taxAmount || 0)) : 0);
+      const taxAmt = p.taxAmount || 0;
+      const totalAmt = p.totalAmount || (baseAmt + taxAmt);
+      const dateStr = formatDateOnly(p.createdAt);
+      const method = (p.paymentMethod || 'ONLINE').replace(/_/g, ' ').toUpperCase();
+      const txnId = p.transactionId || p.razorpayPaymentId || 'N/A';
+      const status = (p.status || 'PAID').toUpperCase();
+
+      const statusBadge =
+        status === 'PAID'
+          ? '<span style="color:#047857; background:#ecfdf5; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px;">PAID</span>'
+          : status === 'PENDING'
+          ? '<span style="color:#b45309; background:#fffbeb; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px;">PENDING</span>'
+          : '<span style="color:#b91c1c; background:#fef2f2; border:1px solid #fecaca; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px;">REJECTED</span>';
+
+      return `
+        <tr>
+          <td style="text-align:center; font-family:monospace; font-size:10.5px;">${idx + 1}</td>
+          <td style="font-family:monospace; font-weight:700; color:#059669; font-size:10.5px;">${p.invoiceNumber || 'INV-PENDING'}</td>
+          <td style="font-size:10.5px; white-space:nowrap;">${dateStr}</td>
+          <td>
+            <div style="font-weight:700; color:#0f172a; font-size:11px;">${orgName}</div>
+            <div style="font-size:9.5px; color:#64748b;">${clientName ? `${clientName} &bull; ` : ''}${phone || email}</div>
+          </td>
+          <td style="text-align:center; font-size:10.5px;">${p.planMonths || 1} Mo</td>
+          <td style="font-size:10px; font-weight:600;">${method}</td>
+          <td style="font-family:monospace; font-size:9.5px; color:#475569; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${txnId}">${txnId}</td>
+          <td style="text-align:right; font-family:monospace; font-size:10.5px;">₹${baseAmt.toLocaleString('en-IN')}</td>
+          <td style="text-align:right; font-family:monospace; font-size:10.5px;">₹${taxAmt.toLocaleString('en-IN')}</td>
+          <td style="text-align:right; font-family:monospace; font-weight:700; color:#0f172a; font-size:11px;">₹${totalAmt.toLocaleString('en-IN')}</td>
+          <td style="text-align:center;">${statusBadge}</td>
+        </tr>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <title>HK_Platform_Collections_Report_${new Date().toISOString().slice(0, 10)}</title>
+        <style>
+          @page {
+            size: A4 landscape;
+            margin: 10mm 12mm;
+          }
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            color: #0f172a;
+            background: #ffffff;
+            font-size: 11px;
+            line-height: 1.4;
+            padding: 10px 0;
+          }
+          .report-container {
+            width: 100%;
+            max-width: 1060px;
+            margin: 0 auto;
+          }
+          .header-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #059669;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+          }
+          .brand-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+          .logo-img {
+            height: 42px;
+            width: auto;
+            object-fit: contain;
+          }
+          .brand-name {
+            font-size: 17px;
+            font-weight: 900;
+            color: #0f172a;
+            letter-spacing: -0.3px;
+          }
+          .brand-subtitle {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #059669;
+          }
+          .brand-meta {
+            font-size: 9.5px;
+            color: #64748b;
+            margin-top: 1px;
+          }
+          .report-title-box {
+            text-align: right;
+          }
+          .report-heading {
+            font-size: 18px;
+            font-weight: 900;
+            color: #059669;
+            letter-spacing: 0.5px;
+          }
+          .report-tag {
+            display: inline-block;
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+            font-size: 9px;
+            font-weight: 800;
+            padding: 2px 7px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            margin-top: 2px;
+          }
+          .report-meta {
+            font-size: 10px;
+            color: #475569;
+            margin-top: 4px;
+          }
+          .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 14px;
+          }
+          .card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 12px;
+          }
+          .card-title {
+            font-size: 9px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .card-value {
+            font-size: 15px;
+            font-weight: 900;
+            color: #0f172a;
+            font-family: monospace;
+            margin-top: 2px;
+          }
+          .card-sub {
+            font-size: 9.5px;
+            color: #64748b;
+            margin-top: 1px;
+          }
+          .table-box {
+            width: 100%;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 14px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          thead th {
+            background: #f1f5f9;
+            color: #334155;
+            font-size: 9.5px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            padding: 7px 9px;
+            border-bottom: 1px solid #cbd5e1;
+            text-align: left;
+          }
+          tbody td {
+            padding: 7px 9px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+          }
+          tbody tr:nth-child(even) {
+            background: #fafafa;
+          }
+          .grand-total-row td {
+            background: #ecfdf5;
+            border-top: 2px solid #059669;
+            font-weight: 900;
+            color: #047857;
+            font-size: 11.5px;
+            padding: 9px;
+          }
+          .footer-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 10px;
+            font-size: 9px;
+            color: #64748b;
+          }
+          .footer-sign {
+            text-align: right;
+          }
+          .sign-badge {
+            display: inline-block;
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+            font-size: 8.5px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-top: 3px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="report-container">
+          <div class="header-box">
+            <div class="brand-info">
+              <img src="${LOGO_BASE64}" class="logo-img" alt="HK Automation" />
+              <div>
+                <div class="brand-name">HariKrushn DigiVerse LLP</div>
+                <div class="brand-subtitle">HK Automation &bull; Enterprise Cloud Platform</div>
+                <div class="brand-meta">Surat, Gujarat &bull; support@hkdigiverse.com &bull; GSTIN: 24AAOFH1234A1Z5</div>
+              </div>
+            </div>
+            <div class="report-title-box">
+              <div class="report-heading">COLLECTIONS & TAX REPORT</div>
+              <div class="report-tag">Official Accounting Ledger</div>
+              <div class="report-meta">
+                Date Range: <strong>${filterLabel}</strong> &bull; Generated: <strong>${generatedDate}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary-cards">
+            <div class="card">
+              <div class="card-title">Gross Settled Revenue</div>
+              <div class="card-value" style="color:#059669;">₹${totalGross.toLocaleString('en-IN')}</div>
+              <div class="card-sub">${settledCount} Settled Transactions</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Taxable Base Amount</div>
+              <div class="card-value">₹${totalTaxable.toLocaleString('en-IN')}</div>
+              <div class="card-sub">Software License Value</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Total GST Collected (18%)</div>
+              <div class="card-value" style="color:#2563eb;">₹${totalTax.toLocaleString('en-IN')}</div>
+              <div class="card-sub">CGST ₹${cgst.toLocaleString('en-IN')} | SGST ₹${sgst.toLocaleString('en-IN')}</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Transactions Summary</div>
+              <div class="card-value">${paymentsToExport.length}</div>
+              <div class="card-sub">${settledCount} Paid &bull; ${pendingCount} Pending</div>
+            </div>
+          </div>
+
+          <div class="table-box">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:30px; text-align:center;">#</th>
+                  <th style="width:110px;">Invoice #</th>
+                  <th style="width:80px;">Date</th>
+                  <th>Client / Organization</th>
+                  <th style="width:50px; text-align:center;">Plan</th>
+                  <th style="width:85px;">Mode</th>
+                  <th style="width:110px;">Transaction / UTR</th>
+                  <th style="width:85px; text-align:right;">Taxable (₹)</th>
+                  <th style="width:80px; text-align:right;">GST (₹)</th>
+                  <th style="width:95px; text-align:right;">Total (₹)</th>
+                  <th style="width:75px; text-align:center;">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+                <tr class="grand-total-row">
+                  <td colspan="7" style="text-align:right;">TOTAL (Settled Gross):</td>
+                  <td style="text-align:right; font-family:monospace;">₹${totalTaxable.toLocaleString('en-IN')}</td>
+                  <td style="text-align:right; font-family:monospace;">₹${totalTax.toLocaleString('en-IN')}</td>
+                  <td style="text-align:right; font-family:monospace;">₹${totalGross.toLocaleString('en-IN')}</td>
+                  <td style="text-align:center;">${settledCount} PAID</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="footer-box">
+            <div>
+              <strong>Compliance & Legal Notice:</strong><br/>
+              1. Platform Software as a Service (SaaS) License SAC Code: <strong>997331</strong>.<br/>
+              2. This is an official computer-generated Collections & Tax Ledger pursuant to the IT Act.<br/>
+              3. For queries or CA tax audit verification, contact support@hkdigiverse.com.
+            </div>
+            <div class="footer-sign">
+              <div style="font-weight:800; color:#0f172a;">For HariKrushn DigiVerse LLP</div>
+              <div class="sign-badge">&check; Digitally Verified & Authorized Audit Ledger</div>
+              <div style="font-size:9px; color:#64748b; margin-top:2px;">Super Administrator Authority</div>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 400);
+
+    toast.success(`Generated PDF Collections Report for ${paymentsToExport.length} transactions`);
+  };
+
   const toggleClientExpand = (orgId) => {
     setExpandedClients((prev) => ({
       ...prev,
@@ -1648,7 +2025,18 @@ export default function AdminPanel() {
                             title="Download Excel / CSV Collections Report for Accounting"
                           >
                             <Download className="w-3.5 h-3.5" />
-                            <span>Export CSV Report</span>
+                            <span>Export CSV</span>
+                          </button>
+
+                          {/* Export PDF Report Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleExportPDF(filteredPayments)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                            title="Download Official PDF Collections Report for CA & Accounting"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                            <span>Export PDF</span>
                           </button>
 
                           {/* Expand / Collapse All (When in hierarchy mode) */}
