@@ -5,11 +5,12 @@ import { useAuthStore, useThemeStore } from '../../lib/store';
 import Sidebar from '../../components/Sidebar';
 import NotificationCenter from '../../components/NotificationCenter';
 import ConfirmModal from '../../components/ConfirmModal';
+import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import SubscriptionExpiredGate from '../../components/SubscriptionExpiredGate';
 import RouteGuard from '../../components/RouteGuard';
 import WalletHeaderBadge from '../../components/WalletHeaderBadge';
 import api from '../../lib/api';
-import { Menu, AlertTriangle } from 'lucide-react';
+import { Menu, AlertTriangle, LogOut } from 'lucide-react';
 import Link from 'next/link';
 
 // Check if we have a cached auth state for instant render (avoids flash of spinner)
@@ -36,7 +37,7 @@ function clearCachedAuth() {
 
 export default function DashboardLayout({ children }) {
   const [mounted, setMounted] = useState(false);
-  const { isAuthenticated, loading, checkAuth, user, permissions } = useAuthStore();
+  const { isAuthenticated, loading, checkAuth, user, permissions, requestLogout } = useAuthStore();
   const { init: initTheme } = useThemeStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -264,6 +265,13 @@ export default function DashboardLayout({ children }) {
               <div className="w-8 h-8 rounded-full bg-wa-green/10 text-wa-green font-extrabold text-sm flex items-center justify-center border border-wa-green/20 shadow-sm shrink-0">
                 {user?.name?.[0]?.toUpperCase() || 'U'}
               </div>
+              <button
+                onClick={requestLogout}
+                title="Log Out"
+                className="p-1.5 rounded-lg text-wa-text-secondary dark:text-wa-dark-text-secondary hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </header>
@@ -281,6 +289,7 @@ export default function DashboardLayout({ children }) {
           </main>
         )}
         <ConfirmModal />
+        <LogoutConfirmModal />
       </div>
     </div>
   );

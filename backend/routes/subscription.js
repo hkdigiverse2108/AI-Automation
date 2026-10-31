@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
+const InvoiceSettings = require('../models/InvoiceSettings');
 const Subscription = require('../models/Subscription');
 const Payment = require('../models/Payment');
 const Organization = require('../models/Organization');
@@ -52,13 +53,39 @@ router.get('/plans', async (req, res) => {
       return { months, baseAmount, taxAmount, totalAmount };
     });
 
+    let bankDetails = {
+      companyName: 'Harikrushn DigiVerse LLP',
+      accountHolder: 'Harikrushn DigiVerse LLP',
+      bankName: 'HDFC Bank',
+      accountNumber: '9240200573774150',
+      ifscCode: 'UTIB00028912',
+      branch: 'Kapodra, Surat',
+      upiId: 'hkgigiverse@okhdfc'
+    };
+
+    try {
+      const settings = await InvoiceSettings.findOne().lean();
+      if (settings && (settings.bankName || settings.accountNumber || settings.upiId)) {
+        bankDetails = {
+          companyName: settings.companyName || bankDetails.companyName,
+          accountHolder: settings.accountHolder || bankDetails.accountHolder,
+          bankName: settings.bankName || bankDetails.bankName,
+          accountNumber: settings.accountNumber || bankDetails.accountNumber,
+          ifscCode: settings.ifscCode || bankDetails.ifscCode,
+          branch: settings.branch || bankDetails.branch,
+          upiId: settings.upiId || bankDetails.upiId
+        };
+      }
+    } catch (e) {}
+
     res.json({
       success: true,
       data: {
         monthlyPrice: config.monthlyPrice,
         currency: config.currency,
         taxPercentage: config.taxPercentage,
-        plans
+        plans,
+        bankDetails
       }
     });
   } catch (error) {
@@ -351,6 +378,12 @@ router.get('/admin/dashboard', requireRole('superadmin'), async (req, res) => {
       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ]);
 
+    const totalRevenueAgg = await Payment.aggregate([
+      { $match: { status: 'paid' } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const totalRevenue = totalRevenueAgg[0]?.total || 0;
+
     // Daily revenue for chart (last 30 days)
     const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
     const dailyRevenue = await Payment.aggregate([
@@ -369,11 +402,38 @@ router.get('/admin/dashboard', requireRole('superadmin'), async (req, res) => {
         pendingPayments,
         monthlyRevenue: monthlyRevenue[0]?.total || 0,
         yearlyRevenue: yearlyRevenue[0]?.total || 0,
+        totalRevenue,
         dailyRevenue
       }
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch dashboard stats', details: error.message });
+  }
+});
+
+/**
+ * GET /api/subscription/admin/payments
+ * All subscription payments for SuperAdmin GPay-style transaction history & invoice viewing.
+ */
+router.get('/admin/payments', requireRole('superadmin'), async (req, res) => {
+  try {
+    const payments = await Payment.find({})
+      .sort('-createdAt')
+      .limit(200)
+      .populate('organizationId', 'name contactEmail contactNumber owner')
+      .populate('verifiedBy', 'name email')
+      .lean();
+
+    for (const p of payments) {
+      if (p.organizationId?.owner) {
+        const owner = await User.findById(p.organizationId.owner).select('name email phone').lean();
+        if (owner) p.owner = owner;
+      }
+    }
+
+    res.json({ success: true, data: payments });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch payments', details: error.message });
   }
 });
 

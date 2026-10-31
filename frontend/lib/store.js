@@ -6,6 +6,9 @@ export const useAuthStore = create((set) => ({
   permissions: null, // Array of enabled feature slugs (null = all access for superadmin)
   isAuthenticated: false,
   loading: true,
+  showLogoutModal: false,
+  setShowLogoutModal: (show) => set({ showLogoutModal: !!show }),
+  requestLogout: () => set({ showLogoutModal: true }),
 
   login: async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
@@ -44,7 +47,7 @@ export const useAuthStore = create((set) => ({
     } catch {}
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-    set({ user: null, permissions: null, isAuthenticated: false });
+    set({ user: null, permissions: null, isAuthenticated: false, showLogoutModal: false });
   },
 
   checkAuth: async () => {

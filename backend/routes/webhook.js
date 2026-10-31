@@ -328,38 +328,6 @@ async function handleStatusUpdate(status, retryCount = 0) {
         await Campaign.updateOne({ _id: msg.campaignId }, { $inc: { 'stats.read': 1 } });
       }
     }
-
-    // Auto-Debit Wallet on billable message delivery
-    if (msg && (status.pricing?.billable || ['sent', 'delivered'].includes(newStatus))) {
-      try {
-        const User = require('../models/User');
-        const user = await User.findById(msg.userId).lean();
-        if (user && user.organizationId) {
-          const walletService = require('../services/walletService');
-          const convCategory = status.pricing?.category || status.conversation?.origin?.type || 'marketing';
-          const rates = await walletService.getRates(user.organizationId);
-          const chargeAmount = rates[convCategory.toLowerCase()] || 0.85;
-
-          await walletService.debitWallet({
-            organizationId: user.organizationId,
-            userId: msg.userId,
-            amount: chargeAmount,
-            category: `meta_${convCategory.toLowerCase()}`,
-            description: `Meta WhatsApp ${convCategory.toUpperCase()} Conversation (${status.recipient_id || 'Contact'})`,
-            metaData: {
-              recipientPhone: status.recipient_id || '',
-              messageId: msg._id,
-              metaMessageId,
-              conversationId: status.conversation?.id || '',
-              conversationCategory: convCategory
-            },
-            io: ioInstance
-          });
-        }
-      } catch (walletErr) {
-        logger.error('Failed to auto-debit wallet on message delivery:', walletErr.message);
-      }
-    }
   } catch (error) {
     logger.error('Status update error:', error.message);
   }

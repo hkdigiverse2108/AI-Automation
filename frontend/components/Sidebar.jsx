@@ -51,7 +51,6 @@ const navSections = [
   {
     title: 'System',
     items: [
-      { href: '/dashboard/fund-management', label: 'Fund Management', icon: Wallet },
       { href: '/dashboard/subscription', label: 'Subscription', icon: CreditCard },
       { href: '/dashboard/chat-logs', label: 'Chat Logs', icon: Terminal },
       { href: '/dashboard/settings', label: 'Settings', icon: Settings },
@@ -79,7 +78,6 @@ const routeToSlugMap = {
   '/dashboard/bot-builder': 'bot-builder',
   '/dashboard/analytics': 'analytics',
   '/dashboard/subscription': 'subscription',
-  '/dashboard/fund-management': 'subscription',
   '/dashboard/chat-logs': 'chat-logs',
   '/dashboard/settings': 'settings',
 };
@@ -88,7 +86,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, permissions, logout } = useAuthStore();
+  const { user, permissions, requestLogout } = useAuthStore();
   const { dark, toggle } = useThemeStore();
   const hasUnread = useConversationStore((state) => state.conversations.some(c => c.unreadCount > 0));
   const [collapsed, setCollapsed] = useState(false);
@@ -117,7 +115,6 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/call-logs', label: 'Call Logs', icon: Clock },
             { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
             { href: '/dashboard/admin?tab=subscriptions', label: 'Subscriptions', icon: Zap },
-            { href: '/dashboard/fund-management', label: 'Fund Management', icon: Wallet },
             { href: '/dashboard/settings?tab=integrations', label: 'Integrations', icon: Globe },
             { href: '/dashboard/bot-builder', label: 'AI Management', icon: Bot },
             { href: '/dashboard/leads', label: 'Leads', icon: ClipboardList },
@@ -125,7 +122,7 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/chat-logs', label: 'Audit Logs', icon: Terminal },
             { href: '/dashboard/admin?tab=reports', label: 'Reports', icon: FileText },
             { href: '/dashboard/settings', label: 'System Settings', icon: Settings },
-            { href: '#logout', label: 'Logout', icon: LogOut, onClick: logout },
+            { href: '#logout', label: 'Logout', icon: LogOut, onClick: requestLogout },
           ]
         }
       ];
@@ -141,7 +138,7 @@ export default function Sidebar({ isOpen, onClose }) {
         return permissions.includes(slug);
       })
     })).filter(section => section.items.length > 0);
-  }, [user?.role, permissions, logout]);
+  }, [user?.role, permissions, requestLogout]);
 
   // Close user menu on outside click
   useEffect(() => {
@@ -502,7 +499,7 @@ export default function Sidebar({ isOpen, onClose }) {
                   <Settings className="w-4 h-4" />
                   <span>Settings</span>
                 </Link>
-                <button onClick={() => { logout(); if (onClose) onClose(); }} className="wa-dropdown-item w-full text-red-500 hover:text-red-600">
+                <button onClick={() => { setShowUserMenu(false); requestLogout(); if (onClose) onClose(); }} className="wa-dropdown-item w-full text-red-500 hover:text-red-600">
                   <LogOut className="w-4 h-4" />
                   <span>Logout</span>
                 </button>

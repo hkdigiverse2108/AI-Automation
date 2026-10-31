@@ -215,25 +215,6 @@ router.post('/:id/start', ...validateObjectId('id'), async (req, res) => {
       return res.status(400).json({ success: false, error: 'Campaign cannot be started', code: 'INVALID_STATUS' });
     }
 
-    // Pre-flight Wallet Balance Check for Campaign
-    const organizationId = req.user.organizationId;
-    if (organizationId && req.user.role !== 'superadmin') {
-      const walletService = require('../services/walletService');
-      const count = campaign.totalRecipients || (campaign.contactIds?.length || 1);
-      const rates = await walletService.getRates(organizationId);
-      const estCost = count * (rates.marketing || 0.85);
-      const balanceCheck = await walletService.checkBalance(organizationId, estCost);
-      if (!balanceCheck.hasBalance) {
-        return res.status(402).json({
-          success: false,
-          error: `Insufficient wallet balance to launch campaign "${campaign.name}". Required: ₹${estCost.toFixed(2)} (${count} recipients), Current Balance: ₹${balanceCheck.currentBalance.toFixed(2)}. Please recharge your wallet.`,
-          code: 'INSUFFICIENT_WALLET_BALANCE',
-          currentBalance: balanceCheck.currentBalance,
-          requiredAmount: estCost
-        });
-      }
-    }
-
     const result = await queueService.startCampaign(campaign._id, req.userId);
 
     const actorName = req.user?.name || req.user?.email || 'Admin';
