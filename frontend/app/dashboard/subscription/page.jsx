@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Portal from '../../../components/Portal';
 import { LOGO_BASE64 } from '../../../lib/logoBase64';
+import { fireCrackers } from '../../../lib/confetti';
 
 export default function SubscriptionPage() {
   const { user } = useAuthStore();
@@ -422,11 +423,15 @@ export default function SubscriptionPage() {
         api.get('/subscription/plans'),
         api.get('/subscription/payments')
       ]);
-      setCurrent(currentRes.data.data);
+      const subData = currentRes.data.data;
+      setCurrent(subData);
       setPlans(plansRes.data.data);
       setPayments(paymentsRes.data.data);
+      if (subData?.subscriptionStatus === 'pending' || subData?.subscriptionStatus === 'expired') {
+        setTab('renew');
+      }
     } catch (err) {
-      if (err.response?.data?.code !== 'SUBSCRIPTION_EXPIRED') {
+      if (err.response?.data?.code !== 'SUBSCRIPTION_EXPIRED' && err.response?.data?.code !== 'SUBSCRIPTION_REQUIRED') {
         const errMsg = err.response?.data?.error || err.response?.data?.details || err.message || 'Failed to load subscription data';
         toast.error(errMsg);
       }
@@ -474,7 +479,12 @@ export default function SubscriptionPage() {
               paymentId: order.paymentId
             });
             if (verifyRes.data.success) {
+              fireCrackers();
               toast.success('🎉 Payment successful! Subscription activated.');
+              try {
+                localStorage.setItem('_cachedSubStatus', JSON.stringify({ status: 'active', ts: Date.now() }));
+                window.dispatchEvent(new Event('subscription_updated'));
+              } catch {}
               fetchData();
               setTab('current');
               setSelectedMonths(null);
@@ -561,23 +571,67 @@ export default function SubscriptionPage() {
         </button>
       </div>
 
-      {/* Expiry Warning Banner */}
-      {current && (current.subscriptionStatus === 'expiring_soon' || current.subscriptionStatus === 'expired') && (
-        <div className={`p-4 rounded-xl border ${current.subscriptionStatus === 'expired' ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'}`}>
-          <div className="flex items-center gap-3">
-            <AlertTriangle className={`w-5 h-5 ${current.subscriptionStatus === 'expired' ? 'text-red-500' : 'text-amber-500'}`} />
+      {/* New User Welcome Activation Banner */}
+      {current && (current.subscriptionStatus === 'pending' || (!current.hasPreviousSubscription && current.subscriptionStatus !== 'active')) && (
+        <div className="p-5 rounded-2xl border border-emerald-300 dark:border-emerald-800 bg-gradient-to-r from-emerald-50 via-teal-50/60 to-emerald-50 dark:from-emerald-950/40 dark:via-teal-950/20 dark:to-emerald-950/40 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-300/60 dark:border-emerald-700/50 shadow-sm">
+              <Zap className="w-6 h-6 animate-pulse" />
+            </div>
             <div>
-              <p className={`font-semibold text-sm ${current.subscriptionStatus === 'expired' ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
-                {current.subscriptionStatus === 'expired'
+              <p className="font-extrabold text-sm text-emerald-950 dark:text-emerald-100 flex items-center gap-2">
+                <span>Welcome to HK Automation! Activate Your Business Account</span>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                  Plan Required
+                </span>
+              </p>
+              <p className="text-xs text-emerald-800 dark:text-emerald-300/90 mt-0.5">
+                Please select a subscription plan below to activate your WhatsApp messaging, broadcast campaigns, chatbot builder, and customer management.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setTab('renew')}
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 whitespace-nowrap cursor-pointer shrink-0 ml-auto sm:ml-0"
+          >
+            Select Plan ➔
+          </button>
+        </div>
+      )}
+
+      {/* Expiry Warning Banner for previously paid users */}
+      {current && current.subscriptionStatus === 'expired' && current.hasPreviousSubscription && (
+        <div className="p-4 rounded-xl border bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+            <div>
+              <p className="font-semibold text-sm text-red-700 dark:text-red-400">
+                {current.subscriptionExpiryDate
                   ? `Your subscription expired on ${formatDateOnly(current.subscriptionExpiryDate)}.`
-                  : `Your subscription expires in ${current.remainingDays} day(s).`
-                }
+                  : 'Your subscription is currently inactive.'}
               </p>
               <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary mt-0.5">
-                {current.subscriptionStatus === 'expired'
-                  ? 'All platform features are disabled. Please renew immediately.'
-                  : 'Renew now to avoid service interruption.'
-                }
+                All platform features are disabled. Please renew immediately to restore service.
+              </p>
+            </div>
+            <button onClick={() => setTab('renew')} className="ml-auto px-4 py-2 bg-wa-green hover:bg-wa-green-hover text-white text-sm font-semibold rounded-lg transition-colors">
+              Renew Now
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Expiring Soon Banner */}
+      {current && current.subscriptionStatus === 'expiring_soon' && (
+        <div className="p-4 rounded-xl border bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+            <div>
+              <p className="font-semibold text-sm text-amber-700 dark:text-amber-400">
+                Your subscription expires in {current.remainingDays} day(s).
+              </p>
+              <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary mt-0.5">
+                Renew now to avoid service interruption.
               </p>
             </div>
             <button onClick={() => setTab('renew')} className="ml-auto px-4 py-2 bg-wa-green hover:bg-wa-green-hover text-white text-sm font-semibold rounded-lg transition-colors">
@@ -674,37 +728,155 @@ export default function SubscriptionPage() {
       {/* ========== TAB: Renew / Buy Plan ========== */}
       {tab === 'renew' && plans && (
         <div className="space-y-6">
-          {/* Plan Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {plans.plans.map((plan) => (
-              <div
-                key={plan.months}
-                onClick={() => setSelectedMonths(plan.months)}
-                className={`cursor-pointer bg-white dark:bg-wa-dark-panel rounded-2xl border-2 p-5 transition-all hover:shadow-lg ${selectedMonths === plan.months ? 'border-wa-green shadow-lg ring-2 ring-wa-green/20' : 'border-wa-border dark:border-wa-dark-border'}`}
-              >
-                {plan.months === 12 && (
-                  <div className="mb-3">
-                    <span className="px-2.5 py-1 bg-gradient-to-r from-wa-green to-emerald-400 text-white text-[10px] font-bold rounded-full uppercase tracking-wider">Best Value</span>
+          {/* Vertically Long SaaS Pricing Plan Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">
+            {plans.plans.map((plan) => {
+              const isSelected = selectedMonths === plan.months;
+              const isBestValue = plan.months === 12;
+              const isPopular = plan.months === 3;
+
+              const badgeConfig = {
+                1: { label: 'Starter', bg: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+                3: { label: 'Most Popular', bg: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700' },
+                6: { label: 'Half-Yearly', bg: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800' },
+                12: { label: 'Best Value • 1 Year', bg: 'bg-gradient-to-r from-wa-green to-emerald-500 text-white shadow-sm' },
+              }[plan.months] || { label: `${plan.months} Months`, bg: 'bg-slate-100 text-slate-700' };
+
+              return (
+                <div
+                  key={plan.months}
+                  onClick={() => setSelectedMonths(plan.months)}
+                  className={`relative flex flex-col justify-between cursor-pointer rounded-2xl border-2 p-5 sm:p-6 transition-all duration-200 hover:shadow-xl ${
+                    isSelected
+                      ? 'border-wa-green shadow-xl ring-2 ring-wa-green/25 bg-emerald-50/20 dark:bg-emerald-950/20 scale-[1.01]'
+                      : isBestValue
+                      ? 'border-emerald-300/80 dark:border-emerald-700/60 bg-white dark:bg-wa-dark-panel hover:border-wa-green shadow-sm'
+                      : 'border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel hover:border-slate-300 dark:hover:border-slate-600 shadow-sm'
+                  }`}
+                >
+                  <div>
+                    {/* Top Badge & Selected Status */}
+                    <div className="flex items-center justify-between gap-2 mb-3 min-h-[26px]">
+                      <span className={`text-[10px] uppercase font-extrabold px-2.5 py-1 rounded-full ${badgeConfig.bg}`}>
+                        {badgeConfig.label}
+                      </span>
+                      {isSelected && (
+                        <span className="flex items-center gap-1 text-[11px] font-bold text-wa-green animate-fadeIn">
+                          <CheckCircle className="w-4 h-4 fill-wa-green text-white" /> Selected
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Plan Name & Subtitle */}
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-black text-wa-text-primary dark:text-white tracking-tight">
+                        {plan.months} <span className="text-sm font-semibold text-wa-text-secondary">Month{plan.months > 1 ? 's' : ''} Plan</span>
+                      </h3>
+                      <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                        Full WhatsApp automation & enterprise features
+                      </p>
+
+                      {/* Pricing Display */}
+                      <div className="pt-3 pb-1">
+                        <div className="flex items-baseline gap-1">
+                          <IndianRupee className="w-5 h-5 text-wa-text-primary dark:text-white self-center" />
+                          <span className="text-3xl sm:text-4xl font-extrabold text-wa-text-primary dark:text-white tracking-tight">
+                            {plan.totalAmount.toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">
+                          <span>₹{plans.monthlyPrice.toLocaleString('en-IN')}/month</span>
+                          {plan.taxAmount > 0 ? (
+                            <span>+ ₹{plan.taxAmount} GST</span>
+                          ) : (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">All taxes incl.</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Select Action Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedMonths(plan.months);
+                      }}
+                      className={`mt-4 w-full py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        isSelected
+                          ? 'bg-wa-green hover:bg-wa-green-hover text-white shadow-md shadow-emerald-600/25'
+                          : 'bg-wa-search dark:bg-wa-dark-search hover:bg-slate-200 dark:hover:bg-slate-800 text-wa-text-primary dark:text-white border border-wa-border dark:border-wa-dark-border'
+                      }`}
+                    >
+                      {isSelected ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Plan Selected</span>
+                        </>
+                      ) : (
+                        <span>Select {plan.months} Month{plan.months > 1 ? 's' : ''}</span>
+                      )}
+                    </button>
+
+                    {/* Divider */}
+                    <div className="border-t border-slate-200/70 dark:border-slate-800 my-4" />
+
+                    {/* Features Included List (Vertically Long) */}
+                    <div className="space-y-2.5">
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500">
+                        What's Included:
+                      </p>
+                      <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                        <li className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 text-wa-green shrink-0 mt-0.5" />
+                          <span>Official & Unofficial WhatsApp API</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 text-wa-green shrink-0 mt-0.5" />
+                          <span>Automated Bulk Broadcast Campaigns</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 text-wa-green shrink-0 mt-0.5" />
+                          <span>Visual Chatbot & Auto-Reply Flows</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 text-wa-green shrink-0 mt-0.5" />
+                          <span>Contacts, Leads & Groups CRM</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 text-wa-green shrink-0 mt-0.5" />
+                          <span>Multi-Agent Shared Team Inbox</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 text-wa-green shrink-0 mt-0.5" />
+                          <span>Real-Time Delivery & Read Analytics</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 text-wa-green shrink-0 mt-0.5" />
+                          <span>Meta Pre-Approved Template Sync</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 text-wa-green shrink-0 mt-0.5" />
+                          <span>Instant Online Activation & GST Bill</span>
+                        </li>
+                        {plan.months >= 6 && (
+                          <li className="flex items-start gap-2 font-medium text-emerald-700 dark:text-emerald-400">
+                            <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                            <span>Extended {plan.months * 30} Days Validity</span>
+                          </li>
+                        )}
+                        {plan.months === 12 && (
+                          <li className="flex items-start gap-2 font-semibold text-emerald-700 dark:text-emerald-400">
+                            <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                            <span>Priority Dedicated Support</span>
+                          </li>
+                        )}
+                      </ul>
+                    </div>
                   </div>
-                )}
-                <h3 className="text-2xl font-extrabold text-wa-text-primary dark:text-white">{plan.months} <span className="text-base font-medium text-wa-text-secondary">Month{plan.months > 1 ? 's' : ''}</span></h3>
-                <div className="mt-3 flex items-baseline gap-1">
-                  <IndianRupee className="w-5 h-5 text-wa-text-primary dark:text-white" />
-                  <span className="text-3xl font-extrabold text-wa-text-primary dark:text-white">{plan.totalAmount.toLocaleString('en-IN')}</span>
                 </div>
-                {plan.taxAmount > 0 && (
-                  <p className="text-xs text-wa-text-secondary mt-1">Includes ₹{plan.taxAmount} tax</p>
-                )}
-                <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary mt-2">
-                  ₹{plans.monthlyPrice.toLocaleString('en-IN')}/month
-                </p>
-                {selectedMonths === plan.months && (
-                  <div className="mt-3 flex items-center gap-1 text-wa-green text-xs font-semibold">
-                    <CheckCircle className="w-4 h-4" /> Selected
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Online Payment Confirmation & Direct Checkout */}

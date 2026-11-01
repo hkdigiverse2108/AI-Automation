@@ -84,7 +84,6 @@ export default function AdminPanel() {
   const [dateFilter, setDateFilter] = useState('all'); // 'all' | 'this_month' | 'last_month' | 'custom'
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [rejectModal, setRejectModal] = useState({ open: false, paymentId: null, clientName: '', amount: 0, reason: '' });
 
   // Export to CSV Function for SuperAdmin Accounting & CA Filing
   const handleExportCSV = (paymentsToExport) => {
@@ -854,16 +853,6 @@ export default function AdminPanel() {
     }
   };
 
-  const handleVerifyPayment = async (paymentId, action, rejectionReason = '') => {
-    try {
-      await api.post(`/subscription/admin/verify/${paymentId}`, { action, rejectionReason });
-      toast.success(action === 'approve' ? 'Payment approved!' : 'Payment rejected');
-      fetchSubscriptionData();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to verify payment');
-    }
-  };
-
   // Handle logo file selection
   const handleLogoFileSelect = (file) => {
     if (!file) return;
@@ -1257,6 +1246,7 @@ export default function AdminPanel() {
                       <tr>
                         <th className="px-5 py-3 text-left">Company Details</th>
                         <th className="px-5 py-3 text-left">Admin Info</th>
+                        <th className="px-5 py-3 text-center">Source</th>
                         <th className="px-5 py-3 text-center">Subscription Plan</th>
                         <th className="px-5 py-3 text-center">Telecallers</th>
                         <th className="px-5 py-3 text-center">Leads</th>
@@ -1269,7 +1259,7 @@ export default function AdminPanel() {
                     <tbody className="bg-white dark:bg-dark-900 divide-y divide-dark-200 dark:divide-dark-800">
                       {filteredOrgs.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="px-5 py-12 text-center text-sm text-dark-500 dark:text-dark-400">
+                          <td colSpan="10" className="px-5 py-12 text-center text-sm text-dark-500 dark:text-dark-400">
                             No matching organizations found.
                           </td>
                         </tr>
@@ -1300,6 +1290,17 @@ export default function AdminPanel() {
                               <p className="font-semibold dark:text-white leading-tight">{org.adminName}</p>
                               <p className="text-[10px] text-dark-400 mt-0.5">{org.adminEmail}</p>
                               {org.adminPhone && <p className="text-[10px] text-dark-400 font-mono mt-0.5">{org.adminPhone}</p>}
+                            </td>
+                            <td className="px-5 py-4 text-center">
+                              {org.registrationSource === 'self' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800" title="Self-registered directly on website">
+                                  <span>🌐 Self Sign-Up</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800" title="Created manually by SuperAdmin">
+                                  <span>🛡️ SuperAdmin</span>
+                                </span>
+                              )}
                             </td>
                             <td className="px-5 py-4 text-center">
                               <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border uppercase ${
@@ -1619,7 +1620,7 @@ export default function AdminPanel() {
               <div className="space-y-6">
                 {/* Sub-navigation */}
                 <div className="flex gap-2 flex-wrap">
-                  {[{ id: 'dashboard', label: 'Dashboard' }, { id: 'history', label: 'Payment History' }, { id: 'orgs', label: 'Organizations' }, { id: 'config', label: 'Plan Config' }, { id: 'payments', label: `Pending (${pendingPayments.length})` }].map(v => (
+                  {[{ id: 'dashboard', label: 'Dashboard' }, { id: 'history', label: 'Payment History' }, { id: 'orgs', label: 'Organizations' }, { id: 'config', label: 'Plan Config' }].map(v => (
                     <button key={v.id} onClick={() => setSubView(v.id)}
                       className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${subView === v.id ? 'bg-wa-green text-white' : 'bg-wa-search dark:bg-wa-dark-search text-wa-text-secondary hover:text-wa-text-primary'}`}
                     >{v.label}</button>
@@ -2255,36 +2256,7 @@ export default function AdminPanel() {
                                                 <span>Invoice</span>
                                               </button>
 
-                                              {isPending && (
-                                                <>
-                                                  <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      handleVerifyPayment(p._id, 'approve');
-                                                    }}
-                                                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
-                                                  >
-                                                    Approve
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setRejectModal({
-                                                        open: true,
-                                                        paymentId: p._id,
-                                                        clientName: client.orgName,
-                                                        amount: p.totalAmount || 0,
-                                                        reason: ''
-                                                      });
-                                                    }}
-                                                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:hover:bg-red-900/60 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-red-200 dark:border-red-800/60"
-                                                  >
-                                                    Reject
-                                                  </button>
-                                                </>
-                                              )}
+
                                             </div>
                                           </div>
                                         </div>
@@ -2381,36 +2353,7 @@ export default function AdminPanel() {
                                       <span className="hidden sm:inline">Tax Invoice</span>
                                     </button>
 
-                                    {isPending && (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleVerifyPayment(p._id, 'approve');
-                                          }}
-                                          className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
-                                        >
-                                          Approve
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setRejectModal({
-                                              open: true,
-                                              paymentId: p._id,
-                                              clientName: orgName,
-                                              amount: p.totalAmount || 0,
-                                              reason: ''
-                                            });
-                                          }}
-                                          className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/40 dark:hover:bg-red-900/60 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-red-200 dark:border-red-800/60"
-                                        >
-                                          Reject
-                                        </button>
-                                      </>
-                                    )}
+
                                   </div>
                                 </div>
                               </div>
@@ -2431,6 +2374,7 @@ export default function AdminPanel() {
                           <tr className="bg-wa-search dark:bg-wa-dark-search text-left text-xs font-semibold text-wa-text-secondary uppercase">
                             <th className="px-4 py-3">Organization</th>
                             <th className="px-4 py-3">Owner</th>
+                            <th className="px-4 py-3 text-center">Source</th>
                             <th className="px-4 py-3">Plan</th>
                             <th className="px-4 py-3">Expiry</th>
                             <th className="px-4 py-3">Remaining</th>
@@ -2452,6 +2396,17 @@ export default function AdminPanel() {
                                 <td className="px-4 py-3">
                                   <p className="text-wa-text-primary dark:text-white text-xs">{org.ownerName}</p>
                                   <p className="text-wa-text-secondary text-xs">{org.ownerEmail}</p>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  {org.registrationSource === 'self' ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                      Self Sign-Up
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                      SuperAdmin
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3 text-xs">{org.currentPlan}</td>
                                 <td className="px-4 py-3 text-xs text-wa-text-secondary">{org.subscriptionExpiryDate ? formatDateOnly(org.subscriptionExpiryDate) : '-'}</td>
@@ -2516,58 +2471,6 @@ export default function AdminPanel() {
                   </div>
                 )}
 
-                {/* Pending Payments */}
-                {subView === 'payments' && (
-                  <div className="space-y-4">
-                    {pendingPayments.length === 0 ? (
-                      <div className="text-center py-12 text-wa-text-secondary">
-                        <CheckCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                        <p className="text-sm">No pending payments to verify</p>
-                      </div>
-                    ) : (
-                      pendingPayments.map((p) => (
-                        <div key={p._id} className="bg-white dark:bg-wa-dark-panel rounded-xl border border-wa-border dark:border-wa-dark-border p-5">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="font-bold text-wa-text-primary dark:text-white">{p.organizationId?.name || 'Unknown Org'}</p>
-                              <p className="text-xs text-wa-text-secondary mt-1">{p.organizationId?.contactEmail} • {p.paymentMethod?.replace('_', ' ')}</p>
-                              <div className="mt-2 flex items-center gap-4 text-xs text-wa-text-secondary">
-                                <span>Plan: <strong>{p.planMonths} Month{p.planMonths > 1 ? 's' : ''}</strong></span>
-                                <span>Amount: <strong className="text-wa-text-primary dark:text-white">₹{p.totalAmount?.toLocaleString('en-IN')}</strong></span>
-                                <span>Ref: <strong>{p.transactionId || 'N/A'}</strong></span>
-                                <span>{formatDateOnly(p.createdAt)}</span>
-                              </div>
-                              {p.notes && <p className="text-xs text-wa-text-secondary mt-1 italic">Notes: {p.notes}</p>}
-                            </div>
-                            <div className="flex gap-2">
-                              {p.screenshot && (
-                                <a href={p.screenshot} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-blue-50 dark:bg-blue-950/30 text-blue-600 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-blue-100 transition-colors">
-                                  <Eye className="w-3.5 h-3.5" /> View Screenshot
-                                </a>
-                              )}
-                              <button onClick={() => handleVerifyPayment(p._id, 'approve')} className="px-3 py-2 bg-emerald-550 dark:bg-emerald-950/30 text-emerald-600 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-emerald-100 transition-colors">
-                                <CheckCircle className="w-3.5 h-3.5" /> Approve
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setRejectModal({
-                                  open: true,
-                                  paymentId: p._id,
-                                  clientName: p.organizationId?.name || 'Client',
-                                  amount: p.totalAmount || 0,
-                                  reason: ''
-                                })}
-                                className="px-3 py-2 bg-red-50 dark:bg-red-950/30 text-red-600 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-red-100 transition-colors cursor-pointer"
-                              >
-                                <Ban className="w-3.5 h-3.5" /> Reject
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
               </div>
             )}
 
@@ -3069,74 +2972,6 @@ export default function AdminPanel() {
         </Portal>
       )}
 
-      {/* Simple Clean Modal for Offline Payment Rejection */}
-      {rejectModal.open && (
-        <Portal>
-          <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="bg-white dark:bg-wa-dark-panel rounded-2xl border border-wa-border dark:border-wa-dark-border shadow-2xl w-full max-w-md p-6 space-y-4">
-              {/* Modal Header */}
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-950/50 text-red-600 flex items-center justify-center shrink-0">
-                    <Ban className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Reject Offline Payment</h3>
-                    <p className="text-xs text-slate-500">{rejectModal.clientName} &bull; ₹{rejectModal.amount.toLocaleString('en-IN')}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setRejectModal({ open: false, paymentId: null, clientName: '', amount: 0, reason: '' })}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Input for Reason */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Rejection Reason <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  rows={3}
-                  value={rejectModal.reason}
-                  onChange={(e) => setRejectModal(prev => ({ ...prev, reason: e.target.value }))}
-                  placeholder="e.g. Transaction UTR not credited in bank account, screenshot unclear, amount mismatch..."
-                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 resize-none"
-                  autoFocus
-                />
-                <p className="text-[11px] text-slate-400">This reason will be recorded and communicated to the client organization.</p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setRejectModal({ open: false, paymentId: null, clientName: '', amount: 0, reason: '' })}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={!rejectModal.reason.trim()}
-                  onClick={async () => {
-                    if (!rejectModal.reason.trim()) return;
-                    await handleVerifyPayment(rejectModal.paymentId, 'reject', rejectModal.reason.trim());
-                    setRejectModal({ open: false, paymentId: null, clientName: '', amount: 0, reason: '' });
-                  }}
-                  className="px-4 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl shadow-sm transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <Ban className="w-3.5 h-3.5" />
-                  <span>Confirm Rejection</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </Portal>
-      )}
     </div>
   );
 }

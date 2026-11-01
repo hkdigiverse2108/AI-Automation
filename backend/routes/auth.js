@@ -57,12 +57,115 @@ const COMMON_PASSWORDS = new Set([
 ]);
 
 // POST /auth/register
-router.post('/register', authLimiter, (req, res) => {
-  return res.status(403).json({
-    success: false,
-    error: 'Public registration is disabled. Please contact your Super Admin to obtain credentials.',
-    code: 'REGISTRATION_DISABLED'
-  });
+router.post('/register', authLimiter, async (req, res) => {
+  try {
+    const { name, email, password, mobileNumber, organizationName } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'Full name is required', code: 'VALIDATION_ERROR' });
+    }
+    if (!email || !email.trim()) {
+      return res.status(400).json({ success: false, error: 'Email address is required', code: 'VALIDATION_ERROR' });
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long', code: 'VALIDATION_ERROR' });
+    }
+    if (!organizationName || !organizationName.trim()) {
+      return res.status(400).json({ success: false, error: 'Organization / Company name is required', code: 'VALIDATION_ERROR' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingUser = await User.findOne({ email: normalizedEmail, isDeleted: { $ne: true } });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: 'An account with this email address already exists. Please sign in instead.',
+        code: 'EMAIL_EXISTS'
+      });
+    }
+
+    const Organization = require('../models/Organization');
+    // Create Organization with registrationSource: 'self' and subscriptionStatus: 'expired'
+    const org = await Organization.create({
+      name: organizationName.trim(),
+      contactPerson: name.trim(),
+      contactEmail: normalizedEmail,
+      contactNumber: (mobileNumber || '').trim(),
+      plan: 'free',
+      subscriptionStatus: 'expired',
+      subscriptionExpiryDate: null,
+      registrationSource: 'self',
+      status: 'active',
+      maxTelecallers: 5,
+      maxLeads: 1000,
+      maxMonthlyConversations: 1000
+    });
+
+    const passwordHash = await User.hashPassword(password);
+    const user = await User.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      mobileNumber: (mobileNumber || '').trim(),
+      username: normalizedEmail,
+      passwordHash,
+      passwordHistory: [passwordHash],
+      role: 'admin',
+      organizationId: org._id,
+      isEmailVerified: true,
+      status: 'active'
+    });
+
+    try {
+      const emailService = require('../services/emailService');
+      emailService.sendOnboardingEmail(normalizedEmail, name, 'admin', password, organizationName).catch(() => {});
+    } catch {}
+
+    try {
+      const Notification = require('../models/Notification');
+      const superadmins = await User.find({ role: 'superadmin', isDeleted: { $ne: true } }).select('_id').lean();
+      for (const sa of superadmins) {
+        await Notification.create({
+          user: sa._id,
+          organization: org._id,
+          type: 'account',
+          title: 'New Client Self-Registered',
+          message: `${name} registered a new organization "${organizationName}" (${normalizedEmail}).`,
+          link: '/dashboard/admin',
+          icon: 'users'
+        }).catch(() => {});
+      }
+    } catch {}
+
+    await AuditLog.log({
+      userId: user._id,
+      action: 'ORGANIZATION_SELF_REGISTERED',
+      resource: 'Organization',
+      details: { organizationId: org._id, organizationName: org.name, email: normalizedEmail, source: 'self' },
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    const tokens = await generateTokens(user, req);
+    const permissions = await getFeaturePermissions(user);
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        user: user.toSafeObject(),
+        organization: org,
+        ...tokens,
+        permissions
+      },
+      message: 'Registration successful! Welcome to HK Automation.'
+    });
+  } catch (error) {
+    console.error('[Registration Error]:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Registration failed',
+      code: 'REGISTRATION_ERROR'
+    });
+  }
 });
 
 // POST /auth/login

@@ -120,18 +120,21 @@ async function verifyToken(req, res, next) {
         }
       }
 
-      // Subscription expiry check
-      if (org && org.subscriptionStatus === 'expired') {
+      // Subscription expiry / pending check
+      if (org && (org.subscriptionStatus === 'expired' || org.subscriptionStatus === 'pending')) {
         const reqPath = req.originalUrl || req.url || '';
         const isSubscriptionRoute = reqPath.includes('/subscription');
         const isAuthRoute = reqPath.includes('/auth');
         const isNotificationRoute = reqPath.includes('/notifications');
         if (!isSubscriptionRoute && !isAuthRoute && !isNotificationRoute) {
+          const isPending = org.subscriptionStatus === 'pending';
           return res.status(403).json({
             success: false,
-            error: 'Your subscription has expired. Please renew to continue using the platform.',
-            code: 'SUBSCRIPTION_EXPIRED',
-            data: { expiryDate: org.subscriptionExpiryDate }
+            error: isPending
+              ? 'Please choose a subscription plan to activate your account.'
+              : 'Your subscription has expired. Please renew to continue using the platform.',
+            code: isPending ? 'SUBSCRIPTION_REQUIRED' : 'SUBSCRIPTION_EXPIRED',
+            data: { expiryDate: org.subscriptionExpiryDate, isPending }
           });
         }
       }

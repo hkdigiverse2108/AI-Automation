@@ -396,6 +396,8 @@ router.post('/organizations', async (req, res) => {
       maxLeads: maxLeads || 1000,
       maxMonthlyConversations: maxMonthlyConversations || 1000,
       status: 'active',
+      subscriptionStatus: 'pending',
+      registrationSource: 'superadmin',
     });
 
     const passwordHash = await User.hashPassword(adminPassword);

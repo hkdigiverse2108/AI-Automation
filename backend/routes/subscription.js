@@ -115,14 +115,17 @@ router.get('/current', async (req, res) => {
       remainingDays = Math.max(0, Math.ceil((new Date(org.subscriptionExpiryDate) - now) / (1000 * 60 * 60 * 24)));
     }
 
+    const hasPreviousSubscription = !!(org.currentSubscriptionId || await Payment.exists({ organizationId: org._id, status: 'paid' }));
+
     res.json({
       success: true,
       data: {
-        subscriptionStatus: org.subscriptionStatus || 'trial',
+        subscriptionStatus: org.subscriptionStatus || (hasPreviousSubscription ? 'expired' : 'pending'),
         subscriptionExpiryDate: org.subscriptionExpiryDate,
         remainingDays,
         subscription,
-        organizationName: org.name
+        organizationName: org.name,
+        hasPreviousSubscription
       }
     });
   } catch (error) {
@@ -470,8 +473,9 @@ router.get('/admin/organizations', requireRole('superadmin'), async (req, res) =
           ownerName: adminUser ? adminUser.name : 'N/A',
           ownerEmail: adminUser ? adminUser.email : 'N/A',
           ownerMobile: adminUser ? adminUser.mobileNumber || '' : '',
-          subscriptionStatus: org.subscriptionStatus || 'trial',
+          subscriptionStatus: org.subscriptionStatus || 'pending',
           subscriptionExpiryDate: org.subscriptionExpiryDate,
+          registrationSource: org.registrationSource || 'superadmin',
           remainingDays,
           currentPlan: latestPayment ? `${latestPayment.planMonths} Month(s)` : 'None',
           amountPaid: latestPayment ? latestPayment.totalAmount : 0,

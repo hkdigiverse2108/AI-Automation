@@ -103,9 +103,14 @@ const organizationSchema = new mongoose.Schema(
     subscriptionStatus: {
       type: String,
       enum: ['active', 'expiring_soon', 'expired', 'pending', 'trial'],
-      default: 'trial'
+      default: 'expired'
     },
     subscriptionExpiryDate: { type: Date },
+    registrationSource: {
+      type: String,
+      enum: ['self', 'superadmin'],
+      default: 'self'
+    },
     currentSubscriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' },
     walletBalance: { type: Number, default: 0, min: 0 },
     walletCurrency: { type: String, default: 'INR' },

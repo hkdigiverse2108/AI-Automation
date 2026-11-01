@@ -13,6 +13,7 @@ export const useAuthStore = create((set) => ({
   login: async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
     if (data.success && !data.data.requires2FA) {
+      localStorage.removeItem('_cachedSubStatus');
       localStorage.setItem('accessToken', data.data.accessToken);
       localStorage.setItem('refreshToken', data.data.refreshToken);
       set({ user: data.data.user, permissions: data.data.permissions || null, isAuthenticated: true });
@@ -30,12 +31,13 @@ export const useAuthStore = create((set) => ({
     return data;
   },
 
-  register: async (name, email, password) => {
-    const { data } = await api.post('/auth/register', { name, email, password });
-    if (data.success) {
+  register: async (payload) => {
+    const { data } = await api.post('/auth/register', payload);
+    if (data.success && data.data?.accessToken) {
+      localStorage.removeItem('_cachedSubStatus');
       localStorage.setItem('accessToken', data.data.accessToken);
       localStorage.setItem('refreshToken', data.data.refreshToken);
-      set({ user: data.data.user, isAuthenticated: true });
+      set({ user: data.data.user, permissions: data.data.permissions || null, isAuthenticated: true });
     }
     return data;
   },
@@ -47,6 +49,8 @@ export const useAuthStore = create((set) => ({
     } catch {}
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('_cachedSubStatus');
+    localStorage.removeItem('_cachedAuthState');
     set({ user: null, permissions: null, isAuthenticated: false, showLogoutModal: false });
   },
 

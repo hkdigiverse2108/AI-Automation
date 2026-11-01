@@ -85,6 +85,16 @@ export default function DashboardLayout({ children }) {
     setSidebarOpen(false);
   }, [pathname]);
 
+  const isUnpaid = user?.role !== 'superadmin' && (subscriptionStatus === 'pending' || subscriptionStatus === 'expired' || subscriptionExpired);
+  const isSubscriptionPage = pathname === '/dashboard/subscription' || pathname.startsWith('/dashboard/subscription/');
+
+  // Redirect unpaid users to subscription page automatically
+  useEffect(() => {
+    if (!loading && isAuthenticated && isUnpaid && !isSubscriptionPage) {
+      router.replace('/dashboard/subscription');
+    }
+  }, [loading, isAuthenticated, isUnpaid, isSubscriptionPage, router]);
+
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.replace('/login');
@@ -143,33 +153,52 @@ export default function DashboardLayout({ children }) {
         if (Date.now() - parsed.ts < 5 * 60 * 1000) {
           setSubscriptionStatus(parsed.status);
           setSubscriptionExpiryDate(parsed.expiryDate);
-          if (parsed.status === 'expired') setSubscriptionExpired(true);
+          if (parsed.status === 'expired' || parsed.status === 'pending') {
+            setSubscriptionExpired(true);
+          }
         }
       }
     } catch {}
 
-    api.get('/subscription/current').then(res => {
-      const data = res.data.data;
-      setSubscriptionStatus(data.subscriptionStatus);
-      setSubscriptionExpiryDate(data.subscriptionExpiryDate);
-      if (data.subscriptionStatus === 'expired') {
-        setSubscriptionExpired(true);
-      }
-      // Cache subscription status
-      try {
-        localStorage.setItem('_cachedSubStatus', JSON.stringify({
-          status: data.subscriptionStatus,
-          expiryDate: data.subscriptionExpiryDate,
-          ts: Date.now()
-        }));
-      } catch {}
-    }).catch(err => {
-      if (err.response?.data?.code === 'SUBSCRIPTION_EXPIRED') {
-        setSubscriptionExpired(true);
-        setSubscriptionExpiryDate(err.response?.data?.data?.expiryDate);
-        setSubscriptionStatus('expired');
-      }
-    });
+    const loadSub = () => {
+      api.get('/subscription/current').then(res => {
+        const data = res.data.data;
+        setSubscriptionStatus(data.subscriptionStatus);
+        setSubscriptionExpiryDate(data.subscriptionExpiryDate);
+        if (data.subscriptionStatus === 'expired' || data.subscriptionStatus === 'pending') {
+          setSubscriptionExpired(true);
+        } else {
+          setSubscriptionExpired(false);
+        }
+        // Cache subscription status
+        try {
+          localStorage.setItem('_cachedSubStatus', JSON.stringify({
+            status: data.subscriptionStatus,
+            expiryDate: data.subscriptionExpiryDate,
+            hasPreviousSubscription: !!data.hasPreviousSubscription,
+            ts: Date.now()
+          }));
+        } catch {}
+      }).catch(err => {
+        if (err.response?.data?.code === 'SUBSCRIPTION_EXPIRED' || err.response?.data?.code === 'SUBSCRIPTION_REQUIRED') {
+          setSubscriptionExpired(true);
+          setSubscriptionExpiryDate(err.response?.data?.data?.expiryDate);
+          setSubscriptionStatus(err.response?.data?.data?.isPending ? 'pending' : 'expired');
+        }
+      });
+    };
+
+    loadSub();
+
+    // Listen for real-time subscription update event (fired after Razorpay payment success)
+    const handleSubUpdated = () => {
+      setSubscriptionStatus('active');
+      setSubscriptionExpired(false);
+      loadSub();
+    };
+
+    window.addEventListener('subscription_updated', handleSubUpdated);
+    return () => window.removeEventListener('subscription_updated', handleSubUpdated);
   }, [isAuthenticated, user]);
 
   // Uniform initial render on SSR and client to prevent React hydration errors
@@ -186,10 +215,65 @@ export default function DashboardLayout({ children }) {
 
   if (!isAuthenticated) return null;
 
-  // Subscription expired gate — allow only /subscription route
-  const isSubscriptionPage = pathname === '/dashboard/subscription' || pathname.startsWith('/dashboard/subscription/');
-  if (subscriptionExpired && !isSubscriptionPage && user?.role !== 'superadmin') {
-    return <SubscriptionExpiredGate expiryDate={subscriptionExpiryDate} />;
+  // Dedicated Activation / Renew View for unpaid users (No Sidebar!)
+  if (isUnpaid) {
+    return (
+      <div className="min-h-screen flex flex-col bg-wa-bg dark:bg-wa-dark-bg">
+        {/* Focused Header without sidebar */}
+        <header className="h-14 bg-white dark:bg-wa-dark-panel-header border-b border-wa-border dark:border-wa-dark-border px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-wa-green/10 flex items-center justify-center border border-wa-green/20">
+              <span className="text-wa-green font-black text-sm">HK</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-sm sm:text-base text-wa-text-primary dark:text-white tracking-tight">
+                HK Automation
+              </span>
+              <span className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border ${
+                subscriptionStatus === 'pending'
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                  : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border-red-300 dark:border-red-800'
+              }`}>
+                {subscriptionStatus === 'pending' ? '⚡ Account Activation' : '⚠️ Plan Expired'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="text-right hidden sm:block">
+              <p className="text-xs font-bold text-wa-text-primary dark:text-white leading-tight">{user?.name || 'User'}</p>
+              <p className="text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-medium">
+                {user?.role === 'superadmin' ? 'Super Admin' : user?.role === 'admin' ? 'Org Admin' : 'Agent'}
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-wa-green/10 text-wa-green font-extrabold text-xs flex items-center justify-center border border-wa-green/20 shadow-sm shrink-0">
+              {user?.name?.[0]?.toUpperCase() || 'U'}
+            </div>
+            <button
+              onClick={requestLogout}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-bold transition-colors cursor-pointer"
+              title="Log Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Log Out</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Content Body: Subscription Page (without sidebar) */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-6xl w-full mx-auto">
+          {isSubscriptionPage ? children : (
+            <SubscriptionExpiredGate
+              expiryDate={subscriptionExpiryDate}
+              isPending={subscriptionStatus === 'pending'}
+            />
+          )}
+        </main>
+
+        <ConfirmModal />
+        <LogoutConfirmModal />
+      </div>
+    );
   }
 
   return (

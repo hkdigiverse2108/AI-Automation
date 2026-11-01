@@ -238,9 +238,12 @@ export default function LoginPage() {
             </div>
 
             {/* Footer option to Register */}
-            <p className="text-center text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary mt-8 pt-4 border-t border-wa-border dark:border-wa-dark-border select-none">
-              New admin accounts are created only by the Super Admin. Please contact your Super Admin to obtain credentials.
-            </p>
+            <div className="text-center text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary mt-8 pt-4 border-t border-wa-border dark:border-wa-dark-border select-none">
+              Don&apos;t have an account?{' '}
+              <Link href="/register" className="text-wa-green hover:underline font-bold">
+                Create Account (Sign Up)
+              </Link>
+            </div>
 
             {/* Download Mobile App Option */}
             <div className="mt-6 pt-4 border-t border-wa-border dark:border-wa-dark-border flex flex-col items-center">
