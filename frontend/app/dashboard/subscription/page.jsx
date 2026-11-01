@@ -5,10 +5,10 @@ import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 import { formatDateOnly } from '../../../lib/utils';
 import {
-  CreditCard, Clock, CheckCircle, AlertTriangle, Upload, Download,
+  CreditCard, Clock, CheckCircle, AlertTriangle, Download,
   IndianRupee, Calendar, FileText, ArrowRight, Loader2, XCircle,
   Shield, Zap, Bot, MessageSquare, Users, BarChart3, Megaphone, RefreshCw, Eye, Printer, X,
-  Copy, Check, Building2, QrCode
+  Copy, Check
 } from 'lucide-react';
 import Portal from '../../../components/Portal';
 import { LOGO_BASE64 } from '../../../lib/logoBase64';
@@ -21,22 +21,9 @@ export default function SubscriptionPage() {
   const [plans, setPlans] = useState(null);
   const [payments, setPayments] = useState([]);
   const [selectedMonths, setSelectedMonths] = useState(null);
-  const [paymentMode, setPaymentMode] = useState(null); // 'online' | 'offline'
-  const [offlineForm, setOfflineForm] = useState({ transactionId: '', notes: '', screenshot: null });
   const [submitting, setSubmitting] = useState(false);
   const [rejectionModal, setRejectionModal] = useState({ open: false, reason: '', invoice: '' });
   const [viewInvoiceModal, setViewInvoiceModal] = useState({ open: false, payment: null });
-  const [copiedField, setCopiedField] = useState(null);
-
-  const handleCopy = (text, fieldName) => {
-    if (!text) return;
-    try {
-      navigator.clipboard?.writeText(text);
-      setCopiedField(fieldName);
-      toast.success('Copied to clipboard');
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch {}
-  };
 
   const handlePrintInvoice = (payment) => {
     if (!payment) return;
@@ -491,7 +478,6 @@ export default function SubscriptionPage() {
               fetchData();
               setTab('current');
               setSelectedMonths(null);
-              setPaymentMode(null);
             }
           } catch (err) {
             toast.error(err.response?.data?.error || 'Payment verification failed');
@@ -521,35 +507,7 @@ export default function SubscriptionPage() {
     }
   };
 
-  // ===== Offline Payment =====
-  const handleOfflinePayment = async () => {
-    if (!selectedMonths) return toast.error('Please select a plan');
-    setSubmitting(true);
-    try {
-      const formData = new FormData();
-      formData.append('months', selectedMonths);
-      formData.append('transactionId', offlineForm.transactionId);
-      formData.append('notes', offlineForm.notes);
-      if (offlineForm.screenshot) formData.append('screenshot', offlineForm.screenshot);
 
-      const { data } = await api.post('/subscription/offline-payment', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      if (data.success) {
-        toast.success('✅ Payment submitted! Awaiting verification.');
-        fetchData();
-        setTab('current');
-        setSelectedMonths(null);
-        setPaymentMode(null);
-        setOfflineForm({ transactionId: '', notes: '', screenshot: null });
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to submit payment');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const statusBadge = (status) => {
     const map = {
@@ -583,18 +541,7 @@ export default function SubscriptionPage() {
     );
   }
 
-  const pendingPayment = payments?.find(p => p.status === 'pending');
   const selectedPlan = plans?.plans?.find(p => p.months === selectedMonths);
-  const amountToPay = selectedPlan?.totalAmount || 0;
-  const bankInfo = plans?.bankDetails || {
-    companyName: 'Harikrushn DigiVerse LLP',
-    accountHolder: 'Harikrushn DigiVerse LLP',
-    bankName: 'HDFC Bank',
-    accountNumber: '9240200573774150',
-    ifscCode: 'UTIB00028912',
-    branch: 'Kapodra, Surat',
-    upiId: 'hkgigiverse@okhdfc'
-  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -640,33 +587,7 @@ export default function SubscriptionPage() {
         </div>
       )}
 
-      {/* Pending Payment Verification Alert Banner (Suggestion #2) */}
-      {pendingPayment && (
-        <div className="p-4 rounded-2xl border border-amber-300 dark:border-amber-800/80 bg-gradient-to-r from-amber-50 via-yellow-50/50 to-amber-50 dark:from-amber-950/30 dark:via-yellow-950/20 dark:to-amber-950/30 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-300/60 dark:border-amber-700/50 shadow-sm">
-              <Clock className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <p className="font-bold text-sm text-amber-950 dark:text-amber-200 flex items-center gap-2">
-                <span>Offline Payment Under Verification</span>
-                <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-                  {pendingPayment.invoiceNumber || 'INV-PENDING'}
-                </span>
-              </p>
-              <p className="text-xs text-amber-800 dark:text-amber-300/90 mt-0.5">
-                Your offline payment of ₹{pendingPayment.totalAmount?.toLocaleString('en-IN')} for {pendingPayment.planMonths} month{pendingPayment.planMonths > 1 ? 's' : ''} has been submitted for verification (Ref / UTR: <span className="font-mono font-bold text-amber-950 dark:text-amber-100">{pendingPayment.transactionId || 'Submitted'}</span>). Your subscription will be activated automatically once approved by the administrator.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setTab('history')}
-            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold transition-all whitespace-nowrap cursor-pointer shadow-sm ml-auto sm:ml-0"
-          >
-            View Status in History ➔
-          </button>
-        </div>
-      )}
+
 
       {/* Tabs */}
       <div className="flex gap-1 bg-wa-search dark:bg-wa-dark-search rounded-xl p-1">
@@ -758,7 +679,7 @@ export default function SubscriptionPage() {
             {plans.plans.map((plan) => (
               <div
                 key={plan.months}
-                onClick={() => { setSelectedMonths(plan.months); setPaymentMode(null); }}
+                onClick={() => setSelectedMonths(plan.months)}
                 className={`cursor-pointer bg-white dark:bg-wa-dark-panel rounded-2xl border-2 p-5 transition-all hover:shadow-lg ${selectedMonths === plan.months ? 'border-wa-green shadow-lg ring-2 ring-wa-green/20' : 'border-wa-border dark:border-wa-dark-border'}`}
               >
                 {plan.months === 12 && (
@@ -786,233 +707,32 @@ export default function SubscriptionPage() {
             ))}
           </div>
 
-          {/* Payment Method Selection */}
-          {selectedMonths && !paymentMode && (
+          {/* Online Payment Confirmation & Direct Checkout */}
+          {selectedPlan && (
             <div className="bg-white dark:bg-wa-dark-panel rounded-2xl border border-wa-border dark:border-wa-dark-border p-6 shadow-sm">
-              <h3 className="text-base font-bold text-wa-text-primary dark:text-white mb-4">Choose Payment Method</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button
-                  onClick={() => setPaymentMode('online')}
-                  className="flex items-center gap-4 p-5 rounded-xl border-2 border-wa-border dark:border-wa-dark-border hover:border-wa-green transition-all group text-left cursor-pointer"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center">
-                    <CreditCard className="w-6 h-6 text-wa-green" />
-                  </div>
-                  <div className="text-left">
-                    <p className="font-semibold text-wa-text-primary dark:text-white flex items-center gap-2">
-                      Pay Online (Instant)
-                      <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full uppercase tracking-wider">Fast UPI</span>
-                    </p>
-                    <p className="text-xs text-wa-text-secondary">Razorpay — Google Pay, PhonePe, Paytm, Cards</p>
-                  </div>
-                  <ArrowRight className="w-5 h-5 ml-auto text-wa-text-secondary group-hover:text-wa-green transition-colors" />
-                </button>
-                <button
-                  onClick={() => setPaymentMode('offline')}
-                  className="flex items-center gap-4 p-5 rounded-xl border-2 border-wa-border dark:border-wa-dark-border hover:border-wa-green transition-all group"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center">
-                    <Upload className="w-6 h-6 text-emerald-600" />
-                  </div>
-                  <div className="text-left">
-                    <p className="font-semibold text-wa-text-primary dark:text-white">Pay via Cash / Bank Transfer</p>
-                    <p className="text-xs text-wa-text-secondary">Upload screenshot & await verification</p>
-                  </div>
-                  <ArrowRight className="w-5 h-5 ml-auto text-wa-text-secondary group-hover:text-wa-green transition-colors" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Online Payment Confirmation */}
-          {paymentMode === 'online' && (
-            <div className="bg-white dark:bg-wa-dark-panel rounded-2xl border border-wa-border dark:border-wa-dark-border p-6 shadow-sm">
-              <h3 className="text-base font-bold text-wa-text-primary dark:text-white mb-2">Confirm Online Payment</h3>
-              <p className="text-sm text-wa-text-secondary mb-4">
-                You are purchasing a <strong>{selectedMonths}-month</strong> plan for <strong>₹{plans.plans.find(p => p.months === selectedMonths)?.totalAmount.toLocaleString('en-IN')}</strong>
-              </p>
-              <button
-                onClick={handleOnlinePayment}
-                disabled={submitting}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 disabled:opacity-50"
-              >
-                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
-                {submitting ? 'Processing...' : 'Pay with Razorpay'}
-              </button>
-              <button onClick={() => setPaymentMode(null)} className="w-full mt-2 py-2 text-sm text-wa-text-secondary hover:text-wa-text-primary transition-colors">
-                ← Back to payment methods
-              </button>
-            </div>
-          )}
-
-          {/* Offline Payment with Official Company Bank & UPI Details Card */}
-          {paymentMode === 'offline' && (
-            <div className="space-y-6">
-              {/* Official Company Bank & UPI Payment Details Card */}
-              <div className="bg-gradient-to-br from-emerald-50/70 via-teal-50/40 to-slate-50 dark:from-emerald-950/20 dark:via-teal-950/10 dark:to-wa-dark-panel border-2 border-emerald-300/80 dark:border-emerald-800/60 rounded-2xl p-5 sm:p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 dark:border-emerald-800/40 pb-4 mb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-base text-wa-text-primary dark:text-white flex items-center gap-2">
-                        <Building2 className="w-5 h-5 text-wa-green" />
-                        Company Bank & UPI Payment Details
-                      </h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                        Zero Gateway Fee
-                      </span>
-                    </div>
-                    <p className="text-xs text-wa-text-secondary dark:text-wa-dark-text-secondary mt-1">
-                      Transfer <strong className="text-emerald-700 dark:text-emerald-400">₹{amountToPay.toLocaleString('en-IN')}</strong> directly via UPI QR or NEFT / RTGS / IMPS. No additional convenience fees.
-                    </p>
-                  </div>
-                  <div className="text-left sm:text-right">
-                    <span className="text-[10px] uppercase font-bold text-wa-text-secondary">Payable Amount</span>
-                    <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono leading-tight">
-                      ₹{amountToPay.toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
-                  {/* Left Column: Instant UPI QR Code */}
-                  <div className="md:col-span-4 flex flex-col items-center justify-center p-4 bg-white dark:bg-wa-dark-search/60 rounded-xl border border-emerald-200/70 dark:border-emerald-800/40 text-center shadow-sm">
-                    <div className="p-2 bg-white rounded-xl shadow-inner border border-slate-200">
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`upi://pay?pa=${bankInfo.upiId}&pn=${encodeURIComponent(bankInfo.companyName)}&am=${amountToPay}&cu=INR`)}`}
-                        alt="UPI QR Code"
-                        className="w-32 h-32 object-contain"
-                      />
-                    </div>
-                    <span className="text-[11px] font-bold text-wa-text-primary dark:text-white mt-2 flex items-center gap-1">
-                      <QrCode className="w-3.5 h-3.5 text-wa-green" /> Scan with Any UPI App
-                    </span>
-                    <span className="text-[10px] text-wa-text-secondary">Google Pay &bull; PhonePe &bull; Paytm &bull; BHIM</span>
-
-                    {/* UPI ID with copy button */}
-                    <div className="mt-3 w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs">
-                      <span className="font-mono font-bold text-emerald-800 dark:text-emerald-300 truncate text-[11px]">{bankInfo.upiId}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(bankInfo.upiId, 'upi')}
-                        className="p-1 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 rounded text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer"
-                        title="Copy UPI ID"
-                      >
-                        {copiedField === 'upi' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Bank Account Details for NEFT/IMPS/RTGS */}
-                  <div className="md:col-span-8 space-y-2.5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                      <div className="p-3 bg-white dark:bg-wa-dark-search/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                        <div className="min-w-0 pr-2">
-                          <span className="text-[10px] font-semibold text-wa-text-secondary uppercase">Account Name</span>
-                          <p className="font-bold text-wa-text-primary dark:text-white truncate mt-0.5">{bankInfo.companyName}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(bankInfo.companyName, 'name')}
-                          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-wa-green transition-colors cursor-pointer shrink-0"
-                          title="Copy Account Name"
-                        >
-                          {copiedField === 'name' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-
-                      <div className="p-3 bg-white dark:bg-wa-dark-search/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                        <div className="min-w-0 pr-2">
-                          <span className="text-[10px] font-semibold text-wa-text-secondary uppercase">Bank Name</span>
-                          <p className="font-bold text-wa-text-primary dark:text-white truncate mt-0.5">{bankInfo.bankName}</p>
-                        </div>
-                        <span className="text-[10px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded font-semibold shrink-0">{bankInfo.branch}</span>
-                      </div>
-
-                      <div className="p-3 bg-white dark:bg-wa-dark-search/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                        <div className="min-w-0 pr-2">
-                          <span className="text-[10px] font-semibold text-wa-text-secondary uppercase">Account Number</span>
-                          <p className="font-mono font-bold text-wa-text-primary dark:text-white text-sm mt-0.5">{bankInfo.accountNumber}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(bankInfo.accountNumber, 'acc')}
-                          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-wa-green transition-colors cursor-pointer shrink-0"
-                          title="Copy Account Number"
-                        >
-                          {copiedField === 'acc' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-
-                      <div className="p-3 bg-white dark:bg-wa-dark-search/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                        <div className="min-w-0 pr-2">
-                          <span className="text-[10px] font-semibold text-wa-text-secondary uppercase">IFSC Code</span>
-                          <p className="font-mono font-bold text-wa-text-primary dark:text-white text-sm mt-0.5">{bankInfo.ifscCode}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(bankInfo.ifscCode, 'ifsc')}
-                          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-wa-green transition-colors cursor-pointer shrink-0"
-                          title="Copy IFSC Code"
-                        >
-                          {copiedField === 'ifsc' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-emerald-100/70 dark:bg-emerald-950/40 text-[11px] text-emerald-900 dark:text-emerald-300 flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>After completing the transfer, enter your <strong>12-digit UTR / Reference Number</strong> below and attach the payment screenshot as proof.</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Offline Proof Submission Form */}
-              <div className="bg-white dark:bg-wa-dark-panel rounded-2xl border border-wa-border dark:border-wa-dark-border p-6 shadow-sm">
-                <h3 className="text-base font-bold text-wa-text-primary dark:text-white mb-4">Submit Payment Verification Proof</h3>
-              <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-wa-text-secondary mb-1.5">Payment Screenshot</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setOfflineForm(f => ({ ...f, screenshot: e.target.files?.[0] || null }))}
-                    className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-wa-green/10 file:text-wa-green hover:file:bg-wa-green/20 text-wa-text-primary dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-wa-text-secondary mb-1.5">Transaction Reference Number</label>
-                  <input
-                    type="text"
-                    value={offlineForm.transactionId}
-                    onChange={(e) => setOfflineForm(f => ({ ...f, transactionId: e.target.value }))}
-                    placeholder="e.g. UTR number, receipt ID"
-                    className="w-full px-4 py-2.5 rounded-xl bg-wa-search dark:bg-wa-dark-search border border-wa-border dark:border-wa-dark-border text-sm text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-wa-text-secondary mb-1.5">Notes (Optional)</label>
-                  <textarea
-                    value={offlineForm.notes}
-                    onChange={(e) => setOfflineForm(f => ({ ...f, notes: e.target.value }))}
-                    placeholder="Additional details..."
-                    rows={2}
-                    className="w-full px-4 py-2.5 rounded-xl bg-wa-search dark:bg-wa-dark-search border border-wa-border dark:border-wa-dark-border text-sm text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30 resize-none"
-                  />
+                  <h3 className="text-base font-bold text-wa-text-primary dark:text-white mb-1 flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-wa-green" />
+                    Confirm Online Payment
+                  </h3>
+                  <p className="text-sm text-wa-text-secondary dark:text-wa-dark-text-secondary">
+                    You are purchasing a <strong>{selectedPlan.months}-month</strong> plan for{' '}
+                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold font-mono text-base">
+                      ₹{selectedPlan.totalAmount?.toLocaleString('en-IN')}
+                    </strong>{' '}
+                    (Instant activation via UPI, QR, Debit/Credit Cards, NetBanking).
+                  </p>
                 </div>
                 <button
-                  onClick={handleOfflinePayment}
+                  onClick={handleOnlinePayment}
                   disabled={submitting}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                 >
-                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                  {submitting ? 'Submitting...' : 'Submit Offline Payment'}
-                </button>
-                <button onClick={() => setPaymentMode(null)} className="w-full py-2 text-sm text-wa-text-secondary hover:text-wa-text-primary transition-colors">
-                  ← Back to payment methods
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                  {submitting ? 'Processing...' : `Pay ₹${selectedPlan.totalAmount?.toLocaleString('en-IN')} with Razorpay`}
                 </button>
               </div>
-            </div>
             </div>
           )}
         </div>
