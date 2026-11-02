@@ -494,7 +494,12 @@ export default function SubscriptionPage() {
           }
         },
         prefill: { name: user?.name || '', email: user?.email || '' },
-        theme: { color: '#25d366' }
+        theme: { color: '#25d366' },
+        modal: {
+          ondismiss: function () {
+            api.post('/subscription/cancel-order', { paymentId: order.paymentId }).catch(() => {});
+          }
+        }
       };
 
       if (typeof window !== 'undefined' && window.Razorpay) {
@@ -528,7 +533,8 @@ export default function SubscriptionPage() {
       trial: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-400', label: 'Trial' },
       paid: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', label: 'Paid' },
       failed: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Failed' },
-      rejected: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Rejected' }
+      rejected: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Rejected' },
+      cancelled: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400', label: 'Incomplete' }
     };
     const s = map[status] || map.pending;
     return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.text}`}>{s.label}</span>;
@@ -726,46 +732,98 @@ export default function SubscriptionPage() {
       )}
 
       {/* ========== TAB: Renew / Buy Plan ========== */}
-      {tab === 'renew' && plans && (
-        <div className="space-y-6">
-          {/* Vertically Long SaaS Pricing Plan Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">
-            {plans.plans.map((plan) => {
-              const isSelected = selectedMonths === plan.months;
-              const isBestValue = plan.months === 12;
-              const isPopular = plan.months === 3;
+      {tab === 'renew' && plans && (() => {
+        const isPlanActive = current?.subscriptionStatus === 'active' || current?.subscriptionStatus === 'expiring_soon';
+        const lastPaidPayment = payments?.find(p => p.status === 'paid');
+        const activePlanMonths = current?.subscription?.planMonths || (isPlanActive ? lastPaidPayment?.planMonths : null);
+        const lastUsedPlanMonths = !isPlanActive && (current?.hasPreviousSubscription || lastPaidPayment)
+          ? (current?.subscription?.planMonths || lastPaidPayment?.planMonths || null)
+          : null;
 
-              const badgeConfig = {
-                1: { label: 'Starter', bg: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
-                3: { label: 'Most Popular', bg: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700' },
-                6: { label: 'Half-Yearly', bg: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800' },
-                12: { label: 'Best Value • 1 Year', bg: 'bg-gradient-to-r from-wa-green to-emerald-500 text-white shadow-sm' },
-              }[plan.months] || { label: `${plan.months} Months`, bg: 'bg-slate-100 text-slate-700' };
+        return (
+          <div className="space-y-6">
+            {/* Context Notification Banner for Active or Previous Plan */}
+            {isPlanActive && activePlanMonths && (
+              <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/80 flex items-center justify-between gap-3 text-xs text-emerald-900 dark:text-emerald-200 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                  <p>
+                    You currently have an <strong>Active {activePlanMonths}-Month Plan</strong>. Selecting a plan below will extend your subscription period smoothly.
+                  </p>
+                </div>
+              </div>
+            )}
+            {!isPlanActive && lastUsedPlanMonths && (
+              <div className="p-4 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/80 flex items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                  <p>
+                    Your last used plan was the <strong>{lastUsedPlanMonths}-Month Plan</strong>. You can renew it with one click or choose a different plan below.
+                  </p>
+                </div>
+              </div>
+            )}
 
-              return (
-                <div
-                  key={plan.months}
-                  onClick={() => setSelectedMonths(plan.months)}
-                  className={`relative flex flex-col justify-between cursor-pointer rounded-2xl border-2 p-5 sm:p-6 transition-all duration-200 hover:shadow-xl ${
-                    isSelected
-                      ? 'border-wa-green shadow-xl ring-2 ring-wa-green/25 bg-emerald-50/20 dark:bg-emerald-950/20 scale-[1.01]'
-                      : isBestValue
-                      ? 'border-emerald-300/80 dark:border-emerald-700/60 bg-white dark:bg-wa-dark-panel hover:border-wa-green shadow-sm'
-                      : 'border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel hover:border-slate-300 dark:hover:border-slate-600 shadow-sm'
-                  }`}
-                >
-                  <div>
-                    {/* Top Badge & Selected Status */}
-                    <div className="flex items-center justify-between gap-2 mb-3 min-h-[26px]">
-                      <span className={`text-[10px] uppercase font-extrabold px-2.5 py-1 rounded-full ${badgeConfig.bg}`}>
-                        {badgeConfig.label}
-                      </span>
-                      {isSelected && (
-                        <span className="flex items-center gap-1 text-[11px] font-bold text-wa-green animate-fadeIn">
-                          <CheckCircle className="w-4 h-4 fill-wa-green text-white" /> Selected
+            {/* Vertically Long SaaS Pricing Plan Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch pt-3">
+              {plans.plans.map((plan) => {
+                const isSelected = selectedMonths === plan.months;
+                const isBestValue = plan.months === 12;
+                const isPopular = plan.months === 3;
+                const isCurrentPlan = isPlanActive && activePlanMonths === plan.months;
+                const isLastUsedPlan = !isPlanActive && lastUsedPlanMonths === plan.months;
+
+                const badgeConfig = {
+                  1: { label: 'Starter', bg: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+                  3: { label: 'Most Popular', bg: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700' },
+                  6: { label: 'Half-Yearly', bg: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800' },
+                  12: { label: 'Best Value • 1 Year', bg: 'bg-gradient-to-r from-wa-green to-emerald-500 text-white shadow-sm' },
+                }[plan.months] || { label: `${plan.months} Months`, bg: 'bg-slate-100 text-slate-700' };
+
+                return (
+                  <div
+                    key={plan.months}
+                    onClick={() => setSelectedMonths(plan.months)}
+                    className={`relative flex flex-col justify-between cursor-pointer rounded-2xl border-2 p-5 sm:p-6 transition-all duration-200 hover:shadow-xl ${
+                      isSelected
+                        ? 'border-wa-green shadow-xl ring-2 ring-wa-green/25 bg-emerald-50/20 dark:bg-emerald-950/20 scale-[1.01]'
+                        : isCurrentPlan
+                        ? 'border-emerald-500 dark:border-emerald-500 bg-emerald-50/15 dark:bg-emerald-950/20 shadow-md ring-1 ring-emerald-500/50'
+                        : isLastUsedPlan
+                        ? 'border-amber-400 dark:border-amber-500/70 bg-amber-50/15 dark:bg-amber-950/20 shadow-sm ring-1 ring-amber-400/40'
+                        : isBestValue
+                        ? 'border-emerald-300/80 dark:border-emerald-700/60 bg-white dark:bg-wa-dark-panel hover:border-wa-green shadow-sm'
+                        : 'border-wa-border dark:border-wa-dark-border bg-white dark:bg-wa-dark-panel hover:border-slate-300 dark:hover:border-slate-600 shadow-sm'
+                    }`}
+                  >
+                    {/* Floating Top-Border Badge for Current Plan or Last Used Plan */}
+                    {isCurrentPlan && (
+                      <div className="absolute -top-3 right-5 z-10 pointer-events-none">
+                        <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-md border-2 border-white dark:border-wa-dark-panel">
+                          ✓ Current Plan
                         </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
+                    {isLastUsedPlan && (
+                      <div className="absolute -top-3 right-5 z-10 pointer-events-none">
+                        <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white shadow-md border-2 border-white dark:border-wa-dark-panel">
+                          ⏳ Last Used
+                        </span>
+                      </div>
+                    )}
+
+                    <div>
+                      {/* Top Tier Badge & Selected Status */}
+                      <div className="flex items-center justify-between gap-2 mb-3 min-h-[26px]">
+                        <span className={`text-[10px] uppercase font-extrabold px-2.5 py-1 rounded-full ${badgeConfig.bg}`}>
+                          {badgeConfig.label}
+                        </span>
+                        {isSelected && (
+                          <span className="flex items-center gap-1 text-[11px] font-bold text-wa-green animate-fadeIn">
+                            <CheckCircle className="w-4 h-4 fill-wa-green text-white" /> Selected
+                          </span>
+                        )}
+                      </div>
 
                     {/* Plan Name & Subtitle */}
                     <div className="space-y-1">
@@ -805,6 +863,10 @@ export default function SubscriptionPage() {
                       className={`mt-4 w-full py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                         isSelected
                           ? 'bg-wa-green hover:bg-wa-green-hover text-white shadow-md shadow-emerald-600/25'
+                          : isCurrentPlan
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                          : isLastUsedPlan
+                          ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'
                           : 'bg-wa-search dark:bg-wa-dark-search hover:bg-slate-200 dark:hover:bg-slate-800 text-wa-text-primary dark:text-white border border-wa-border dark:border-wa-dark-border'
                       }`}
                     >
@@ -813,6 +875,10 @@ export default function SubscriptionPage() {
                           <Check className="w-4 h-4" />
                           <span>Plan Selected</span>
                         </>
+                      ) : isCurrentPlan ? (
+                        <span>Renew Current Plan</span>
+                      ) : isLastUsedPlan ? (
+                        <span>Renew Last Plan ({plan.months} Mo)</span>
                       ) : (
                         <span>Select {plan.months} Month{plan.months > 1 ? 's' : ''}</span>
                       )}
@@ -829,7 +895,7 @@ export default function SubscriptionPage() {
                       <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
                         <li className="flex items-start gap-2">
                           <Check className="w-3.5 h-3.5 text-wa-green shrink-0 mt-0.5" />
-                          <span>Official & Unofficial WhatsApp API</span>
+                          <span>Official WhatsApp API</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <Check className="w-3.5 h-3.5 text-wa-green shrink-0 mt-0.5" />
@@ -887,6 +953,16 @@ export default function SubscriptionPage() {
                   <h3 className="text-base font-bold text-wa-text-primary dark:text-white mb-1 flex items-center gap-2">
                     <CreditCard className="w-5 h-5 text-wa-green" />
                     Confirm Online Payment
+                    {isPlanActive && activePlanMonths === selectedPlan.months && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        Extending Current Plan
+                      </span>
+                    )}
+                    {!isPlanActive && lastUsedPlanMonths === selectedPlan.months && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                        Reactivating Last Used Plan
+                      </span>
+                    )}
                   </h3>
                   <p className="text-sm text-wa-text-secondary dark:text-wa-dark-text-secondary">
                     You are purchasing a <strong>{selectedPlan.months}-month</strong> plan for{' '}
@@ -908,7 +984,8 @@ export default function SubscriptionPage() {
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* ========== TAB: Payment History ========== */}
       {tab === 'history' && (
@@ -939,14 +1016,20 @@ export default function SubscriptionPage() {
                   {payments.map((p) => (
                     <tr key={p._id} className="border-b border-wa-border dark:border-wa-dark-border hover:bg-wa-hover/50 dark:hover:bg-wa-dark-hover/50">
                       <td className="px-5 py-3 font-mono text-xs">
-                        <button
-                          onClick={() => setViewInvoiceModal({ open: true, payment: p })}
-                          className="font-bold text-wa-green hover:underline flex items-center gap-1.5 group cursor-pointer"
-                          title="Click to view / print Tax Invoice"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-wa-green group-hover:scale-110 transition-transform" />
-                          {p.invoiceNumber || 'INV-PENDING'}
-                        </button>
+                        {p.status === 'paid' && p.invoiceNumber ? (
+                          <button
+                            onClick={() => setViewInvoiceModal({ open: true, payment: p })}
+                            className="font-bold text-wa-green hover:underline flex items-center gap-1.5 group cursor-pointer"
+                            title="Click to view / print Tax Invoice"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-wa-green group-hover:scale-110 transition-transform" />
+                            {p.invoiceNumber}
+                          </button>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 italic font-sans text-xs">
+                            No Invoice
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-3">{p.planMonths} Month{p.planMonths > 1 ? 's' : ''}</td>
                       <td className="px-5 py-3 text-wa-text-secondary">{formatDateOnly(p.createdAt)}</td>
@@ -1047,7 +1130,7 @@ export default function SubscriptionPage() {
                 <div>
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Invoice Details</span>
                   <p className="font-mono font-bold text-base text-slate-900 dark:text-white print:text-black mt-1">
-                    {viewInvoiceModal.payment.invoiceNumber || 'INV-PENDING'}
+                    {viewInvoiceModal.payment.invoiceNumber || 'N/A'}
                   </p>
                   <p className="text-slate-500 mt-1 font-medium">
                     Date: <span className="font-semibold text-slate-700 dark:text-slate-300 print:text-black">{formatDateOnly(viewInvoiceModal.payment.createdAt)}</span>
@@ -1114,7 +1197,7 @@ export default function SubscriptionPage() {
                   <span className="font-mono font-semibold">₹{(viewInvoiceModal.payment.taxAmount || 0)?.toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between text-sm font-black border-t border-slate-200 dark:border-slate-700 pt-2 text-slate-900 dark:text-white">
-                  <span>Total Amount Paid</span>
+                  <span>{viewInvoiceModal.payment.status === 'paid' ? 'Total Amount Paid' : 'Total Amount'}</span>
                   <span className="font-mono text-emerald-600 dark:text-emerald-400 text-lg">
                     ₹{viewInvoiceModal.payment.totalAmount?.toLocaleString('en-IN')}
                   </span>

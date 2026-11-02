@@ -119,7 +119,7 @@ export default function AdminPanel() {
       const dateStr = formatDateOnly(p.createdAt);
 
       return [
-        `"${p.invoiceNumber || 'INV-PENDING'}"`,
+        `"${p.invoiceNumber || '-'}"`,
         `"${dateStr}"`,
         `"${orgName.replace(/"/g, '""')}"`,
         `"${clientName.replace(/"/g, '""')}"`,
@@ -212,17 +212,21 @@ export default function AdminPanel() {
       const txnId = p.transactionId || p.razorpayPaymentId || 'N/A';
       const status = (p.status || 'PAID').toUpperCase();
 
+      const isManualVerify = p.status === 'pending' && (p.paymentMethod === 'bank_transfer' || p.paymentMethod === 'cash');
+      const isCancelled = p.status === 'cancelled' || (p.status === 'pending' && p.paymentMethod === 'razorpay');
       const statusBadge =
         status === 'PAID'
           ? '<span style="color:#047857; background:#ecfdf5; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px;">PAID</span>'
-          : status === 'PENDING'
-          ? '<span style="color:#b45309; background:#fffbeb; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px;">PENDING</span>'
+          : isManualVerify
+          ? '<span style="color:#b45309; background:#fffbeb; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px;">PENDING VERIFY</span>'
+          : isCancelled
+          ? '<span style="color:#475569; background:#f1f5f9; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px;">CANCELLED</span>'
           : '<span style="color:#b91c1c; background:#fef2f2; border:1px solid #fecaca; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px;">REJECTED</span>';
 
       return `
         <tr>
           <td style="text-align:center; font-family:monospace; font-size:10.5px;">${idx + 1}</td>
-          <td style="font-family:monospace; font-weight:700; color:#059669; font-size:10.5px;">${p.invoiceNumber || 'INV-PENDING'}</td>
+          <td style="font-family:monospace; font-weight:700; color:#059669; font-size:10.5px;">${p.invoiceNumber || '-'}</td>
           <td style="font-size:10.5px; white-space:nowrap;">${dateStr}</td>
           <td>
             <div style="font-weight:700; color:#0f172a; font-size:11px;">${orgName}</div>
@@ -616,8 +620,14 @@ export default function AdminPanel() {
       const tabParam = params.get('tab');
       const subParam = params.get('sub');
       if (tabParam) {
-        setActiveTab(tabParam);
-        if (tabParam === 'subscriptions') {
+        let validTab = tabParam;
+        if (tabParam === 'admins') validTab = 'permissions';
+        const allowedTabs = ['organizations', 'health', 'queues', 'subscriptions', 'permissions'];
+        if (!allowedTabs.includes(validTab)) {
+          validTab = 'organizations';
+        }
+        setActiveTab(validTab);
+        if (validTab === 'subscriptions') {
           fetchSubscriptionData();
         }
       }
@@ -1107,7 +1117,7 @@ export default function AdminPanel() {
   // Access check
   if (user?.role !== 'superadmin') {
     return (
-      <div className="flex flex-col items-center justify-center p-12 bg-red-550/10 rounded-2xl border border-red-500/20 text-red-500 max-w-xl mx-auto mt-20">
+      <div className="flex flex-col items-center justify-center p-12 bg-red-500/10 rounded-2xl border border-red-500/20 text-red-500 max-w-xl mx-auto mt-20">
         <AlertCircle className="w-12 h-12 mb-4" />
         <h3 className="text-xl font-bold mb-2">Access Denied</h3>
         <p className="text-sm text-center">You do not have administrative permissions to view this panel.</p>
@@ -1251,7 +1261,7 @@ export default function AdminPanel() {
                         <th className="px-5 py-3 text-center">Telecallers</th>
                         <th className="px-5 py-3 text-center">Leads</th>
                         <th className="px-5 py-3 text-center">Conversations (Monthly)</th>
-                        <th className="px-5 py-3 className='text-center'">Created Date</th>
+                        <th className="px-5 py-3 text-center">Created Date</th>
                         <th className="px-5 py-3 text-center">Status</th>
                         <th className="px-5 py-3 text-right">Actions</th>
                       </tr>
@@ -1293,12 +1303,12 @@ export default function AdminPanel() {
                             </td>
                             <td className="px-5 py-4 text-center">
                               {org.registrationSource === 'self' ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800" title="Self-registered directly on website">
-                                  <span>🌐 Self Sign-Up</span>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-nowrap rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800" title="Self-registered directly on website">
+                                  <span>Self Sign-Up</span>
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800" title="Created manually by SuperAdmin">
-                                  <span>🛡️ SuperAdmin</span>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-nowrap rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800" title="Created manually by SuperAdmin">
+                                  <span>SuperAdmin</span>
                                 </span>
                               )}
                             </td>
@@ -1345,7 +1355,7 @@ export default function AdminPanel() {
                                 <button onClick={() => openResetPasswordModal(org)} className="p-1.5 text-dark-500 hover:text-amber-500 dark:hover:text-white hover:bg-dark-100 dark:hover:bg-dark-800 rounded-lg transition-colors" title="Reset Admin Password">
                                   <Lock className="w-3.5 h-3.5" />
                                 </button>
-                                <button onClick={() => handleToggleOrgSuspension(org._id, org.status)} className={`p-1.5 rounded-lg transition-colors ${org.status === 'active' ? 'text-red-500 hover:bg-red-550/10' : 'text-emerald-500 hover:bg-emerald-550/10'}`} title={org.status === 'active' ? 'Suspend Organization' : 'Activate Organization'}>
+                                <button onClick={() => handleToggleOrgSuspension(org._id, org.status)} className={`p-1.5 rounded-lg transition-colors ${org.status === 'active' ? 'text-red-500 hover:bg-red-500/10' : 'text-emerald-500 hover:bg-emerald-500/10'}`} title={org.status === 'active' ? 'Suspend Organization' : 'Activate Organization'}>
                                   {org.status === 'active' ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                                 </button>
                                 <button onClick={() => handleDeleteOrg(org._id)} className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-500/10 rounded-lg transition-colors" title="Delete Organization">
@@ -1363,6 +1373,14 @@ export default function AdminPanel() {
             )}
 
             {/* 2. HEALTH TAB */}
+            {activeTab === 'health' && !healthData && (
+              <div className="card p-12 text-center flex flex-col items-center justify-center">
+                <Loader2 className="w-8 h-8 text-brand-500 animate-spin mb-3" />
+                <p className="text-sm font-semibold dark:text-white">Loading system health diagnostics...</p>
+                <p className="text-xs text-dark-400 mt-1">Collecting live CPU, memory, and database connection metrics</p>
+              </div>
+            )}
+
             {activeTab === 'health' && healthData && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Services Connection Status */}
@@ -1463,7 +1481,7 @@ export default function AdminPanel() {
                         <Clock className="w-6 h-6" />
                       </div>
                       <div>
-                        <p className="text-xs text-dark-550 dark:text-dark-400 font-semibold uppercase">System OS Uptime</p>
+                        <p className="text-xs text-dark-500 dark:text-dark-400 font-semibold uppercase">System OS Uptime</p>
                         <p className="text-lg font-bold dark:text-white mt-0.5">{formatUptime(healthData.uptime.system)}</p>
                       </div>
                     </div>
@@ -1473,6 +1491,14 @@ export default function AdminPanel() {
             )}
 
             {/* 3. QUEUES TAB */}
+            {activeTab === 'queues' && !healthData && (
+              <div className="card p-12 text-center flex flex-col items-center justify-center">
+                <Loader2 className="w-8 h-8 text-brand-500 animate-spin mb-3" />
+                <p className="text-sm font-semibold dark:text-white">Loading message queue telemetry...</p>
+                <p className="text-xs text-dark-400 mt-1">Checking BullMQ campaign queue and active workers status</p>
+              </div>
+            )}
+
             {activeTab === 'queues' && healthData && (
               <div className="space-y-6">
                 {/* Campaign Messages Queue */}
@@ -1777,7 +1803,8 @@ export default function AdminPanel() {
                   const filteredPayments = allPayments
                     .filter((p) => {
                       if (paymentFilter === 'paid') return p.status === 'paid';
-                      if (paymentFilter === 'pending') return p.status === 'pending';
+                      if (paymentFilter === 'pending') return p.status === 'pending' && (p.paymentMethod === 'bank_transfer' || p.paymentMethod === 'cash');
+                      if (paymentFilter === 'cancelled') return p.status === 'cancelled' || (p.status === 'pending' && p.paymentMethod === 'razorpay');
                       if (paymentFilter === 'razorpay') return p.paymentMethod === 'razorpay';
                       if (paymentFilter === 'bank_transfer') return p.paymentMethod === 'bank_transfer' || p.paymentMethod === 'cash';
                       return true;
@@ -1837,7 +1864,8 @@ export default function AdminPanel() {
                         payments: [],
                         totalPaid: 0,
                         paidCount: 0,
-                        pendingCount: 0,
+                        pendingVerifyCount: 0,
+                        cancelledCount: 0,
                         rejectedCount: 0
                       };
                       groupMap.set(orgId, entry);
@@ -1845,19 +1873,22 @@ export default function AdminPanel() {
                     }
                     const group = groupMap.get(orgId);
                     group.payments.push(p);
+                    const isManualVerify = p.status === 'pending' && (p.paymentMethod === 'bank_transfer' || p.paymentMethod === 'cash');
                     if (p.status === 'paid') {
                       group.totalPaid += (p.totalAmount || 0);
                       group.paidCount++;
-                    } else if (p.status === 'pending') {
-                      group.pendingCount++;
+                    } else if (isManualVerify) {
+                      group.pendingVerifyCount++;
                     } else if (p.status === 'rejected') {
                       group.rejectedCount++;
+                    } else {
+                      group.cancelledCount++;
                     }
                   });
 
-                  // Sort client groups: pending first, then highest total paid
+                  // Sort client groups: pending verify first, then highest total paid
                   clientGroups.sort((a, b) => {
-                    if (b.pendingCount !== a.pendingCount) return b.pendingCount - a.pendingCount;
+                    if (b.pendingVerifyCount !== a.pendingVerifyCount) return b.pendingVerifyCount - a.pendingVerifyCount;
                     return b.totalPaid - a.totalPaid;
                   });
 
@@ -1911,7 +1942,8 @@ export default function AdminPanel() {
                           {[
                             { id: 'all', label: `All (${allPayments.length})` },
                             { id: 'paid', label: `Paid (${allPayments.filter(p => p.status === 'paid').length})` },
-                            { id: 'pending', label: `Pending (${allPayments.filter(p => p.status === 'pending').length})` },
+                            { id: 'pending', label: `Pending Verify (${allPayments.filter(p => p.status === 'pending' && (p.paymentMethod === 'bank_transfer' || p.paymentMethod === 'cash')).length})` },
+                            { id: 'cancelled', label: `Incomplete Online (${allPayments.filter(p => p.status === 'cancelled' || (p.status === 'pending' && p.paymentMethod === 'razorpay')).length})` },
                             { id: 'razorpay', label: `Online (${allPayments.filter(p => p.paymentMethod === 'razorpay').length})` },
                             { id: 'bank_transfer', label: `Bank Transfer (${allPayments.filter(p => p.paymentMethod === 'bank_transfer' || p.paymentMethod === 'cash').length})` },
                           ].map((chip) => (
@@ -2108,9 +2140,9 @@ export default function AdminPanel() {
                                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                                           {client.payments.length} {client.payments.length === 1 ? 'Record' : 'Records'}
                                         </span>
-                                        {client.pendingCount > 0 && (
+                                        {client.pendingVerifyCount > 0 && (
                                           <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 animate-pulse">
-                                            ⏳ {client.pendingCount} Pending Verify
+                                            ⏳ {client.pendingVerifyCount} Pending Verify
                                           </span>
                                         )}
                                       </div>
@@ -2144,7 +2176,7 @@ export default function AdminPanel() {
                                         ₹{client.totalPaid.toLocaleString('en-IN')}
                                       </p>
                                       <p className="text-[10px] text-slate-400 mt-0.5">
-                                        {client.paidCount} Paid {client.pendingCount > 0 ? `• ${client.pendingCount} Pending` : ''}
+                                        {client.paidCount} Paid {client.pendingVerifyCount > 0 ? `• ${client.pendingVerifyCount} Pending Verify` : ''}
                                       </p>
                                     </div>
 
@@ -2169,30 +2201,52 @@ export default function AdminPanel() {
 
                                     {client.payments.map((p) => {
                                       const isPaid = p.status === 'paid';
-                                      const isPending = p.status === 'pending';
+                                      const isManualVerify = p.status === 'pending' && (p.paymentMethod === 'bank_transfer' || p.paymentMethod === 'cash');
+                                      const isCancelled = p.status === 'cancelled' || (p.status === 'pending' && p.paymentMethod === 'razorpay');
                                       const isRejected = p.status === 'rejected';
 
                                       return (
                                         <div
                                           key={p._id}
-                                          onClick={() => setViewInvoiceModal({ open: true, payment: p })}
-                                          className="group bg-white dark:bg-wa-dark-panel rounded-xl border border-slate-200/80 dark:border-slate-800 p-4 hover:border-emerald-500/50 hover:shadow-sm transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5"
+                                          onClick={() => {
+                                            if (isPaid) setViewInvoiceModal({ open: true, payment: p });
+                                          }}
+                                          className={`group bg-white dark:bg-wa-dark-panel rounded-xl border border-slate-200/80 dark:border-slate-800 p-4 transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 ${
+                                            isPaid
+                                              ? 'hover:border-emerald-500/50 hover:shadow-sm cursor-pointer'
+                                              : 'cursor-default'
+                                          }`}
                                         >
-                                          {/* Left Side: Invoice #, Date, Method, Txn Ref */}
+                                          {/* Left Side: Invoice # / Ref, Date, Method, Txn Ref */}
                                           <div className="flex items-start gap-3">
                                             <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
                                               isPaid ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' :
-                                              isPending ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300' :
+                                              isManualVerify ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300' :
+                                              isCancelled ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' :
                                               'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
                                             }`}>
-                                              {isPaid ? <CheckCircle className="w-4 h-4" /> : isPending ? <Clock className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                                              {isPaid ? (
+                                                <CheckCircle className="w-4 h-4" />
+                                              ) : isManualVerify ? (
+                                                <Clock className="w-4 h-4" />
+                                              ) : isCancelled ? (
+                                                <AlertCircle className="w-4 h-4" />
+                                              ) : (
+                                                <Ban className="w-4 h-4" />
+                                              )}
                                             </div>
 
                                             <div>
                                               <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="font-mono text-xs font-black text-slate-800 dark:text-slate-100">
-                                                  {p.invoiceNumber || 'INV-PENDING'}
-                                                </span>
+                                                {isPaid ? (
+                                                  <span className="font-mono text-xs font-black text-slate-800 dark:text-slate-100">
+                                                    {p.invoiceNumber}
+                                                  </span>
+                                                ) : (
+                                                  <span className="font-mono text-xs font-semibold text-slate-400 dark:text-slate-500">
+                                                    {p.razorpayOrderId || p.transactionId || 'NO INVOICE'}
+                                                  </span>
+                                                )}
                                                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                                                   {p.planMonths} Month{p.planMonths > 1 ? 's' : ''} Plan
                                                 </span>
@@ -2217,46 +2271,101 @@ export default function AdminPanel() {
                                                     <span className="italic text-slate-400 max-w-xs truncate">{p.notes}</span>
                                                   </>
                                                 )}
+                                                {isCancelled && (
+                                                  <>
+                                                    <span>&bull;</span>
+                                                    <span className="text-[10px] text-slate-400 italic">Checkout closed without payment</span>
+                                                  </>
+                                                )}
+                                                {isRejected && p.rejectionReason && (
+                                                  <>
+                                                    <span>&bull;</span>
+                                                    <span className="text-[10px] text-rose-500 italic">Reason: {p.rejectionReason}</span>
+                                                  </>
+                                                )}
                                               </div>
                                             </div>
                                           </div>
 
-                                          {/* Right Side: Amount & Tax Invoice Button */}
+                                          {/* Right Side: Amount & Status Badge / Action */}
                                           <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
                                             <div className="text-left sm:text-right">
-                                              <p className={`text-base sm:text-lg font-black font-mono leading-none ${
-                                                isPaid ? 'text-emerald-600 dark:text-emerald-400' : isPending ? 'text-amber-600' : 'text-slate-400'
+                                              <p className={`text-base sm:text-lg font-mono leading-none ${
+                                                isPaid
+                                                  ? 'font-black text-emerald-600 dark:text-emerald-400'
+                                                  : isManualVerify
+                                                  ? 'font-bold text-amber-600 dark:text-amber-400'
+                                                  : isCancelled
+                                                  ? 'font-medium text-slate-400 dark:text-slate-500 line-through'
+                                                  : 'font-medium text-rose-400 dark:text-rose-500 line-through'
                                               }`}>
-                                                + ₹{p.totalAmount?.toLocaleString('en-IN')}
+                                                {isPaid ? '+ ' : ''}₹{p.totalAmount?.toLocaleString('en-IN')}
                                               </p>
                                               <div className="flex items-center sm:justify-end gap-1.5 mt-1">
                                                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
                                                   isPaid
                                                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                                                    : isPending
-                                                    ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                                                    : isManualVerify
+                                                    ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800 animate-pulse'
+                                                    : isCancelled
+                                                    ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
                                                     : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
                                                 }`}>
-                                                  {isPaid ? '✓ Paid' : isPending ? '⏳ Pending' : '✕ Rejected'}
+                                                  {isPaid
+                                                    ? '✓ Paid'
+                                                    : isManualVerify
+                                                    ? '⏳ Pending Verify'
+                                                    : isCancelled
+                                                    ? '⚠️ Cancelled'
+                                                    : '✕ Rejected'}
                                                 </span>
                                               </div>
                                             </div>
 
                                             <div className="flex items-center gap-2">
-                                              <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setViewInvoiceModal({ open: true, payment: p });
-                                                }}
-                                                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-                                                title="View Official Tax Invoice"
-                                              >
-                                                <FileText className="w-3.5 h-3.5" />
-                                                <span>Invoice</span>
-                                              </button>
-
-
+                                              {isPaid ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setViewInvoiceModal({ open: true, payment: p });
+                                                  }}
+                                                  className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                                                  title="View Official Tax Invoice"
+                                                >
+                                                  <FileText className="w-3.5 h-3.5" />
+                                                  <span>Invoice</span>
+                                                </button>
+                                              ) : isManualVerify ? (
+                                                <div className="flex items-center gap-1.5">
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleApprovePayment(p._id);
+                                                    }}
+                                                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                                                    title="Approve offline payment"
+                                                  >
+                                                    Approve
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleRejectPayment(p._id);
+                                                    }}
+                                                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                                    title="Reject payment"
+                                                  >
+                                                    Reject
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 italic px-2 py-1">
+                                                  No Invoice
+                                                </span>
+                                              )}
                                             </div>
                                           </div>
                                         </div>
@@ -2275,14 +2384,22 @@ export default function AdminPanel() {
                             const orgName = p.organizationId?.name || 'Organization';
                             const clientName = p.owner?.name || p.organizationId?.owner?.name || p.organizationId?.contactEmail?.split('@')[0] || 'Client Admin';
                             const isPaid = p.status === 'paid';
-                            const isPending = p.status === 'pending';
+                            const isManualVerify = p.status === 'pending' && (p.paymentMethod === 'bank_transfer' || p.paymentMethod === 'cash');
+                            const isCancelled = p.status === 'cancelled' || (p.status === 'pending' && p.paymentMethod === 'razorpay');
+                            const isRejected = p.status === 'rejected';
                             const initials = (orgName.slice(0, 2) || 'HK').toUpperCase();
 
                             return (
                               <div
                                 key={p._id}
-                                onClick={() => setViewInvoiceModal({ open: true, payment: p })}
-                                className="group bg-white dark:bg-wa-dark-panel rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 hover:border-emerald-500/50 hover:shadow-md transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                                onClick={() => {
+                                  if (isPaid) setViewInvoiceModal({ open: true, payment: p });
+                                }}
+                                className={`group bg-white dark:bg-wa-dark-panel rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${
+                                  isPaid
+                                    ? 'hover:border-emerald-500/50 hover:shadow-md cursor-pointer'
+                                    : 'cursor-default'
+                                }`}
                               >
                                 <div className="flex items-start sm:items-center gap-3.5">
                                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-sm shadow-emerald-500/20 group-hover:scale-105 transition-transform">
@@ -2298,9 +2415,15 @@ export default function AdminPanel() {
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 mt-1">
-                                      <span className="font-mono text-slate-600 dark:text-slate-400 font-bold">
-                                        {p.invoiceNumber || 'INV-PENDING'}
-                                      </span>
+                                      {isPaid ? (
+                                        <span className="font-mono text-slate-800 dark:text-slate-100 font-black">
+                                          {p.invoiceNumber}
+                                        </span>
+                                      ) : (
+                                        <span className="font-mono text-slate-400 dark:text-slate-500 font-semibold">
+                                          {p.razorpayOrderId || p.transactionId || 'NO INVOICE'}
+                                        </span>
+                                      )}
                                       <span>&bull;</span>
                                       <span>{formatDateOnly(p.createdAt)}</span>
                                       <span>&bull;</span>
@@ -2318,10 +2441,16 @@ export default function AdminPanel() {
 
                                 <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
                                   <div className="text-left sm:text-right">
-                                    <p className={`text-lg sm:text-xl font-black font-mono leading-none ${
-                                      isPaid ? 'text-emerald-600 dark:text-emerald-400' : isPending ? 'text-amber-600' : 'text-slate-400'
+                                    <p className={`text-lg sm:text-xl font-mono leading-none ${
+                                      isPaid
+                                        ? 'font-black text-emerald-600 dark:text-emerald-400'
+                                        : isManualVerify
+                                        ? 'font-bold text-amber-600 dark:text-amber-400'
+                                        : isCancelled
+                                        ? 'font-medium text-slate-400 dark:text-slate-500 line-through'
+                                        : 'font-medium text-rose-400 dark:text-rose-500 line-through'
                                     }`}>
-                                      + ₹{p.totalAmount?.toLocaleString('en-IN')}
+                                      {isPaid ? '+ ' : ''}₹{p.totalAmount?.toLocaleString('en-IN')}
                                     </p>
                                     <div className="flex items-center sm:justify-end gap-1.5 mt-1">
                                       <span className="text-[10px] font-bold text-slate-500">
@@ -2330,30 +2459,36 @@ export default function AdminPanel() {
                                       <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
                                         isPaid
                                           ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                                          : isPending
-                                          ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                                          : isManualVerify
+                                          ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800 animate-pulse'
+                                          : isCancelled
+                                          ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
                                           : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
                                       }`}>
-                                        {isPaid ? '✓ Paid' : isPending ? '⏳ Pending' : '✕ Rejected'}
+                                        {isPaid ? '✓ Paid' : isManualVerify ? '⏳ Pending Verify' : isCancelled ? '⚠️ Cancelled' : '✕ Rejected'}
                                       </span>
                                     </div>
                                   </div>
 
                                   <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setViewInvoiceModal({ open: true, payment: p });
-                                      }}
-                                      className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-                                      title="View Official Tax Invoice"
-                                    >
-                                      <FileText className="w-3.5 h-3.5" />
-                                      <span className="hidden sm:inline">Tax Invoice</span>
-                                    </button>
-
-
+                                    {isPaid ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setViewInvoiceModal({ open: true, payment: p });
+                                        }}
+                                        className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                                        title="View Official Tax Invoice"
+                                      >
+                                        <FileText className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">Tax Invoice</span>
+                                      </button>
+                                    ) : (
+                                      <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 italic px-2 py-1">
+                                        No Invoice
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -2550,7 +2685,7 @@ export default function AdminPanel() {
                 <div>
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Invoice Details</span>
                   <p className="font-mono font-bold text-base text-slate-900 dark:text-white print:text-black mt-1">
-                    {viewInvoiceModal.payment.invoiceNumber || 'INV-PENDING'}
+                    {viewInvoiceModal.payment.invoiceNumber || 'N/A'}
                   </p>
                   <p className="text-slate-500 mt-1 font-medium">
                     Date: <span className="font-semibold text-slate-700 dark:text-slate-300 print:text-black">{formatDateOnly(viewInvoiceModal.payment.createdAt)}</span>
@@ -2621,7 +2756,7 @@ export default function AdminPanel() {
                   <span className="font-mono font-semibold">₹{(viewInvoiceModal.payment.taxAmount || 0)?.toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between text-sm font-black border-t border-slate-200 dark:border-slate-700 pt-2 text-slate-900 dark:text-white">
-                  <span>Total Amount Paid</span>
+                  <span>{viewInvoiceModal.payment.status === 'paid' ? 'Total Amount Paid' : 'Total Amount'}</span>
                   <span className="font-mono text-emerald-600 dark:text-emerald-400 text-lg">
                     ₹{viewInvoiceModal.payment.totalAmount?.toLocaleString('en-IN')}
                   </span>

@@ -103,7 +103,7 @@ const organizationSchema = new mongoose.Schema(
     subscriptionStatus: {
       type: String,
       enum: ['active', 'expiring_soon', 'expired', 'pending', 'trial'],
-      default: 'expired'
+      default: 'pending'
     },
     subscriptionExpiryDate: { type: Date },
     registrationSource: {

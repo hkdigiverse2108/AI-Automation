@@ -20,7 +20,7 @@ const paymentSchema = new mongoose.Schema(
     notes: { type: String, default: '' },
     status: {
       type: String,
-      enum: ['pending', 'paid', 'failed', 'rejected'],
+      enum: ['pending', 'paid', 'failed', 'rejected', 'cancelled'],
       default: 'pending',
       index: true
     },
@@ -36,12 +36,13 @@ const paymentSchema = new mongoose.Schema(
 paymentSchema.index({ organizationId: 1, createdAt: -1 });
 
 /**
- * Auto-generate invoice number before save (only for new payments).
+ * Auto-generate official Tax Invoice number ONLY for completed PAID payments.
+ * Unpaid / cancelled / pending checkout attempts MUST NOT receive an invoice number.
  */
 paymentSchema.pre('save', async function (next) {
-  if (this.isNew && !this.invoiceNumber) {
+  if (this.status === 'paid' && !this.invoiceNumber) {
     const year = new Date().getFullYear();
-    const count = await this.constructor.countDocuments();
+    const count = await this.constructor.countDocuments({ status: 'paid', invoiceNumber: { $exists: true, $ne: '' } });
     this.invoiceNumber = `INV-${year}-${String(count + 1).padStart(4, '0')}`;
   }
   next();

@@ -6,7 +6,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Megaphone, Bot, FileText,
   Settings, LogOut, Sun, Moon, MessageCircle, Shield,
   Users2, Clock, Zap, Terminal, PanelLeftClose, PanelLeft,
-  Building, Activity, Globe, Lock, X, BarChart3, CreditCard,
+  Building, Activity, Layers, Globe, Lock, X, BarChart3, CreditCard,
   FolderOpen, Calendar, ClipboardList, ShoppingBag, Receipt, Wallet
 } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -103,7 +103,10 @@ export default function Sidebar({ isOpen, onClose }) {
           items: [
             { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { href: '/dashboard/admin?tab=organizations', label: 'Organizations', icon: Building },
-            { href: '/dashboard/admin?tab=admins', label: 'Organization Admins', icon: Shield },
+            { href: '/dashboard/admin?tab=permissions', label: 'Feature Permissions', icon: Shield },
+            { href: '/dashboard/admin?tab=health', label: 'System Health', icon: Activity },
+            { href: '/dashboard/admin?tab=queues', label: 'Queues & Tasks', icon: Layers },
+            { href: '/dashboard/admin?tab=subscriptions', label: 'Subscriptions', icon: CreditCard },
             { href: '/dashboard/team', label: 'Telecallers', icon: Users2 },
             { href: '/dashboard/team-chat', label: 'Team Chat', icon: MessageCircle },
             { href: '/dashboard/catalog', label: 'Catalog', icon: ShoppingBag },
@@ -113,14 +116,11 @@ export default function Sidebar({ isOpen, onClose }) {
             { href: '/dashboard/follow-ups', label: 'Follow-Ups', icon: Calendar },
             { href: '/dashboard/tasks', label: 'Tasks', icon: ClipboardList },
             { href: '/dashboard/call-logs', label: 'Call Logs', icon: Clock },
-            { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
-            { href: '/dashboard/admin?tab=subscriptions', label: 'Subscriptions', icon: Zap },
+            { href: '/dashboard/analytics', label: 'Analytics & Reports', icon: BarChart3 },
             { href: '/dashboard/settings?tab=integrations', label: 'Integrations', icon: Globe },
             { href: '/dashboard/bot-builder', label: 'AI Management', icon: Bot },
             { href: '/dashboard/leads', label: 'Leads', icon: ClipboardList },
-            { href: '/dashboard/admin?tab=security', label: 'Security Center', icon: Lock },
             { href: '/dashboard/chat-logs', label: 'Audit Logs', icon: Terminal },
-            { href: '/dashboard/admin?tab=reports', label: 'Reports', icon: FileText },
             { href: '/dashboard/settings', label: 'System Settings', icon: Settings },
             { href: '#logout', label: 'Logout', icon: LogOut, onClick: requestLogout },
           ]

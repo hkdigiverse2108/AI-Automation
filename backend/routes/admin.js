@@ -278,6 +278,7 @@ router.get('/organizations', async (req, res) => {
   try {
     const Organization = require('../models/Organization');
     const Conversation = require('../models/Conversation');
+    const Contact = require('../models/Contact');
 
     const orgs = await Organization.find({}).sort('-createdAt').lean();
 
@@ -301,15 +302,34 @@ router.get('/organizations', async (req, res) => {
           isDeleted: { $ne: true },
         });
 
-        if (adminUser) {
-          totalConversations = await Conversation.countDocuments({ userId: adminUser._id });
+        const orgUsers = await User.find({ organizationId: org._id }).select('_id').lean();
+        const orgUserIds = orgUsers.map((u) => u._id);
+        if (adminUser && !orgUserIds.some((id) => id.toString() === adminUser._id.toString())) {
+          orgUserIds.push(adminUser._id);
+        }
+
+        if (orgUserIds.length > 0) {
+          totalLeads = await Contact.countDocuments({
+            userId: { $in: orgUserIds },
+            isDeleted: { $ne: true },
+          });
+
+          totalConversations = await Conversation.countDocuments({
+            $or: [
+              { userId: { $in: orgUserIds } },
+              { organization_id: org._id }
+            ]
+          });
 
           const startOfMonth = new Date();
           startOfMonth.setDate(1);
           startOfMonth.setHours(0, 0, 0, 0);
 
           monthlyUsage = await Conversation.countDocuments({
-            userId: adminUser._id,
+            $or: [
+              { userId: { $in: orgUserIds } },
+              { organization_id: org._id }
+            ],
             createdAt: { $gte: startOfMonth },
           });
         }

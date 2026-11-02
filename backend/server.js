@@ -62,6 +62,9 @@ if (process.env.USE_REDIS_SOCKETS !== 'false') {
   try {
     const pubClient = getRedisClient();
     const subClient = pubClient.duplicate();
+    subClient.on('error', (err) => {
+      logger.error('Redis subClient error:', err.message);
+    });
     io.adapter(createAdapter(pubClient, subClient));
     logger.info('Socket.io Redis adapter configured successfully');
   } catch (err) {

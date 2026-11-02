@@ -92,7 +92,7 @@ router.post('/register', authLimiter, async (req, res) => {
       contactEmail: normalizedEmail,
       contactNumber: (mobileNumber || '').trim(),
       plan: 'free',
-      subscriptionStatus: 'expired',
+      subscriptionStatus: 'pending',
       subscriptionExpiryDate: null,
       registrationSource: 'self',
       status: 'active',

@@ -120,7 +120,9 @@ router.get('/current', async (req, res) => {
     res.json({
       success: true,
       data: {
-        subscriptionStatus: org.subscriptionStatus || (hasPreviousSubscription ? 'expired' : 'pending'),
+        subscriptionStatus: (!hasPreviousSubscription && (org.subscriptionStatus === 'expired' || !org.subscriptionStatus))
+          ? 'pending'
+          : (org.subscriptionStatus || (hasPreviousSubscription ? 'expired' : 'pending')),
         subscriptionExpiryDate: org.subscriptionExpiryDate,
         remainingDays,
         subscription,
@@ -234,6 +236,27 @@ router.post('/verify-payment', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Payment verification failed', details: error.message });
+  }
+});
+
+/**
+ * POST /api/subscription/cancel-order
+ * Mark an uncompleted Razorpay checkout attempt as cancelled.
+ */
+router.post('/cancel-order', async (req, res) => {
+  try {
+    const { paymentId } = req.body;
+    if (!paymentId) return res.status(400).json({ success: false, error: 'Payment ID is required' });
+
+    const payment = await Payment.findOne({ _id: paymentId, organizationId: req.organizationId, status: 'pending' });
+    if (payment) {
+      payment.status = 'cancelled';
+      await payment.save();
+    }
+
+    res.json({ success: true, message: 'Order marked as cancelled' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -364,7 +387,7 @@ router.get('/admin/dashboard', requireRole('superadmin'), async (req, res) => {
     const activePlans = await Organization.countDocuments({ subscriptionStatus: 'active' });
     const expiringPlans = await Organization.countDocuments({ subscriptionStatus: 'expiring_soon' });
     const expiredPlans = await Organization.countDocuments({ subscriptionStatus: 'expired' });
-    const pendingPayments = await Payment.countDocuments({ status: 'pending' });
+    const pendingPayments = await Payment.countDocuments({ status: 'pending', paymentMethod: { $in: ['cash', 'bank_transfer'] } });
 
     // Revenue calculations
     const now = new Date();
@@ -423,14 +446,41 @@ router.get('/admin/payments', requireRole('superadmin'), async (req, res) => {
     const payments = await Payment.find({})
       .sort('-createdAt')
       .limit(200)
-      .populate('organizationId', 'name contactEmail contactNumber owner')
+      .populate('organizationId', 'name contactEmail contactNumber contactPerson owner')
       .populate('verifiedBy', 'name email')
       .lean();
 
+    // Batch fetch admin users for all organizations in the payments list
+    const orgIds = payments.map(p => p.organizationId?._id).filter(Boolean);
+    const adminUsers = await User.find({
+      organizationId: { $in: orgIds },
+      role: { $in: ['admin', 'owner'] },
+      isDeleted: { $ne: true }
+    }).select('name email mobileNumber phone organizationId').lean();
+
+    const adminMap = {};
+    for (const u of adminUsers) {
+      if (u.organizationId && !adminMap[u.organizationId.toString()]) {
+        adminMap[u.organizationId.toString()] = u;
+      }
+    }
+
     for (const p of payments) {
-      if (p.organizationId?.owner) {
-        const owner = await User.findById(p.organizationId.owner).select('name email phone').lean();
-        if (owner) p.owner = owner;
+      const orgIdStr = p.organizationId?._id?.toString();
+      const admin = orgIdStr ? adminMap[orgIdStr] : null;
+
+      if (admin) {
+        p.owner = {
+          name: admin.name || p.organizationId?.contactPerson,
+          email: admin.email || p.organizationId?.contactEmail,
+          phone: admin.mobileNumber || admin.phone || p.organizationId?.contactNumber
+        };
+      } else if (p.organizationId?.contactPerson) {
+        p.owner = {
+          name: p.organizationId.contactPerson,
+          email: p.organizationId.contactEmail,
+          phone: p.organizationId.contactNumber
+        };
       }
     }
 

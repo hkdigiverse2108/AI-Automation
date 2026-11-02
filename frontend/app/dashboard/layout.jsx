@@ -45,6 +45,7 @@ export default function DashboardLayout({ children }) {
   const [subscriptionExpired, setSubscriptionExpired] = useState(false);
   const [subscriptionExpiryDate, setSubscriptionExpiryDate] = useState(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [hasPreviousSubscription, setHasPreviousSubscription] = useState(false);
   const prefetchedRef = useRef(false);
 
   useEffect(() => {
@@ -151,9 +152,12 @@ export default function DashboardLayout({ children }) {
         const parsed = JSON.parse(cachedSub);
         // Use cache if less than 5 minutes old
         if (Date.now() - parsed.ts < 5 * 60 * 1000) {
-          setSubscriptionStatus(parsed.status);
+          const hasPrev = !!parsed.hasPreviousSubscription;
+          const status = (!hasPrev && parsed.status === 'expired') ? 'pending' : parsed.status;
+          setSubscriptionStatus(status);
           setSubscriptionExpiryDate(parsed.expiryDate);
-          if (parsed.status === 'expired' || parsed.status === 'pending') {
+          setHasPreviousSubscription(hasPrev);
+          if (status === 'expired' || status === 'pending') {
             setSubscriptionExpired(true);
           }
         }
@@ -163,9 +167,12 @@ export default function DashboardLayout({ children }) {
     const loadSub = () => {
       api.get('/subscription/current').then(res => {
         const data = res.data.data;
-        setSubscriptionStatus(data.subscriptionStatus);
+        const hasPrev = !!data.hasPreviousSubscription;
+        const status = (!hasPrev && data.subscriptionStatus === 'expired') ? 'pending' : data.subscriptionStatus;
+        setSubscriptionStatus(status);
         setSubscriptionExpiryDate(data.subscriptionExpiryDate);
-        if (data.subscriptionStatus === 'expired' || data.subscriptionStatus === 'pending') {
+        setHasPreviousSubscription(hasPrev);
+        if (status === 'expired' || status === 'pending') {
           setSubscriptionExpired(true);
         } else {
           setSubscriptionExpired(false);
@@ -173,9 +180,9 @@ export default function DashboardLayout({ children }) {
         // Cache subscription status
         try {
           localStorage.setItem('_cachedSubStatus', JSON.stringify({
-            status: data.subscriptionStatus,
+            status,
             expiryDate: data.subscriptionExpiryDate,
-            hasPreviousSubscription: !!data.hasPreviousSubscription,
+            hasPreviousSubscription: hasPrev,
             ts: Date.now()
           }));
         } catch {}
@@ -183,7 +190,10 @@ export default function DashboardLayout({ children }) {
         if (err.response?.data?.code === 'SUBSCRIPTION_EXPIRED' || err.response?.data?.code === 'SUBSCRIPTION_REQUIRED') {
           setSubscriptionExpired(true);
           setSubscriptionExpiryDate(err.response?.data?.data?.expiryDate);
-          setSubscriptionStatus(err.response?.data?.data?.isPending ? 'pending' : 'expired');
+          const hasPrev = !!err.response?.data?.data?.hasPreviousSubscription;
+          const isPending = err.response?.data?.data?.isPending || err.response?.data?.code === 'SUBSCRIPTION_REQUIRED' || !hasPrev;
+          setSubscriptionStatus(isPending ? 'pending' : 'expired');
+          setHasPreviousSubscription(hasPrev);
         }
       });
     };
@@ -230,11 +240,11 @@ export default function DashboardLayout({ children }) {
                 HK Automation
               </span>
               <span className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border ${
-                subscriptionStatus === 'pending'
+                subscriptionStatus === 'pending' || !hasPreviousSubscription
                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
                   : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border-red-300 dark:border-red-800'
               }`}>
-                {subscriptionStatus === 'pending' ? '⚡ Account Activation' : '⚠️ Plan Expired'}
+                {subscriptionStatus === 'pending' || !hasPreviousSubscription ? '⚡ Plan Required' : '⚠️ Plan Expired'}
               </span>
             </div>
           </div>
@@ -265,7 +275,7 @@ export default function DashboardLayout({ children }) {
           {isSubscriptionPage ? children : (
             <SubscriptionExpiredGate
               expiryDate={subscriptionExpiryDate}
-              isPending={subscriptionStatus === 'pending'}
+              isPending={subscriptionStatus === 'pending' || !hasPreviousSubscription}
             />
           )}
         </main>
