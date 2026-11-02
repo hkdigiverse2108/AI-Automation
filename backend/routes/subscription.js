@@ -217,6 +217,75 @@ router.post('/verify-payment', async (req, res) => {
     // Activate subscription
     const subscription = await activateSubscription(payment);
 
+    // Notify SuperAdmins and Payer about successful online payment
+    try {
+      const org = await Organization.findById(payment.organizationId).select('name').lean();
+      const orgName = org?.name || 'Client';
+      const superAdmins = await User.find({ role: 'superadmin', isDeleted: { $ne: true } }).select('_id organizationId').lean();
+      const { createNotification } = require('../services/notificationService');
+
+      for (const sa of superAdmins) {
+        let sent = false;
+        if (createNotification) {
+          try {
+            await createNotification({
+              userId: sa._id,
+              organizationId: sa.organizationId || payment.organizationId,
+              type: 'subscription',
+              title: 'New Subscription Payment Received',
+              message: `${orgName} paid ₹${payment.totalAmount?.toLocaleString('en-IN')} for a ${payment.planMonths} Month(s) subscription plan via Razorpay.`,
+              link: '/dashboard/admin?tab=subscriptions',
+              metadata: { paymentId: payment._id, amount: payment.totalAmount, months: payment.planMonths }
+            });
+            sent = true;
+          } catch {}
+        }
+        if (!sent) {
+          await Notification.create({
+            user: sa._id,
+            organization: sa.organizationId || payment.organizationId,
+            type: 'subscription',
+            title: 'New Subscription Payment Received',
+            message: `${orgName} paid ₹${payment.totalAmount?.toLocaleString('en-IN')} for a ${payment.planMonths} Month(s) subscription plan via Razorpay.`,
+            link: '/dashboard/admin?tab=subscriptions',
+            icon: 'credit-card'
+          }).catch(() => {});
+        }
+      }
+
+      // Also notify the payer (tenant admin)
+      if (req.user?._id) {
+        let payerSent = false;
+        if (createNotification) {
+          try {
+            await createNotification({
+              userId: req.user._id,
+              organizationId: payment.organizationId,
+              type: 'subscription',
+              title: 'Payment Successful — Plan Activated',
+              message: `Your payment of ₹${payment.totalAmount?.toLocaleString('en-IN')} for ${payment.planMonths} Month(s) plan is confirmed. All features are active!`,
+              link: '/dashboard/subscription',
+              metadata: { paymentId: payment._id, amount: payment.totalAmount }
+            });
+            payerSent = true;
+          } catch {}
+        }
+        if (!payerSent) {
+          await Notification.create({
+            user: req.user._id,
+            organization: payment.organizationId,
+            type: 'subscription',
+            title: 'Payment Successful — Plan Activated',
+            message: `Your payment of ₹${payment.totalAmount?.toLocaleString('en-IN')} for ${payment.planMonths} Month(s) plan is confirmed. All features are active!`,
+            link: '/dashboard/subscription',
+            icon: 'credit-card'
+          }).catch(() => {});
+        }
+      }
+    } catch (notifErr) {
+      console.warn('Failed to send payment notification:', notifErr.message);
+    }
+
     await AuditLog.log({
       userId: req.userId,
       actorId: req.user._id,

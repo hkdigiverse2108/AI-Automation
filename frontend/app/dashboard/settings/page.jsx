@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import {
   User, Shield, Phone, Key, Smartphone, Loader2,
@@ -26,7 +27,27 @@ const AVATAR_OPTIONS = [
 export default function SettingsPage() {
   const confirm = useConfirmStore(state => state.confirm);
   const { user, checkAuth } = useAuthStore();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('profile');
+
+  // Sync tab with URL query parameter (?tab=...)
+  useEffect(() => {
+    const tabParam = searchParams?.get('tab');
+    if (tabParam) {
+      const tabAliases = {
+        'integrations': 'meta-integrations',
+        'meta': 'meta-integrations',
+        'ai': 'ai-integration',
+        'api': 'api-settings',
+        'docs': 'api-docs',
+      };
+      const resolvedTab = tabAliases[tabParam] || tabParam;
+      const validTabs = ['profile', 'meta-integrations', 'ai-integration', 'api-settings', 'api-docs', 'security', 'team-chat'];
+      if (validTabs.includes(resolvedTab)) {
+        setActiveTab(resolvedTab);
+      }
+    }
+  }, [searchParams]);
 
   // Profile states
   const [profileName, setProfileName] = useState('');
