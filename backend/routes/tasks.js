@@ -223,18 +223,12 @@ router.get('/:id', ...validateObjectId('id'), async (req, res) => {
     const assignedById = task.assignedBy?._id ? task.assignedBy._id.toString() : task.assignedBy?.toString();
     const currentUserId = req.user._id.toString();
 
-    console.log(`[Task Auth Debug] TaskId: ${task._id}`);
-    console.log(`[Task Auth Debug] Current User: ${currentUserId}, Role: ${req.user.role}, Privilege: ${privilege}`);
-    console.log(`[Task Auth Debug] Task AssignedTo: ${assignedToId}, AssignedBy: ${assignedById}`);
-
     const isDirect = (assignedToId === currentUserId) || (assignedById === currentUserId);
-    console.log(`[Task Auth Debug] isDirect match: ${isDirect}`);
 
     if (privilege === 'manager') {
       const dept = req.user.department;
       const sameDept = (task.assignedTo?.department && task.assignedTo.department === dept) || 
                        (task.assignedBy?.department && task.assignedBy.department === dept);
-      console.log(`[Task Auth Debug] Manager check - Dept: ${dept}, sameDept: ${sameDept}`);
       if (!sameDept && !isDirect) {
         return res.status(403).json({ success: false, error: 'Access denied to this task department' });
       }

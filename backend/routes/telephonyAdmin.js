@@ -184,7 +184,10 @@ router.get('/analytics', async (req, res) => {
     const callStats = await CallLog.aggregate([
       {
         $match: {
-          organization_id: new mongoose.Types.ObjectId(orgId),
+          $or: [
+            { organization_id: new mongoose.Types.ObjectId(orgId) },
+            { organizationId: new mongoose.Types.ObjectId(orgId) }
+          ],
           createdAt: { $gte: sevenDaysAgo }
         }
       },
@@ -229,7 +232,7 @@ router.get('/analytics', async (req, res) => {
     });
 
     // 4. Totals
-    const totalCalls = await CallLog.countDocuments({ organization_id: orgId });
+    const totalCalls = await CallLog.countDocuments({ $or: [{ organization_id: orgId }, { organizationId: orgId }] });
     const lostItemsCount = await LostItem.countDocuments({ organization_id: orgId });
     const totalComplaints = await Complaint.countDocuments({ organization_id: orgId });
     const totalCallbacks = await CallbackRequest.countDocuments({ organization_id: orgId });
@@ -267,7 +270,10 @@ router.post('/click-to-call', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Phone number is required to dial outbound call' });
     }
 
-    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanPhone = String(phone).replace(/\D/g, '');
+    if (!cleanPhone) {
+      return res.status(400).json({ success: false, error: 'A valid numeric phone number is required to dial outbound call' });
+    }
     const config = await ParkConfig.findOne({ organization_id: orgId });
     const audioUrl = config?.audio_urls?.en || '';
 

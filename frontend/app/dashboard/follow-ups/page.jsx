@@ -110,13 +110,14 @@ export default function FollowUpsPage() {
         api.get('/follow-ups', { params: { status: 'completed', limit: 1 } })
       ]);
 
-      const now = new Date();
-      const todayStart = new Date(now.setHours(0,0,0,0)).toISOString();
-      const todayEnd = new Date(now.setHours(23,59,59,999)).toISOString();
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
 
       const [todayRes, overdueRes] = await Promise.all([
-        api.get('/follow-ups', { params: { status: 'pending', dateStart: todayStart, dateEnd: todayEnd, limit: 1 } }),
-        api.get('/follow-ups', { params: { status: 'pending', dateEnd: new Date().toISOString(), limit: 1 } })
+        api.get('/follow-ups', { params: { status: 'pending', dateStart: todayStart.toISOString(), dateEnd: todayEnd.toISOString(), limit: 1 } }),
+        api.get('/follow-ups', { params: { status: 'pending', dateEnd: todayStart.toISOString(), limit: 1 } })
       ]);
 
       const computedMetrics = {

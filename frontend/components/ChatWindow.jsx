@@ -1875,7 +1875,7 @@ export default function ChatWindow({ conversation, messages, onBack }) {
                       setShowDropdown(false);
                       handleDeleteChat();
                     }}
-                    className="wa-dropdown-item w-full text-red-500 hover:text-red-650 hover:bg-red-50/50 dark:hover:bg-red-950/20"
+                    className="wa-dropdown-item w-full text-red-500 hover:text-red-600 hover:bg-red-50/50 dark:hover:bg-red-950/20"
                   >
                     <Trash2 className="w-4 h-4 text-red-500" />
                     <span>Delete Chat</span>

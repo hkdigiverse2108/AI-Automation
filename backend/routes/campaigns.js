@@ -25,13 +25,15 @@ router.get('/', async (req, res) => {
       query.isUnofficial = { $ne: true };
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 1000);
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const skip = (parsedPage - 1) * parsedLimit;
     const [campaigns, total] = await Promise.all([
-      Campaign.find(query).populate('audience.groupIds', 'name').sort('-createdAt').skip(skip).limit(parseInt(limit)).lean(),
+      Campaign.find(query).populate('audience.groupIds', 'name').sort('-createdAt').skip(skip).limit(parsedLimit).lean(),
       Campaign.countDocuments(query),
     ]);
 
-    res.json({ success: true, data: { campaigns, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) } });
+    res.json({ success: true, data: { campaigns, total, page: parsedPage, pages: Math.ceil(total / parsedLimit) } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch campaigns', code: 'FETCH_ERROR' });
   }
@@ -184,7 +186,13 @@ const handleMediaUpload = async (req, res) => {
     const whatsapp = require('../services/whatsapp');
     const { decryptField } = require('../services/encryption');
 
-    const waAccount = await WhatsAppAccount.findOne({ userId: req.userId, isActive: true });
+    const waAccount = await WhatsAppAccount.findOne({
+      $or: [
+        { userId: req.userId },
+        ...(req.user?.ownerId ? [{ userId: req.user.ownerId }] : [])
+      ],
+      isActive: true
+    });
     if (!waAccount) {
       return res.status(400).json({ success: false, error: 'No active WhatsApp account connected', code: 'NO_WA_ACCOUNT' });
     }

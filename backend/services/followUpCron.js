@@ -41,7 +41,7 @@ function startFollowUpCron() {
           type: 'contact',
           title: 'Upcoming Follow-Up Reminder ⏰',
           message: `The follow-up "${fu.title}" is scheduled in 1 hour.`,
-          link: '/dashboard/contacts',
+          link: '/dashboard/follow-ups',
           metadata: { followUpId: fu._id }
         });
       }
@@ -63,7 +63,7 @@ function startFollowUpCron() {
           type: 'contact',
           title: 'Follow-Up Overdue ⚠️',
           message: `The follow-up "${fu.title}" is now overdue.`,
-          link: '/dashboard/contacts',
+          link: '/dashboard/follow-ups',
           metadata: { followUpId: fu._id }
         });
       }
@@ -221,7 +221,7 @@ async function executeFollowUp(followUp) {
         type: 'system',
         title: `Reminder Email Sent: ${followUp.title}`,
         message: `Task details sent to ${assignedUser.email}.`,
-        link: '/dashboard/contacts',
+        link: '/dashboard/follow-ups',
       });
       break;
     }
@@ -247,7 +247,7 @@ async function executeFollowUp(followUp) {
         type: 'system',
         title: `📋 Manual Task Due: ${followUp.title}`,
         message: `Details: ${followUp.description || ''} (Contact: ${contact.name || contactPhone})`,
-        link: '/dashboard/contacts',
+        link: '/dashboard/follow-ups',
       });
       break;
     }

@@ -6,6 +6,7 @@ const User = require('../models/User');
 const { verifyToken } = require('../middleware/auth');
 const { validateObjectId } = require('../middleware/validator');
 const { createNotification } = require('../services/notificationService');
+const { getOekForUser, decryptContact } = require('../services/oekService');
 
 router.use(verifyToken);
 const checkFeatureAccess = require('../middleware/checkFeatureAccess');
@@ -39,7 +40,7 @@ router.get('/', async (req, res) => {
     const limitInt = parseInt(limit, 10);
     const skip = (pageInt - 1) * limitInt;
 
-    const [followUps, total] = await Promise.all([
+    const [rawFollowUps, total] = await Promise.all([
       FollowUp.find(query)
         .sort(sort)
         .skip(skip)
@@ -59,6 +60,14 @@ router.get('/', async (req, res) => {
         .lean(),
       FollowUp.countDocuments(query),
     ]);
+
+    const rawOek = await getOekForUser(req.userId);
+    const followUps = rawFollowUps.map(fu => {
+      if (fu.contactId) {
+        fu.contactId = decryptContact(fu.contactId, rawOek);
+      }
+      return fu;
+    });
 
     res.json({
       success: true,
@@ -87,6 +96,11 @@ router.get('/:id', ...validateObjectId('id'), async (req, res) => {
       return res.status(404).json({ success: false, error: 'Follow-up not found', code: 'NOT_FOUND' });
     }
 
+    const rawOek = await getOekForUser(req.userId);
+    if (followUp.contactId) {
+      followUp.contactId = decryptContact(followUp.contactId, rawOek);
+    }
+
     res.json({ success: true, data: { followUp } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch follow-up', code: 'FETCH_ERROR' });
@@ -109,7 +123,10 @@ router.post('/', async (req, res) => {
     }
 
     // Verify contact belongs to organization / user
-    const contact = await Contact.findOne({ _id: contactId, userId: req.userId, isDeleted: { $ne: true } });
+    const contactQuery = req.organizationId 
+      ? { _id: contactId, organizationId: req.organizationId, isDeleted: { $ne: true } }
+      : { _id: contactId, userId: req.userId, isDeleted: { $ne: true } };
+    const contact = await Contact.findOne(contactQuery);
     if (!contact) {
       return res.status(404).json({ success: false, error: 'Contact not found', code: 'NOT_FOUND' });
     }
@@ -140,7 +157,7 @@ router.post('/', async (req, res) => {
         type: 'contact',
         title: 'New Follow-Up Assigned 📋',
         message: `You have been assigned a new follow-up: "${title.trim()}".`,
-        link: '/dashboard/contacts',
+        link: '/dashboard/follow-ups',
         metadata: { followUpId: followUp._id }
       });
     }
@@ -205,7 +222,7 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
         type: 'contact',
         title: 'Follow-Up Assigned to You 📋',
         message: `Follow-up "${followUp.title}" has been assigned to you.`,
-        link: '/dashboard/contacts',
+        link: '/dashboard/follow-ups',
         metadata: { followUpId: followUp._id }
       });
     }
@@ -219,7 +236,7 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
           type: 'contact',
           title: 'Follow-Up Completed ✅',
           message: `Follow-up "${followUp.title}" has been marked as completed.`,
-          link: '/dashboard/contacts',
+          link: '/dashboard/follow-ups',
           metadata: { followUpId: followUp._id }
         });
       } else if (status === 'cancelled') {
@@ -229,7 +246,7 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
           type: 'contact',
           title: 'Follow-Up Cancelled ❌',
           message: `Follow-up "${followUp.title}" has been marked as cancelled.`,
-          link: '/dashboard/contacts',
+          link: '/dashboard/follow-ups',
           metadata: { followUpId: followUp._id }
         });
       }
@@ -275,7 +292,7 @@ router.post('/:id/complete', ...validateObjectId('id'), async (req, res) => {
       type: 'contact',
       title: 'Follow-Up Completed ✅',
       message: `Follow-up "${followUp.title}" has been marked as completed.`,
-      link: '/dashboard/contacts',
+      link: '/dashboard/follow-ups',
       metadata: { followUpId: followUp._id }
     });
 

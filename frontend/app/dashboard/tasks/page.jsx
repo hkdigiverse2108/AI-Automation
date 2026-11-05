@@ -32,7 +32,29 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [assignedFilter, setAssignedFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sort, setSort] = useState('newest');
+
+  // Tab change with page reset
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setPage(1);
+  };
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    setDebouncedSearch(search);
+    setPage(1);
+  };
 
   // Stats / Counters
   const [counts, setCounts] = useState({
@@ -85,7 +107,7 @@ export default function TasksPage() {
         status: statusFilter || undefined,
         priority: priorityFilter || undefined,
         assignedTo: assignedFilter || undefined,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         sort
       };
 
@@ -96,7 +118,7 @@ export default function TasksPage() {
         if (viewMode === 'list') {
           setTotal(data.data.total || 0);
           setPages(data.data.pages || 1);
-          if (activeTab === 'my-tasks' && page === 1 && !search && !statusFilter && !priorityFilter) {
+          if (activeTab === 'my-tasks' && page === 1 && !debouncedSearch && !statusFilter && !priorityFilter) {
             setFastCache('tasks_my_p1', {
               tasks: taskList,
               total: data.data.total || 0,
@@ -147,7 +169,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchTasks();
-  }, [activeTab, statusFilter, priorityFilter, assignedFilter, sort, page, viewMode]);
+  }, [activeTab, statusFilter, priorityFilter, assignedFilter, sort, page, viewMode, debouncedSearch]);
 
   useEffect(() => {
     fetchCounts();
@@ -204,10 +226,22 @@ export default function TasksPage() {
     }
   };
 
+  // Local Date Formatter (YYYY-MM-DD) avoiding UTC timezone shifts
+  const formatLocalDate = (d) => {
+    if (!d) return '';
+    const dateObj = d instanceof Date ? d : new Date(d);
+    if (isNaN(dateObj.getTime())) return '';
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Calendar Date Mathematics
   const handleNavigateCalendar = (direction) => {
     const nextDate = new Date(currentDate);
     if (calendarMode === 'month') {
+      nextDate.setDate(1); // Anchor to 1st to prevent 31st rollover skipping months
       nextDate.setMonth(currentDate.getMonth() + (direction === 'next' ? 1 : -1));
     } else if (calendarMode === 'week') {
       nextDate.setDate(currentDate.getDate() + (direction === 'next' ? 7 : -7));
@@ -335,7 +369,7 @@ export default function TasksPage() {
       {/* Metrics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <button
-          onClick={() => setActiveTab('my-tasks')}
+          onClick={() => handleTabChange('my-tasks')}
           className={`text-left p-4 rounded-2xl border transition-all duration-200 ${
             activeTab === 'my-tasks'
               ? 'bg-white dark:bg-wa-dark-panel border-wa-green shadow-sm'
@@ -351,7 +385,7 @@ export default function TasksPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab('today')}
+          onClick={() => handleTabChange('today')}
           className={`text-left p-4 rounded-2xl border transition-all duration-200 ${
             activeTab === 'today'
               ? 'bg-white dark:bg-wa-dark-panel border-sky-500 shadow-sm'
@@ -367,7 +401,7 @@ export default function TasksPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab('overdue')}
+          onClick={() => handleTabChange('overdue')}
           className={`text-left p-4 rounded-2xl border transition-all duration-200 ${
             activeTab === 'overdue'
               ? 'bg-white dark:bg-wa-dark-panel border-rose-500 shadow-sm'
@@ -383,7 +417,7 @@ export default function TasksPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab('pending')}
+          onClick={() => handleTabChange('pending')}
           className={`text-left p-4 rounded-2xl border transition-all duration-200 ${
             activeTab === 'pending'
               ? 'bg-white dark:bg-wa-dark-panel border-amber-500 shadow-sm'
@@ -399,7 +433,7 @@ export default function TasksPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab('completed')}
+          onClick={() => handleTabChange('completed')}
           className={`text-left p-4 rounded-2xl border transition-all duration-200 ${
             activeTab === 'completed'
               ? 'bg-white dark:bg-wa-dark-panel border-emerald-500 shadow-sm'
@@ -422,20 +456,40 @@ export default function TasksPage() {
           <div className="p-4 border-b border-wa-border dark:border-wa-dark-border flex flex-col md:flex-row md:items-center justify-between gap-3 bg-wa-hover dark:bg-wa-dark-panel-header">
             {/* Left side: Search & Advanced Filters */}
             <div className="flex flex-wrap items-center gap-2 flex-grow">
-              <div className="relative min-w-[200px] flex-grow max-w-sm">
+              <form onSubmit={handleSearchSubmit} className="relative min-w-[200px] flex-grow max-w-sm">
                 <Search className="w-4 h-4 text-wa-text-secondary dark:text-wa-dark-text-secondary absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearchSubmit(e);
+                    }
+                  }}
                   placeholder="Search task title/description..."
-                  className="w-full bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-wa-green text-wa-text-primary dark:text-white"
+                  className="w-full bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl pl-9 pr-8 py-2 text-xs focus:outline-none focus:border-wa-green text-wa-text-primary dark:text-white"
                 />
-              </div>
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch('');
+                      setDebouncedSearch('');
+                      setPage(1);
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-wa-text-secondary hover:text-wa-text-primary dark:hover:text-white"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </form>
 
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
                 className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl px-3 py-2 text-xs text-wa-text-primary dark:text-white focus:outline-none"
               >
                 <option value="">All Statuses</option>
@@ -448,7 +502,7 @@ export default function TasksPage() {
 
               <select
                 value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
+                onChange={(e) => { setPriorityFilter(e.target.value); setPage(1); }}
                 className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl px-3 py-2 text-xs text-wa-text-primary dark:text-white focus:outline-none"
               >
                 <option value="">All Priorities</option>
@@ -461,7 +515,7 @@ export default function TasksPage() {
               {isSuperOrAdmin && (
                 <select
                   value={assignedFilter}
-                  onChange={(e) => setAssignedFilter(e.target.value)}
+                  onChange={(e) => { setAssignedFilter(e.target.value); setPage(1); }}
                   className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl px-3 py-2 text-xs text-wa-text-primary dark:text-white focus:outline-none max-w-[150px]"
                 >
                   <option value="">All Users</option>
@@ -694,7 +748,7 @@ export default function TasksPage() {
                         // Pre-fill date for the clicked calendar day
                         setCreateForm({
                           ...createForm,
-                          dueDate: date.toISOString().substring(0, 10)
+                          dueDate: formatLocalDate(date)
                         });
                         setIsCreateModalOpen(true);
                       }}
@@ -753,7 +807,7 @@ export default function TasksPage() {
                       onClick={() => {
                         setCreateForm({
                           ...createForm,
-                          dueDate: date.toISOString().substring(0, 10)
+                          dueDate: formatLocalDate(date)
                         });
                         setIsCreateModalOpen(true);
                       }}
@@ -810,7 +864,7 @@ export default function TasksPage() {
                     onClick={() => {
                       setCreateForm({
                         ...createForm,
-                        dueDate: currentDate.toISOString().substring(0, 10)
+                        dueDate: formatLocalDate(currentDate)
                       });
                       setIsCreateModalOpen(true);
                     }}

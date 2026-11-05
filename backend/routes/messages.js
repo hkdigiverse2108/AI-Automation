@@ -112,6 +112,8 @@ router.get('/conversations', async (req, res) => {
         query.isStarred = true;
       } else if (status === 'pinned') {
         query.isPinned = true;
+      } else if (status === 'unread') {
+        query.$or = [{ unreadCount: { $gt: 0 } }, { isRead: false }];
       } else {
         query.status = status;
       }
@@ -2144,9 +2146,21 @@ router.get('/stats', async (req, res) => {
     const userId = req.userId;
     const today = new Date(); today.setHours(0, 0, 0, 0);
 
-    const [totalContacts, sentToday, activeConversations, campaignsRunning, totalTemplates, unreadCountResult] = await Promise.all([
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const [
+      totalContacts,
+      sentToday,
+      sentYesterday,
+      activeConversations,
+      campaignsRunning,
+      totalTemplates,
+      unreadCountResult
+    ] = await Promise.all([
       Contact.countDocuments({ userId, isDeleted: { $ne: true } }),
       Message.countDocuments({ userId, direction: 'outbound', timestamp: { $gte: today } }),
+      Message.countDocuments({ userId, direction: 'outbound', timestamp: { $gte: yesterday, $lt: today } }),
       Conversation.countDocuments({ userId, status: { $in: ['bot', 'human', 'ai', 'waiting'] } }),
       require('../models/Campaign').countDocuments({ userId, status: 'running' }),
       require('../models/Template').countDocuments({ userId }),
@@ -2158,13 +2172,41 @@ router.get('/stats', async (req, res) => {
 
     const totalUnreadMessages = unreadCountResult[0]?.totalUnread || 0;
 
-    // Messages last 7 days
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const dailyMessages = await Message.aggregate([
-      { $match: { userId: new mongoose.Types.ObjectId(userId), direction: 'outbound', timestamp: { $gte: sevenDaysAgo } } },
-      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } }, count: { $sum: 1 } } },
-      { $sort: { _id: 1 } },
+    // Messages last 7 days (both outbound sent & inbound received)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const [dailySent, dailyReceived] = await Promise.all([
+      Message.aggregate([
+        { $match: { userId: new mongoose.Types.ObjectId(userId), direction: 'outbound', timestamp: { $gte: sevenDaysAgo } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+      Message.aggregate([
+        { $match: { userId: new mongoose.Types.ObjectId(userId), direction: 'inbound', timestamp: { $gte: sevenDaysAgo } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ])
     ]);
+
+    // Build continuous 7-day timeline with zero fill so chart dates are never missing
+    const dailyMap = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      dailyMap[key] = { date: key, sent: 0, received: 0 };
+    }
+
+    dailySent.forEach(d => {
+      if (dailyMap[d._id]) dailyMap[d._id].sent = d.count;
+    });
+    dailyReceived.forEach(d => {
+      if (dailyMap[d._id]) dailyMap[d._id].received = d.count;
+    });
+
+    const dailyTimeline = Object.values(dailyMap);
 
     // Conversations by source
     const bySource = await Conversation.aggregate([
@@ -2186,17 +2228,31 @@ router.get('/stats', async (req, res) => {
     ]);
     const deliveryRate = totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0;
 
+    // Sent today trend calculation vs yesterday
+    let sentTrend = null;
+    if (sentYesterday > 0) {
+      const diff = Math.round(((sentToday - sentYesterday) / sentYesterday) * 100);
+      sentTrend = { val: Math.abs(diff) + '%', up: diff >= 0 };
+    } else if (sentToday > 0) {
+      sentTrend = { val: '100%', up: true };
+    } else {
+      sentTrend = { val: '0%', up: true };
+    }
+
     res.json({
       success: true,
       data: {
         totalContacts,
         sentToday,
+        sentYesterday,
+        sentTrend,
         activeConversations,
         campaignsRunning,
         totalTemplates,
         totalUnreadMessages,
         deliveryRate,
-        dailyMessages,
+        dailyMessages: dailySent,
+        dailyTimeline,
         conversationsBySource: bySource,
         conversationsByStatus: byStatus,
       },

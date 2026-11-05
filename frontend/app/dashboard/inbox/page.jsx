@@ -16,7 +16,7 @@ const ChatWindow = dynamic(() => import('../../../components/ChatWindow'), {
 import toast from 'react-hot-toast';
 import {
   Search, MessageSquare, Bot as BotIcon, User, Sparkles, Plus, X, Loader2,
-  Filter, MoreVertical, Archive, Clock, Pin, Star, ArrowLeft, UserPlus, Phone, Mail, Tag
+  Filter, Archive, Clock, Pin, Star, ArrowLeft, UserPlus, Phone, Mail, Tag
 } from 'lucide-react';
 import Portal from '../../../components/Portal';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
@@ -79,13 +79,15 @@ export default function InboxPage() {
       const assignedId = assigned?._id?.toString() || assigned?.toString();
       if (filter === 'unassigned') {
         if (assignedId) return false;
-      } else {
+      } else if (filter === 'assigned') {
         if (!assignedId || assignedId !== user?._id?.toString()) return false;
       }
     }
 
     if (filter === 'starred' && !conv.isStarred) return false;
     if (filter === 'pinned' && !conv.isPinned) return false;
+    if (filter === 'unread' && !(conv.unreadCount > 0 || conv.isRead === false)) return false;
+    if (['bot', 'human', 'ai', 'waiting'].includes(filter) && conv.status !== filter) return false;
 
     if (!search || !search.trim()) return true;
     const term = search.trim().toLowerCase();
@@ -94,7 +96,7 @@ export default function InboxPage() {
     const phone = (contact.phone || '').toString();
     const phoneClean = phone.replace(/\D/g, '');
     const termClean = term.replace(/\D/g, '');
-    const lastMsgText = (conv.lastMessage?.text || '').toLowerCase();
+    const lastMsgText = (conv.lastMessage?.content?.text || conv.lastMessage?.content?.caption || conv.lastMessage?.text || '').toLowerCase();
     const tags = Array.isArray(contact.tags) ? contact.tags.join(' ').toLowerCase() : '';
 
     // Check partial digits match for phone numbers (e.g. typing "9123" matches "+919123456789")
@@ -156,13 +158,15 @@ export default function InboxPage() {
 
   useEffect(() => {
     const params = { search: debouncedSearch || undefined };
-    if (filter === 'starred' || filter === 'pinned') {
+    if (filter === 'starred' || filter === 'pinned' || filter === 'unread') {
       params.status = filter;
     } else if (user?.role === 'agent') {
       if (filter === 'assigned') {
         params.assignedAgent = user._id;
       } else if (filter === 'unassigned') {
         params.assignedAgent = 'unassigned';
+      } else if (filter) {
+        params.status = filter;
       }
     } else {
       if (filter) params.status = filter;
@@ -330,13 +334,15 @@ export default function InboxPage() {
   useEffect(() => {
     const getParams = () => {
       const params = { search: debouncedSearch || undefined };
-      if (filter === 'starred' || filter === 'pinned') {
+      if (filter === 'starred' || filter === 'pinned' || filter === 'unread') {
         params.status = filter;
       } else if (user?.role === 'agent') {
         if (filter === 'assigned') {
           params.assignedAgent = user._id;
         } else if (filter === 'unassigned') {
           params.assignedAgent = 'unassigned';
+        } else if (filter) {
+          params.status = filter;
         }
       } else {
         if (filter) params.status = filter;
@@ -439,14 +445,16 @@ export default function InboxPage() {
     ? [
       { key: 'assigned', label: 'My Assigned' },
       { key: 'unassigned', label: 'Unassigned Queue' },
+      { key: 'unread', label: 'Unread' },
       { key: 'starred', label: 'Starred', icon: Star },
       { key: 'pinned', label: 'Pinned', icon: Pin },
     ]
     : [
       { key: '', label: 'All' },
-      { key: 'human', label: 'Unread' },
+      { key: 'unread', label: 'Unread' },
       { key: 'starred', label: 'Starred', icon: Star },
       { key: 'pinned', label: 'Pinned', icon: Pin },
+      { key: 'human', label: 'Human' },
       { key: 'bot', label: 'Bots' },
       { key: 'ai', label: 'AI' },
       { key: 'waiting', label: 'Waiting' },
@@ -483,11 +491,9 @@ export default function InboxPage() {
             <button
               onClick={() => setShowSearch(!showSearch)}
               className="w-10 h-10 rounded-full flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors"
+              title="Search"
             >
               <Search className="w-5 h-5" />
-            </button>
-            <button className="w-10 h-10 rounded-full flex items-center justify-center text-wa-text-secondary dark:text-wa-dark-text-secondary hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-colors">
-              <MoreVertical className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -527,18 +533,20 @@ export default function InboxPage() {
             let activeClass = 'bg-wa-green/15 text-wa-green dark:bg-wa-green/20 dark:text-wa-green-light font-bold';
 
             if (isActive) {
-              if (tab.key === 'starred') {
+              if (tab.key === 'unread') {
+                activeClass = 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-bold border-blue-200/20 dark:border-blue-800/20';
+              } else if (tab.key === 'starred') {
                 activeClass = 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 font-bold border-amber-300/30';
               } else if (tab.key === 'pinned') {
                 activeClass = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold border-emerald-300/30';
               } else if (tab.key === 'bot') {
-                activeClass = 'bg-purple-100 text-purple-755 dark:bg-purple-950/40 dark:text-purple-300 font-bold border-purple-200/20 dark:border-purple-800/20';
+                activeClass = 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 font-bold border-purple-200/20 dark:border-purple-800/20';
               } else if (tab.key === 'ai') {
-                activeClass = 'bg-emerald-100 text-emerald-755 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold border-emerald-200/20 dark:border-emerald-800/20';
+                activeClass = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold border-emerald-200/20 dark:border-emerald-800/20';
               } else if (tab.key === 'waiting') {
-                activeClass = 'bg-amber-100 text-amber-755 dark:bg-amber-950/40 dark:text-amber-300 font-bold border-amber-200/20 dark:border-amber-800/20';
+                activeClass = 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 font-bold border-amber-200/20 dark:border-amber-800/20';
               } else if (tab.key === 'human') {
-                activeClass = 'bg-blue-100 text-blue-755 dark:bg-blue-950/40 dark:text-blue-300 font-bold border-blue-200/20 dark:border-blue-800/20';
+                activeClass = 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-bold border-blue-200/20 dark:border-blue-800/20';
               }
             }
 
@@ -631,15 +639,15 @@ export default function InboxPage() {
                       ) : conv.status && (
                         conv.status === 'human' ? (
                           (!conv.lock_status && !conv.assignedAgent) ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse">
                               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                               <span>Needs Human Reply</span>
                             </span>
                           ) : null
                         ) : (
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.status === 'bot' ? 'bg-purple-50 text-purple-705 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
-                              conv.status === 'waiting' ? 'bg-amber-50 text-amber-705 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse' :
-                                'bg-slate-50 text-slate-705 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.status === 'bot' ? 'bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30' :
+                              conv.status === 'waiting' ? 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30 animate-pulse' :
+                                'bg-slate-50 text-slate-700 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800/30'
                             }`}>
                             <span className={`w-1 h-1 rounded-full shrink-0 ${conv.status === 'bot' ? 'bg-purple-500' :
                                 conv.status === 'waiting' ? 'bg-amber-500' :
@@ -652,10 +660,10 @@ export default function InboxPage() {
 
                       {/* Sentiment Badge */}
                       {conv.sentiment && conv.sentiment !== 'neutral' && (
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.sentiment === 'positive' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900/30' :
-                          conv.sentiment === 'frustrated' ? 'bg-orange-50 text-orange-705 border-orange-100 dark:bg-orange-950/20 dark:text-orange-450 dark:border-orange-900/30' :
-                            conv.sentiment === 'angry' ? 'bg-red-50 text-red-705 border-red-100 dark:bg-red-950/20 dark:text-red-450 dark:border-red-900/30 animate-pulse' :
-                              'bg-slate-50 text-slate-655 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-850'
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.sentiment === 'positive' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30' :
+                          conv.sentiment === 'frustrated' ? 'bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30' :
+                            conv.sentiment === 'angry' ? 'bg-red-50 text-red-700 border-red-100 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30 animate-pulse' :
+                              'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800'
                           }`}>
                           <span>{conv.sentiment}</span>
                         </span>
@@ -663,10 +671,10 @@ export default function InboxPage() {
 
                       {/* Urgency Badge */}
                       {conv.urgency && conv.urgency !== 'low' && (
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.urgency === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100 dark:bg-yellow-950/20 dark:text-yellow-450 dark:border-yellow-900/30' :
-                          conv.urgency === 'high' ? 'bg-orange-50 text-orange-705 border-orange-100 dark:bg-orange-950/20 dark:text-orange-450 dark:border-orange-900/30 animate-pulse' :
-                            conv.urgency === 'critical' ? 'bg-red-50 text-red-705 border-red-100 dark:bg-red-950/20 dark:text-red-450 dark:border-red-900/30 animate-pulse' :
-                              'bg-slate-50 text-slate-655 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-850'
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider shrink-0 ${conv.urgency === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100 dark:bg-yellow-950/20 dark:text-yellow-400 dark:border-yellow-900/30' :
+                          conv.urgency === 'high' ? 'bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30 animate-pulse' :
+                            conv.urgency === 'critical' ? 'bg-red-50 text-red-700 border-red-100 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30 animate-pulse' :
+                              'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-900/20 dark:text-slate-400 dark:border-slate-800'
                           }`}>
                           <span>{conv.urgency}</span>
                         </span>
@@ -706,7 +714,9 @@ export default function InboxPage() {
                             }`} />
                         )}
                         <p className="text-[13px] text-wa-text-secondary dark:text-wa-dark-text-secondary truncate">
-                          {conv.lastMessage?.content?.text || '[media]'}
+                          {conv.lastMessage
+                            ? (conv.lastMessage.content?.text || conv.lastMessage.content?.caption || conv.lastMessage.text || '[media]')
+                            : 'No messages yet'}
                         </p>
                       </div>
                     </div>

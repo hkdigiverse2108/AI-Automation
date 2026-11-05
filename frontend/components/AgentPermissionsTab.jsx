@@ -254,7 +254,7 @@ export default function AgentPermissionsTab() {
                   <select
                     value={copyFrom}
                     onChange={(e) => setCopyFrom(e.target.value)}
-                    className="px-2 py-1 text-xs border rounded bg-white dark:bg-dark-800 dark:text-white border-wa-border dark:border-wa-dark-border outline-none focus:ring-1 focus:ring-wa-green"
+                    className="px-2 py-1 text-xs border rounded bg-white dark:bg-wa-dark-bg dark:text-white border-wa-border dark:border-wa-dark-border outline-none focus:ring-1 focus:ring-wa-green"
                   >
                     <option value="">Select agent...</option>
                     {agents
@@ -279,7 +279,7 @@ export default function AgentPermissionsTab() {
                     placeholder="Filter features..."
                     value={moduleSearch}
                     onChange={(e) => setModuleSearch(e.target.value)}
-                    className="w-full pl-7 pr-2 py-1 text-[10px] border rounded bg-white dark:bg-dark-850 dark:text-white border-wa-border dark:border-wa-dark-border outline-none focus:ring-1 focus:ring-wa-green"
+                    className="w-full pl-7 pr-2 py-1 text-[10px] border rounded bg-white dark:bg-wa-dark-bg dark:text-white border-wa-border dark:border-wa-dark-border outline-none focus:ring-1 focus:ring-wa-green"
                   />
                 </div>
               </div>

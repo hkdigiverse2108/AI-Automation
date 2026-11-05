@@ -11,33 +11,41 @@ router.use(checkFeatureAccess('team'));
 // GET /api/team/monitoring-stats — get admin monitoring details (accessible by all verified team members, including agents)
 router.get('/monitoring-stats', async (req, res) => {
   try {
-    const ownerId = req.userId; // resolved tenant owner ID
+    const ownerId = req.user.ownerId || req.userId; // resolved tenant owner ID
     const Conversation = require('../models/Conversation');
     const AuditLog = require('../models/AuditLog');
     const mongoose = require('mongoose');
 
+    const convOrgFilter = req.user.organizationId
+      ? { $or: [{ userId: ownerId }, { organization_id: req.user.organizationId }] }
+      : { userId: ownerId };
+
+    const convOrgAggFilter = req.user.organizationId
+      ? { $or: [{ userId: new mongoose.Types.ObjectId(ownerId) }, { organization_id: new mongoose.Types.ObjectId(req.user.organizationId) }] }
+      : { userId: new mongoose.Types.ObjectId(ownerId) };
+
     // 1. Total Unassigned Chats
     const totalUnassigned = await Conversation.countDocuments({
-      userId: ownerId,
+      ...convOrgFilter,
       status: { $ne: 'resolved' },
-      $or: [
-        { assignedAgent: { $exists: false } },
-        { assignedAgent: null },
-        { assigned_agent_id: { $exists: false } },
-        { assigned_agent_id: null }
-      ]
+      assignedAgent: null,
+      assigned_agent_id: null
     });
 
     // 2. Active Telecallers count
-    const activeTelecallers = await User.countDocuments({
-      ownerId,
+    const agentQuery = {
+      $or: [
+        { ownerId },
+        ...(req.user.organizationId ? [{ organizationId: req.user.organizationId }] : [])
+      ],
       role: 'agent',
       isDeleted: { $ne: true }
-    });
+    };
+    const activeTelecallers = await User.countDocuments(agentQuery);
 
     // 3. Assigned Conversations count (active/non-resolved)
     const totalAssignedActive = await Conversation.countDocuments({
-      userId: ownerId,
+      ...convOrgFilter,
       status: { $ne: 'resolved' },
       $or: [
         { assignedAgent: { $ne: null } },
@@ -47,47 +55,53 @@ router.get('/monitoring-stats', async (req, res) => {
 
     // 4. Agent Performance (conversations count by agent)
     // List all agents first
-    const agentsList = await User.find({ ownerId, role: 'agent', isDeleted: { $ne: true } }).select('name email isSuspended').lean();
+    const agentsList = await User.find(agentQuery).select('name email isSuspended').lean();
     
-    // Aggregate active counts
+    // Aggregate active counts (checking both assigned_agent_id and assignedAgent)
     const activeCounts = await Conversation.aggregate([
       {
         $match: {
-          userId: new mongoose.Types.ObjectId(ownerId),
+          ...convOrgAggFilter,
           status: { $ne: 'resolved' },
-          assigned_agent_id: { $ne: null }
+          $or: [
+            { assigned_agent_id: { $ne: null } },
+            { assignedAgent: { $ne: null } }
+          ]
         }
       },
       {
         $group: {
-          _id: '$assigned_agent_id',
+          _id: { $ifNull: ['$assigned_agent_id', '$assignedAgent'] },
           count: { $sum: 1 }
         }
       }
     ]);
 
-    // Aggregate resolved counts
+    // Aggregate resolved counts (checking both assigned_agent_id and assignedAgent)
     const resolvedCounts = await Conversation.aggregate([
       {
         $match: {
-          userId: new mongoose.Types.ObjectId(ownerId),
+          ...convOrgAggFilter,
           status: 'resolved',
-          assigned_agent_id: { $ne: null }
+          $or: [
+            { assigned_agent_id: { $ne: null } },
+            { assignedAgent: { $ne: null } }
+          ]
         }
       },
       {
         $group: {
-          _id: '$assigned_agent_id',
+          _id: { $ifNull: ['$assigned_agent_id', '$assignedAgent'] },
           count: { $sum: 1 }
         }
       }
     ]);
 
     const activeMap = {};
-    activeCounts.forEach(c => { activeMap[c._id.toString()] = c.count; });
+    activeCounts.forEach(c => { if (c._id) activeMap[c._id.toString()] = c.count; });
 
     const resolvedMap = {};
-    resolvedCounts.forEach(c => { resolvedMap[c._id.toString()] = c.count; });
+    resolvedCounts.forEach(c => { if (c._id) resolvedMap[c._id.toString()] = c.count; });
 
     const performance = agentsList.map(agent => ({
       _id: agent._id,
@@ -100,7 +114,10 @@ router.get('/monitoring-stats', async (req, res) => {
 
     // 5. Takeover History / Audit Logs (Recent actions related to takeover/assignments/messages)
     const logs = await AuditLog.find({
-      userId: ownerId,
+      $or: [
+        { userId: ownerId },
+        ...(req.user.organizationId ? [{ organizationId: req.user.organizationId }] : [])
+      ],
       action: { $in: ['ASSIGN_CONVERSATION', 'REASSIGN_CONVERSATION', 'RELEASE_CONVERSATION', 'RESOLVE_CONVERSATION', 'AI_RESUME', 'AGENT_MESSAGE_SENT'] }
     })
       .sort({ timestamp: -1 })
@@ -125,10 +142,14 @@ router.get('/monitoring-stats', async (req, res) => {
 // GET /api/team — get agents and auto assignment rules (accessible to all authenticated team members, rules restricted to admins)
 router.get('/', async (req, res) => {
   try {
-    const ownerId = req.userId;
+    const ownerId = req.user.ownerId || req.userId;
     const query = { role: 'agent', isDeleted: { $ne: true } };
     if (req.user.role !== 'superadmin') {
-      query.organizationId = req.user.organizationId;
+      if (req.user.organizationId) {
+        query.$or = [{ organizationId: req.user.organizationId }, { ownerId }];
+      } else {
+        query.ownerId = ownerId;
+      }
     }
     const agents = await User.find(query).select('-passwordHash -passwordHistory').lean();
 
@@ -175,12 +196,13 @@ router.post('/agents', async (req, res) => {
         role: 'agent',
         isDeleted: { $ne: true }
       });
-      if (activeAgents >= org.maxTelecallers) {
-        return res.status(400).json({ success: false, error: `Maximum telecallers limit of ${org.maxTelecallers} reached under your current subscription plan.` });
+      const maxAllowed = org.maxTelecallers || 5;
+      if (activeAgents >= maxAllowed) {
+        return res.status(400).json({ success: false, error: `Maximum telecallers limit of ${maxAllowed} reached under your current subscription plan.` });
       }
     }
 
-    const ownerId = req.userId;
+    const ownerId = req.user.ownerId || req.userId;
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ success: false, error: 'Email already registered' });
@@ -332,9 +354,15 @@ router.post('/rules', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Rule name and Agent ID are required' });
     }
 
-    const userId = req.userId;
-    // Check if agent belongs to owner
-    const agent = await User.findOne({ _id: agentId, ownerId: userId, role: 'agent', isDeleted: { $ne: true } });
+    const userId = req.user.ownerId || req.userId;
+    // Check if agent belongs to owner or organization
+    const agentQuery = { _id: agentId, role: 'agent', isDeleted: { $ne: true } };
+    if (req.user.organizationId) {
+      agentQuery.$or = [{ ownerId: userId }, { organizationId: req.user.organizationId }];
+    } else {
+      agentQuery.ownerId = userId;
+    }
+    const agent = await User.findOne(agentQuery);
     if (!agent) {
       return res.status(400).json({ success: false, error: 'Invalid agent selected' });
     }
@@ -359,7 +387,7 @@ router.post('/rules', async (req, res) => {
 router.put('/rules/:id', ...validateObjectId('id'), async (req, res) => {
   try {
     const { ruleName, triggerType, triggerValue, agentId, isActive } = req.body;
-    const userId = req.userId;
+    const userId = req.user.ownerId || req.userId;
 
     const rule = await AssignmentRule.findOne({ _id: req.params.id, userId });
     if (!rule) {
@@ -372,7 +400,13 @@ router.put('/rules/:id', ...validateObjectId('id'), async (req, res) => {
     if (isActive !== undefined) rule.isActive = isActive;
 
     if (agentId) {
-      const agent = await User.findOne({ _id: agentId, ownerId: userId, role: 'agent', isDeleted: { $ne: true } });
+      const agentQuery = { _id: agentId, role: 'agent', isDeleted: { $ne: true } };
+      if (req.user.organizationId) {
+        agentQuery.$or = [{ ownerId: userId }, { organizationId: req.user.organizationId }];
+      } else {
+        agentQuery.ownerId = userId;
+      }
+      const agent = await User.findOne(agentQuery);
       if (!agent) return res.status(400).json({ success: false, error: 'Invalid agent selected' });
       rule.agentId = agentId;
     }
@@ -389,7 +423,7 @@ router.put('/rules/:id', ...validateObjectId('id'), async (req, res) => {
 // DELETE /api/team/rules/:id — delete assignment rule
 router.delete('/rules/:id', ...validateObjectId('id'), async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.user.ownerId || req.userId;
     const rule = await AssignmentRule.findOneAndDelete({ _id: req.params.id, userId });
     if (!rule) {
       return res.status(404).json({ success: false, error: 'Rule not found' });
@@ -427,7 +461,7 @@ router.get('/permissions/:agentId', requireRole('owner', 'admin', 'superadmin'),
     const allFeatures = await Feature.find({ is_active: true }).sort({ sort_order: 1 }).lean();
 
     // 2. Restrict to features allowed for the organization admin
-    const ownerId = req.userId; // owner ID
+    const ownerId = req.user.ownerId || req.userId; // owner ID
     const adminPermissions = await AdminFeaturePermission.find({ admin_id: ownerId }).lean();
     const adminPermMap = {};
     adminPermissions.forEach(p => {

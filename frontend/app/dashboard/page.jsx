@@ -1,12 +1,14 @@
 'use client';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useDashboardStore, useAuthStore } from '../../lib/store';
+import api from '../../lib/api';
+import { toast } from 'react-hot-toast';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import Link from 'next/link';
 import {
   Activity, Plus, TrendingUp, TrendingDown, CheckCircle, ExternalLink,
   Users, FileText, MessageSquare, Send, Zap, Megaphone, Bot, CheckCheck,
-  UserPlus, Inbox, Download, Code2, CheckCircle2
+  UserPlus, Inbox, Download, Code2, CheckCircle2, Loader2
 } from 'lucide-react';
 
 const COLORS = ['#00a884', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6'];
@@ -21,6 +23,7 @@ function getGreeting() {
 export default function DashboardPage() {
   const { stats, fetchStats, loading } = useDashboardStore();
   const { user } = useAuthStore();
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetchStats();
@@ -45,23 +48,22 @@ export default function DashboardPage() {
   const activeConversations = stats?.activeConversations || 0;
   const campaignsRunning = stats?.campaignsRunning || 0;
   const botSessions = stats?.conversationsByStatus?.find(s => s._id === 'bot')?.count || 0;
-  const deliveryRate = stats?.deliveryRate || 99.4;
+  const deliveryRate = stats?.deliveryRate ?? 0;
+
+  // Real trend calculations from live database
+  const sentTrendVal = stats?.sentTrend?.val || (sentToday > 0 ? 'Active' : '0%');
+  const sentTrendUp = stats?.sentTrend?.up ?? true;
 
   const statCards = [
-    { label: 'Total Contacts', value: totalContacts, icon: Users, color: 'text-wa-green bg-wa-green/10 dark:bg-wa-green/15', trend: '12%', up: true },
-    { label: 'Templates', value: totalTemplates, icon: FileText, color: 'text-blue-500 bg-blue-500/10 dark:bg-blue-500/15', trend: '4%', up: true },
-    { label: 'Unread', value: unreadChats, icon: MessageSquare, color: 'text-amber-500 bg-amber-500/10 dark:bg-amber-500/15', trend: '2%', up: false },
-    { label: 'Sent Today', value: sentToday, icon: Send, color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/15', trend: '28%', up: true },
-    { label: 'Active', value: activeConversations, icon: Zap, color: 'text-cyan-500 bg-cyan-500/10 dark:bg-cyan-500/15', trend: '1.2%', up: true },
-    { label: 'Campaigns', value: campaignsRunning, icon: Megaphone, color: 'text-purple-500 bg-purple-500/10 dark:bg-purple-500/15', trend: 'Steady', up: null },
-    { label: 'Bot Sessions', value: botSessions, icon: Bot, color: 'text-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/15', trend: '15%', up: true },
-    { label: 'Delivery Rate', value: `${deliveryRate}%`, icon: CheckCheck, color: 'text-teal-500 bg-teal-500/10 dark:bg-teal-500/15', trend: 'Max', up: true },
+    { label: 'Total Contacts', value: totalContacts, icon: Users, color: 'text-wa-green bg-wa-green/10 dark:bg-wa-green/15', trend: totalContacts > 0 ? 'Total' : '0', up: true },
+    { label: 'Templates', value: totalTemplates, icon: FileText, color: 'text-blue-500 bg-blue-500/10 dark:bg-blue-500/15', trend: totalTemplates > 0 ? 'Ready' : '0', up: true },
+    { label: 'Unread', value: unreadChats, icon: MessageSquare, color: 'text-amber-500 bg-amber-500/10 dark:bg-amber-500/15', trend: unreadChats > 0 ? `${unreadChats} new` : 'Zero', up: unreadChats === 0 },
+    { label: 'Sent Today', value: sentToday, icon: Send, color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/15', trend: sentTrendVal, up: sentTrendUp },
+    { label: 'Active', value: activeConversations, icon: Zap, color: 'text-cyan-500 bg-cyan-500/10 dark:bg-cyan-500/15', trend: activeConversations > 0 ? 'Active' : 'Idle', up: activeConversations > 0 },
+    { label: 'Campaigns', value: campaignsRunning, icon: Megaphone, color: 'text-purple-500 bg-purple-500/10 dark:bg-purple-500/15', trend: campaignsRunning > 0 ? 'Running' : 'Idle', up: null },
+    { label: 'Bot Sessions', value: botSessions, icon: Bot, color: 'text-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/15', trend: botSessions > 0 ? 'Automated' : '0', up: true },
+    { label: 'Delivery Rate', value: `${deliveryRate}%`, icon: CheckCheck, color: 'text-teal-500 bg-teal-500/10 dark:bg-teal-500/15', trend: deliveryRate > 90 ? 'Optimal' : (deliveryRate > 0 ? 'Active' : 'No Data'), up: deliveryRate > 0 },
   ];
-
-  const dailyData = (stats?.dailyMessages || []).map(d => ({
-    date: d._id?.slice(5) || '',
-    messages: d.count
-  }));
 
   const sourceData = (stats?.conversationsBySource || []).map(d => ({
     name: d._id ? (d._id.charAt(0).toUpperCase() + d._id.slice(1)) : 'Direct Link',
@@ -73,15 +75,31 @@ export default function DashboardPage() {
     value: d.count
   }));
 
-  // Resolve items from database stats
-  const chartData = dailyData.length ? dailyData : Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return {
-      date: d.toISOString().slice(5, 10),
-      messages: 0
-    };
-  });
+  // Resolve 7-day timeline from database with continuous dates & zero fill
+  const chartData = (stats?.dailyTimeline && stats.dailyTimeline.length > 0)
+    ? stats.dailyTimeline.map(d => ({
+        date: d.date?.slice(5) || '',
+        sent: d.sent || 0,
+        received: d.received || 0,
+        messages: d.sent || 0
+      }))
+    : (stats?.dailyMessages && stats.dailyMessages.length > 0)
+    ? stats.dailyMessages.map(d => ({
+        date: d._id?.slice(5) || '',
+        sent: d.count || 0,
+        received: 0,
+        messages: d.count || 0
+      }))
+    : Array.from({ length: 7 }).map((_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
+        return {
+          date: d.toISOString().slice(5, 10),
+          sent: 0,
+          received: 0,
+          messages: 0
+        };
+      });
 
   const donutData = statusData.length ? statusData : [
     { name: 'Resolved', value: 0 },
@@ -99,6 +117,68 @@ export default function DashboardPage() {
   ];
 
   const maxSourceCount = Math.max(...progressSources.map(s => s.count), 1);
+
+  const handleExportDailyLogs = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      let logsToExport = [];
+      try {
+        const res = await api.get('/chat-logs?limit=500');
+        if (res.data?.success && res.data?.data?.logs?.length) {
+          logsToExport = res.data.data.logs;
+        }
+      } catch {}
+
+      if (logsToExport.length > 0) {
+        const headers = ['Timestamp', 'Contact Name', 'Phone', 'Direction', 'Type', 'Status', 'Content'];
+        const rows = logsToExport.map(l => [
+          `"${new Date(l.timestamp).toLocaleString().replace(/"/g, '""')}"`,
+          `"${(l.contactName || '').replace(/"/g, '""')}"`,
+          `"${(l.contactPhone || '').replace(/"/g, '""')}"`,
+          `"${l.direction || ''}"`,
+          `"${l.type || ''}"`,
+          `"${l.status || ''}"`,
+          `"${(l.content || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`
+        ]);
+        const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `daily_chat_logs_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('Daily logs exported successfully!');
+        return;
+      }
+
+      // Fallback: export daily performance summary CSV
+      const summaryHeaders = ['Date', 'Metric', 'Value'];
+      const summaryRows = [
+        [`"${new Date().toLocaleDateString()}"`, '"Total Contacts"', totalContacts],
+        [`"${new Date().toLocaleDateString()}"`, '"Templates"', totalTemplates],
+        [`"${new Date().toLocaleDateString()}"`, '"Unread Chats"', unreadChats],
+        [`"${new Date().toLocaleDateString()}"`, '"Sent Today"', sentToday],
+        [`"${new Date().toLocaleDateString()}"`, '"Active Conversations"', activeConversations],
+        [`"${new Date().toLocaleDateString()}"`, '"Running Campaigns"', campaignsRunning],
+        [`"${new Date().toLocaleDateString()}"`, '"Delivery Rate (%)"', deliveryRate]
+      ];
+      const csvContent = 'data:text/csv;charset=utf-8,' + [summaryHeaders.join(','), ...summaryRows.map(r => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `dashboard_daily_summary_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Dashboard daily summary exported!');
+    } catch (err) {
+      toast.error('Failed to export daily logs');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -190,6 +270,10 @@ export default function DashboardPage() {
                     <stop offset="5%" stopColor="#00a884" stopOpacity={0.35} />
                     <stop offset="95%" stopColor="#00a884" stopOpacity={0} />
                   </linearGradient>
+                  <linearGradient id="rcvGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} opacity={0.5} />
                 <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} />
@@ -205,12 +289,23 @@ export default function DashboardPage() {
                 />
                 <Area
                   type="monotone"
-                  dataKey="messages"
+                  dataKey="sent"
+                  name="Sent messages"
                   stroke="#00a884"
                   strokeWidth={2.5}
                   fill="url(#msgGradient)"
-                  dot={{ fill: '#00a884', r: 4, strokeWidth: 1 }}
-                  activeDot={{ r: 6 }}
+                  dot={{ fill: '#00a884', r: 3, strokeWidth: 1 }}
+                  activeDot={{ r: 5 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="received"
+                  name="Received chats"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  fill="url(#rcvGradient)"
+                  dot={{ fill: '#3b82f6', r: 3, strokeWidth: 1 }}
+                  activeDot={{ r: 5 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -360,8 +455,17 @@ export default function DashboardPage() {
 
           {/* Secondary Quick Action items */}
           <div className="mt-6 pt-4 border-t border-wa-border dark:border-wa-dark-border flex flex-wrap gap-2.5">
-            <button className="px-3.5 py-2 text-[10px] font-bold border border-wa-border dark:border-wa-dark-border rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-all duration-150 active:scale-95 flex items-center gap-1.5 text-wa-text-primary dark:text-white">
-              <Download className="w-3.5 h-3.5 text-wa-green" /> Export Daily Logs
+            <button
+              onClick={handleExportDailyLogs}
+              disabled={exporting}
+              className="px-3.5 py-2 text-[10px] font-bold border border-wa-border dark:border-wa-dark-border rounded-full hover:bg-wa-hover dark:hover:bg-wa-dark-hover transition-all duration-150 active:scale-95 flex items-center gap-1.5 text-wa-text-primary dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {exporting ? (
+                <Loader2 className="w-3.5 h-3.5 text-wa-green animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5 text-wa-green" />
+              )}
+              {exporting ? 'Exporting...' : 'Export Daily Logs'}
             </button>
             <Link
               href="/dashboard/settings?tab=integrations"

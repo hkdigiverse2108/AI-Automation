@@ -42,13 +42,21 @@ router.get('/', async (req, res) => {
     if (req.query.startDate || req.query.endDate) {
       baseQuery.createdAt = {};
       if (req.query.startDate) baseQuery.createdAt.$gte = new Date(req.query.startDate);
-      if (req.query.endDate) baseQuery.createdAt.$lte = new Date(req.query.endDate);
+      if (req.query.endDate) {
+        const end = new Date(req.query.endDate);
+        end.setHours(23, 59, 59, 999);
+        baseQuery.createdAt.$lte = end;
+      }
     }
 
     if (req.query.lastActivityStart || req.query.lastActivityEnd) {
       baseQuery.lastMessageAt = {};
       if (req.query.lastActivityStart) baseQuery.lastMessageAt.$gte = new Date(req.query.lastActivityStart);
-      if (req.query.lastActivityEnd) baseQuery.lastMessageAt.$lte = new Date(req.query.lastActivityEnd);
+      if (req.query.lastActivityEnd) {
+        const end = new Date(req.query.lastActivityEnd);
+        end.setHours(23, 59, 59, 999);
+        baseQuery.lastMessageAt.$lte = end;
+      }
     }
 
     const { getOekForUser, decryptContact, decryptAES, generateHMAC } = require('../services/oekService');

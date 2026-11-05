@@ -254,12 +254,12 @@ export default function TelephonyCRMPage() {
     };
 
     if (tab === 'calls') {
-      headers = ['Call Date', 'Session ID', 'From Number', 'To Number', 'Duration (s)', 'Status', 'Intent', 'Recording URL'];
+      headers = ['Call Date', 'Session ID', 'Caller Phone', 'Call Type', 'Duration (s)', 'Status', 'Intent', 'Recording URL'];
       csvData = callLogs.map(log => [
         formatDate(log.timestamp || log.createdAt),
         log.session_id || 'N/A',
-        log.from_number || log.phone || '',
-        log.to_number || '',
+        getCallerPhone(log),
+        log.callType || 'unknown',
         log.duration || 0,
         log.status || '',
         log.last_intent || '',
@@ -344,6 +344,24 @@ export default function TelephonyCRMPage() {
     }
   };
 
+  // Helper: Get clean customer phone (handles outbound OBD_SYSTEM vs incoming)
+  const getCallerPhone = (log) => {
+    if (!log) return '';
+    if (log.callType === 'outgoing') {
+      return log.phone || log.to_number || (log.from_number !== 'OBD_SYSTEM' ? log.from_number : '') || '';
+    }
+    return (log.from_number && log.from_number !== 'OBD_SYSTEM') ? log.from_number : (log.phone || log.to_number || '');
+  };
+
+  // Cleanup audio preview on tab change or component unmount
+  useEffect(() => {
+    return () => {
+      if (audioObj) {
+        audioObj.pause();
+      }
+    };
+  }, [audioObj, activeTab]);
+
   // Helper: Format duration to readable text
   const formatDuration = (seconds) => {
     if (!seconds || seconds <= 0) return '0s';
@@ -394,8 +412,13 @@ export default function TelephonyCRMPage() {
             <button
               key={tab.id}
               onClick={() => {
+                if (audioObj) {
+                  audioObj.pause();
+                  setPlayingAudio(null);
+                }
                 setActiveTab(tab.id);
                 setSearch('');
+                setDebouncedSearch('');
                 setStatusFilter('');
               }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${isActive
@@ -589,7 +612,9 @@ export default function TelephonyCRMPage() {
                           <td className="px-5 py-3 font-bold text-themeTextPrimary">
                             <div className="flex flex-col">
                                <span>{log.name || 'IVR Caller'}</span>
-                               <span className="text-[10px] font-mono text-themeTextSecondary">+{log.from_number || log.phone}</span>
+                               <span className="text-[10px] font-mono text-themeTextSecondary">
+                                 {getCallerPhone(log) ? `+${getCallerPhone(log)}` : '—'}
+                               </span>
                             </div>
                           </td>
                           <td className="px-5 py-3">
@@ -609,12 +634,12 @@ export default function TelephonyCRMPage() {
                             <div className="flex items-center gap-3">
                               {/* Click to Call trigger */}
                               <button
-                                onClick={() => triggerClickToCall(log.from_number || log.phone)}
-                                disabled={dialingPhone === (log.from_number || log.phone)}
-                                className="bg-themeCard hover:bg-themeCardHover text-[#10b981] p-1.5 rounded-lg border border-themeBorder transition-all flex items-center justify-center"
+                                onClick={() => triggerClickToCall(getCallerPhone(log))}
+                                disabled={!getCallerPhone(log) || dialingPhone === getCallerPhone(log)}
+                                className="bg-themeCard hover:bg-themeCardHover text-[#10b981] p-1.5 rounded-lg border border-themeBorder transition-all flex items-center justify-center disabled:opacity-40"
                                 title="Click to dial outbound callback"
                               >
-                                {dialingPhone === (log.from_number || log.phone) ? (
+                                {dialingPhone === getCallerPhone(log) ? (
                                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                 ) : (
                                   <Phone className="w-3.5 h-3.5" />

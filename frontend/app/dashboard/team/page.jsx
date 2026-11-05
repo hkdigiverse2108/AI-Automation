@@ -839,7 +839,7 @@ export default function TeamPage() {
                 <button type="button" onClick={() => setIsRuleModalOpen(false)} className="btn-secondary py-2 text-xs px-4" disabled={submitting}>Cancel</button>
                 <button type="submit" disabled={submitting} className="btn-primary py-2 text-xs px-5 flex items-center gap-1.5">
                   {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {editingRuleId ? 'Save Rule' : 'Save Rule'}
+                  {editingRuleId ? 'Update Rule' : 'Create Rule'}
                 </button>
               </div>
             </form>

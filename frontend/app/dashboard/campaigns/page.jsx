@@ -24,7 +24,7 @@ export default function CampaignsPage() {
   const [editingCampaign, setEditingCampaign] = useState(null);
 
   const fetcher = useCallback(async () => {
-    const { data } = await api.get('/campaigns');
+    const { data } = await api.get('/campaigns', { params: { limit: 1000 } });
     if (data.success) return data.data.campaigns;
     throw new Error('Failed');
   }, []);
@@ -282,12 +282,13 @@ export default function CampaignsPage() {
                       .filter(Boolean)
                       .join(', ');
                     target = `Group: ${groupNames || 'Selected Group'}`;
+                  } else if (campaign.audience?.type === 'upload') {
+                    target = `Custom List (${campaign.audience?.contactIds?.length || 0})`;
                   }
                   const sent = campaign.stats?.sent || 0;
                   const delivered = campaign.stats?.delivered || 0;
                   const read = campaign.stats?.read || 0;
-                  const total = campaign.audience?.totalCount || sent || 1;
-                  const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
+                  const deliveryRate = sent > 0 ? Math.round((delivered / sent) * 100) : 0;
 
                   return (
                     <tr

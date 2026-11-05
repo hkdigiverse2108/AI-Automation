@@ -1,5 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import {
   BarChart2, TrendingUp, CheckCircle2, AlertTriangle, Eye, Reply,
   Calendar, Download, ArrowUpRight, Search, Filter, Megaphone,
@@ -143,7 +144,7 @@ export default function CampaignReports({ campaigns = [], onRefresh, loading = f
   // 5. Export to CSV Function
   const handleExportCSV = () => {
     if (filteredCampaigns.length === 0) {
-      return alert('No campaigns available to export in this filter.');
+      return toast.error('No campaigns available to export in this filter.');
     }
 
     const headers = [
@@ -192,14 +193,16 @@ export default function CampaignReports({ campaigns = [], onRefresh, loading = f
       ].join(',');
     });
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute('download', `campaign_reports_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Custom Recharts Tooltip

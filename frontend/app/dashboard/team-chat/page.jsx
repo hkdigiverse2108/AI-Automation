@@ -61,7 +61,11 @@ export default function TeamChatPage() {
   const [messageText, setMessageText] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
 
+  const activeChatRef = useRef(activeChat);
+  const soundEnabledRef = useRef(soundEnabled);
+
   useEffect(() => {
+    activeChatRef.current = activeChat;
     if (activeChat?._id) {
       window.activeTeamChatId = activeChat._id;
     } else {
@@ -70,7 +74,11 @@ export default function TeamChatPage() {
     return () => {
       window.activeTeamChatId = null;
     };
-  }, [activeChat?._id]);
+  }, [activeChat]);
+
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   
@@ -177,8 +185,8 @@ export default function TeamChatPage() {
       socketRef.current = socket;
       
       // Auto-join active chat if socket just connected/reconnected
-      if (activeChat) {
-        socket.emit('team_join_chat', activeChat._id);
+      if (activeChatRef.current) {
+        socket.emit('team_join_chat', activeChatRef.current._id);
       }
 
       // Listen for presence
@@ -192,8 +200,9 @@ export default function TeamChatPage() {
 
       // Listen for new messages
       socket.on('team_new_message', (data) => {
+        const currentActive = activeChatRef.current;
         // If we are actively viewing this chat, append the message
-        if (activeChat && activeChat._id === data.chatId) {
+        if (currentActive && currentActive._id === data.chatId) {
           setMessages(prev => {
             // Prevent duplicates
             if (prev.some(m => m._id === data.message._id)) return prev;
@@ -203,11 +212,19 @@ export default function TeamChatPage() {
           api.post(`/team-chat/messages/${data.message._id}/read`).catch(() => {});
         } else {
           // Play sound for background messages
-          if (soundEnabled && data.message.senderId !== user?._id) {
+          if (soundEnabledRef.current && data.message.senderId !== user?._id) {
             PLAY_NOTIFICATION_SOUND();
           }
         }
         // Refresh chats list to update last message & unread badge
+        loadChats(true);
+      });
+
+      // Listen for background message activity
+      socket.on('team_chat_activity', (data) => {
+        if (soundEnabledRef.current && data.message?.senderId !== user?._id) {
+          PLAY_NOTIFICATION_SOUND();
+        }
         loadChats(true);
       });
 
@@ -229,7 +246,8 @@ export default function TeamChatPage() {
 
       // Listen for message edits
       socket.on('team_message_edited', (data) => {
-        if (activeChat && activeChat._id === data.chatId) {
+        const currentActive = activeChatRef.current;
+        if (currentActive && currentActive._id === data.chatId) {
           setMessages(prev =>
             prev.map(m => m._id === data.messageId ? { ...m, message: data.message, isEdited: true, editedAt: data.editedAt } : m)
           );
@@ -238,7 +256,8 @@ export default function TeamChatPage() {
 
       // Listen for reaction updates
       socket.on('team_message_reaction_updated', (data) => {
-        if (activeChat && activeChat._id === data.chatId) {
+        const currentActive = activeChatRef.current;
+        if (currentActive && currentActive._id === data.chatId) {
           setMessages(prev =>
             prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m)
           );
@@ -247,7 +266,8 @@ export default function TeamChatPage() {
 
       // Listen for deletions for everyone
       socket.on('team_message_deleted_everyone', (data) => {
-        if (activeChat && activeChat._id === data.chatId) {
+        const currentActive = activeChatRef.current;
+        if (currentActive && currentActive._id === data.chatId) {
           setMessages(prev =>
             prev.map(m => m._id === data.messageId ? { ...m, message: '[This message was deleted]', messageType: 'text', fileUrl: '' } : m)
           );
@@ -257,7 +277,8 @@ export default function TeamChatPage() {
 
       // Listen for read receipts
       socket.on('team_read_receipt', (data) => {
-        if (activeChat && activeChat._id === data.chatId) {
+        const currentActive = activeChatRef.current;
+        if (currentActive && currentActive._id === data.chatId) {
           setMessages(prev =>
             prev.map(m => {
               if (m.senderId === user?._id && !m.readReceipts.some(r => r.userId === data.userId)) {
@@ -278,26 +299,41 @@ export default function TeamChatPage() {
         loadChats(true);
       });
 
-      socket.on('team_chat_removed', (data) => {
-        if (activeChat && activeChat._id === data.chatId) {
+      const handleChatDeleted = (data) => {
+        const currentActive = activeChatRef.current;
+        if (currentActive && currentActive._id === data.chatId) {
           setActiveChat(null);
           setMessages([]);
           toast.error('The conversation was deleted by an administrator.');
         }
         loadChats(true);
+      };
+
+      socket.on('team_chat_removed', handleChatDeleted);
+      socket.on('team_chat_deleted', handleChatDeleted);
+
+      // Listen for group renaming
+      socket.on('team_group_updated', (data) => {
+        loadChats(true);
+        const currentActive = activeChatRef.current;
+        if (currentActive && currentActive._id === data.chatId) {
+          setActiveChat(prev => prev ? ({ ...prev, name: data.name, title: data.name }) : null);
+        }
       });
 
       socket.on('team_members_added', (data) => {
-        if (activeChat && activeChat._id === data.chatId) {
+        const currentActive = activeChatRef.current;
+        if (currentActive && currentActive._id === data.chatId) {
           setActiveChat(prev => ({
             ...prev,
-            participants: [...prev.participants, ...data.members]
+            participants: [...(prev.participants || []), ...data.members]
           }));
         }
       });
 
       socket.on('team_member_removed', (data) => {
-        if (activeChat && activeChat._id === data.chatId) {
+        const currentActive = activeChatRef.current;
+        if (currentActive && currentActive._id === data.chatId) {
           if (data.userId === user?._id) {
             setActiveChat(null);
             setMessages([]);
@@ -305,7 +341,7 @@ export default function TeamChatPage() {
           } else {
             setActiveChat(prev => ({
               ...prev,
-              participants: prev.participants.filter(p => p._id !== data.userId)
+              participants: (prev.participants || []).filter(p => p._id !== data.userId)
             }));
           }
         }
@@ -318,6 +354,7 @@ export default function TeamChatPage() {
         socketRef.current.off('team_user_online');
         socketRef.current.off('team_user_offline');
         socketRef.current.off('team_new_message');
+        socketRef.current.off('team_chat_activity');
         socketRef.current.off('team_typing_update');
         socketRef.current.off('team_message_edited');
         socketRef.current.off('team_message_reaction_updated');
@@ -325,11 +362,13 @@ export default function TeamChatPage() {
         socketRef.current.off('team_read_receipt');
         socketRef.current.off('team_chat_created');
         socketRef.current.off('team_chat_removed');
+        socketRef.current.off('team_chat_deleted');
+        socketRef.current.off('team_group_updated');
         socketRef.current.off('team_members_added');
         socketRef.current.off('team_member_removed');
       }
     };
-  }, [activeChat, soundEnabled]);
+  }, []);
 
   // Load active chat details
   useEffect(() => {
@@ -344,11 +383,9 @@ export default function TeamChatPage() {
 
       // Mark unread as read
       if (activeChat.unreadCount > 0) {
-        api.post(`/team-chat/chats/${activeChat._id}`).catch(() => {});
-        // If last message exists, mark it read
-        if (activeChat.lastMessage) {
-          api.post(`/team-chat/messages/${activeChat.lastMessage._id}/read`).catch(() => {});
-        }
+        api.post(`/team-chat/chats/${activeChat._id}/read`).catch(() => {});
+        setChats(prev => prev.map(c => c._id === activeChat._id ? { ...c, unreadCount: 0 } : c));
+        setActiveChat(prev => prev ? ({ ...prev, unreadCount: 0 }) : null);
       }
     }
 
@@ -442,6 +479,7 @@ export default function TeamChatPage() {
       toast.error(err.response?.data?.error || 'File upload failed');
     } finally {
       setUploadingFile(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -632,14 +670,14 @@ export default function TeamChatPage() {
     const matchesSearch = chat.title?.toLowerCase().includes(search.toLowerCase());
     if (!matchesSearch) return false;
 
+    // Archived chats should only appear in the 'archived' tab
+    if (filter !== 'archived' && chat.isArchived) return false;
+
     if (filter === 'unread') return chat.unreadCount > 0;
     if (filter === 'pinned') return chat.isPinned;
     if (filter === 'archived') return chat.isArchived;
     if (filter === 'group') return chat.type === 'group';
     if (filter === 'private') return chat.type === 'private';
-    
-    // Hide archived from main list
-    if (filter === 'all' && chat.isArchived) return false;
 
     return true;
   });
@@ -1259,21 +1297,37 @@ export default function TeamChatPage() {
                             </button>
                           )}
 
-                          {/* Delete */}
+                          {/* Delete for Me */}
                           <button
                             type="button"
                             onClick={() => {
-                              const delFor = isSelf && confirm('Do you want to delete this message for everyone? (Select Cancel to delete only for yourself)')
-                                ? 'everyone'
-                                : 'me';
-                              handleDeleteMessage(msg._id, delFor);
+                              if (confirm('Delete this message for yourself?')) {
+                                handleDeleteMessage(msg._id, 'me');
+                              }
                               setActiveMenuDropdownId(null);
                             }}
                             className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-2"
                           >
                             <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                            <span>Delete</span>
+                            <span>Delete for me</span>
                           </button>
+
+                          {/* Delete for Everyone (if sender or admin) */}
+                          {(isSelf || ['admin', 'owner', 'superadmin'].includes(user?.role)) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to delete this message for everyone in this chat?')) {
+                                  handleDeleteMessage(msg._id, 'everyone');
+                                }
+                                setActiveMenuDropdownId(null);
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-100 dark:hover:bg-red-950/30 font-semibold flex items-center gap-2 border-t border-wa-border/40 dark:border-wa-dark-border/40"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                              <span>Delete for everyone</span>
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1478,7 +1532,7 @@ export default function TeamChatPage() {
                           className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold uppercase text-xs shadow-sm"
                           style={{ backgroundColor: u.chatColor }}
                         >
-                          {u.name[0]?.toUpperCase()}
+                          {u.name?.[0]?.toUpperCase() || 'U'}
                         </div>
                         <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white dark:border-wa-dark-panel ${
                           u.isOnline ? 'bg-wa-green' : 'bg-slate-300'
@@ -1555,7 +1609,7 @@ export default function TeamChatPage() {
                             className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold uppercase text-[10px] shrink-0"
                             style={{ backgroundColor: u.chatColor }}
                           >
-                            {u.name[0]?.toUpperCase()}
+                            {u.name?.[0]?.toUpperCase() || 'U'}
                           </div>
                           <div className="flex-1 text-left min-w-0 text-xs">
                             <span className="block truncate font-medium">{u.name}</span>
@@ -1632,7 +1686,7 @@ export default function TeamChatPage() {
                             className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold uppercase text-[10px] shrink-0"
                             style={{ backgroundColor: u.chatColor }}
                           >
-                            {u.name[0]?.toUpperCase()}
+                            {u.name?.[0]?.toUpperCase() || 'U'}
                           </div>
                           <div className="flex-1 text-left min-w-0 text-xs">
                             <span className="block truncate font-medium">{u.name}</span>

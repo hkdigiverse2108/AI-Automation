@@ -10,7 +10,12 @@ router.use(verifyToken);
 router.get('/call-logs', async (req, res) => {
   try {
     const orgId = req.organizationId || req.user.organizationId;
-    const query = { organizationId: orgId };
+    const query = {
+      $or: [
+        { organizationId: orgId },
+        { organization_id: orgId }
+      ]
+    };
     
     // Non-admins (agents) can only see their own call logs
     if (req.user.role === 'agent') {
@@ -25,9 +30,13 @@ router.get('/call-logs', async (req, res) => {
     
     if (search) {
       const searchRegex = new RegExp(search.replace(/\D/g, '') || search, 'i');
-      query.$or = [
-        { phone: searchRegex },
-        { name: new RegExp(search, 'i') }
+      query.$and = [
+        {
+          $or: [
+            { phone: searchRegex },
+            { name: new RegExp(search, 'i') }
+          ]
+        }
       ];
     }
 
@@ -70,6 +79,7 @@ router.post('/call-logs', async (req, res) => {
     const mappedLogs = logs.map((log) => ({
       userId: req.user._id,
       organizationId: orgId,
+      organization_id: orgId, // dual compatibility with analytics and IVR
       phone: log.phone ? log.phone.replace(/\D/g, '') : '',
       name: log.name || '',
       duration: parseInt(log.duration) || 0,

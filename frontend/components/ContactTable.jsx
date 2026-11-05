@@ -407,8 +407,11 @@ export default function ContactTable() {
     
     setLoading(true);
     try {
-      const deletePromises = selectedIds.map(id => api.delete(`/contacts/${id}`));
-      await Promise.all(deletePromises);
+      const batchSize = 10;
+      for (let i = 0; i < selectedIds.length; i += batchSize) {
+        const batch = selectedIds.slice(i, i + batchSize);
+        await Promise.all(batch.map(id => api.delete(`/contacts/${id}`)));
+      }
       toast.success(`${selectedIds.length} contacts deleted successfully`);
       setSelectedIds([]);
       fetchContacts();
@@ -979,7 +982,7 @@ export default function ContactTable() {
       {/* Header Panel */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Contacts({total})</h2>
+          <h2 className="text-xl font-bold text-wa-text-primary dark:text-wa-dark-text-primary">Contacts ({total})</h2>
           <p className="text-sm text-wa-text-secondary dark:text-wa-dark-text-secondary mt-0.5">Manage your subscribers, view tag analytics, and bulk import customers.</p>
         </div>
         <div className="flex items-center gap-3">

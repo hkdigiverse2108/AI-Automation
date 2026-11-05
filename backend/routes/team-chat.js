@@ -470,6 +470,47 @@ router.put('/chats/:chatId', async (req, res) => {
   }
 });
 
+// POST /api/team-chat/chats/:chatId/read - Mark all messages in a chat as read
+router.post('/chats/:chatId/read', async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const userId = req.user._id;
+
+    const membership = await TeamChatMember.findOne({ chatId, userId });
+    if (!membership) {
+      return res.status(403).json({ success: false, error: 'Not a member of this chat' });
+    }
+
+    const now = new Date();
+    membership.lastReadAt = now;
+    membership.isMarkedUnread = false;
+    await membership.save();
+
+    await TeamChatMessage.updateMany(
+      {
+        chatId,
+        'readReceipts.userId': { $ne: userId }
+      },
+      {
+        $push: { readReceipts: { userId, status: 'read', timestamp: now } }
+      }
+    );
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`team_chat_${chatId.toString()}`).emit('team_read_receipt', {
+        chatId,
+        userId,
+        readAt: now
+      });
+    }
+
+    res.json({ success: true, message: 'Chat marked as read' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to mark chat as read', details: error.message });
+  }
+});
+
 // POST /api/team-chat/chats/:chatId/members - Add members to group
 router.post('/chats/:chatId/members', async (req, res) => {
   try {
@@ -653,6 +694,7 @@ router.delete('/chats/:chatId', async (req, res) => {
       const io = req.app.get('io');
       if (io) {
         io.to(`team_chat_${chatId}`).emit('team_chat_deleted', { chatId });
+        io.to(`team_chat_${chatId}`).emit('team_chat_removed', { chatId });
       }
 
       return res.json({ success: true, message: 'Group deleted successfully' });

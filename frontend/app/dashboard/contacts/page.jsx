@@ -94,12 +94,14 @@ export default function ContactsPage() {
     }
   };
 
-  const handleDeleteTag = async (name) => {
+  const handleDeleteTag = async (tagOrName) => {
+    const name = typeof tagOrName === 'object' ? tagOrName.name : tagOrName;
+    const identifier = typeof tagOrName === 'object' ? (tagOrName._id || tagOrName.name) : tagOrName;
     const confirmed = await confirm(`Are you sure you want to delete tag "${name}"? This will remove it from all contacts.`, 'Delete Tag');
     if (!confirmed) return;
 
     try {
-      const { data } = await api.delete(`/tags/${name}`);
+      const { data } = await api.delete(`/tags/${encodeURIComponent(identifier)}`);
       if (data.success) {
         toast.success('Tag deleted successfully');
         fetchTagsAndRules();
@@ -354,7 +356,7 @@ export default function ContactsPage() {
                       </button>
                       
                       <button
-                        onClick={() => handleDeleteTag(tag.name)}
+                        onClick={() => handleDeleteTag(tag)}
                         className="hover:text-red-500 font-bold ml-0.5 transition-colors text-sm text-wa-text-secondary shrink-0"
                         title="Delete Tag"
                       >
