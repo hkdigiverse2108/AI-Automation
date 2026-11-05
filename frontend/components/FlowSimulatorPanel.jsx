@@ -249,12 +249,23 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose, onModifyWith
           // Process user input
           const varName = node.data?.variable || 'temp_var';
           let finalVal = userMsgText;
-          if (varName.toLowerCase().includes('phone') || varName.toLowerCase().includes('mobile')) {
+          if (varName.toLowerCase().includes('phone') || varName.toLowerCase().includes('mobile') || varName.toLowerCase().includes('contact')) {
             if (/same/i.test(userMsgText) || userMsgText.includes('આ જ નંબર') || userMsgText.includes('यही नंबर')) {
               finalVal = simVariablesRef.current['phone'] || simVariablesRef.current['sender_phone'] || '+91 98786 57877';
             }
           }
           const updatedVars = { ...simVariablesRef.current, [varName]: finalVal };
+          // Smart aliasing for name and phone variables
+          if (/name/i.test(varName)) {
+            updatedVars['lead_name'] = finalVal;
+            updatedVars['user_full_name'] = finalVal;
+            updatedVars['name'] = finalVal;
+          }
+          if (/phone|mobile|contact/i.test(varName)) {
+            updatedVars['lead_phone'] = finalVal;
+            updatedVars['user_phone_number'] = finalVal;
+            updatedVars['phone'] = finalVal;
+          }
           simVariablesRef.current = updatedVars;
           setSimVariables(updatedVars);
 
@@ -342,15 +353,28 @@ export default function FlowSimulatorPanel({ flow, isOpen, onClose, onModifyWith
 
   const interpolateVars = (text) => {
     let result = text || '';
-    const vars = {
+    const simVars = {
       phone: '+91 98786 57877',
       sender_phone: '+91 98786 57877',
       ...simVariables,
       ...(simVariablesRef.current || {})
     };
-    Object.entries(vars).forEach(([key, val]) => {
-      result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}|\\$\\{\\s*${key}\\s*\\}`, 'gi'), val);
+    const resolvedName = simVars.lead_name || simVars.user_full_name || simVars.name || simVars.full_name || '';
+    const resolvedPhone = simVars.lead_phone || simVars.user_phone_number || simVars.phone || simVars.sender_phone || '+91 98786 57877';
+
+    // 1. Direct variable replacements
+    Object.entries(simVars).forEach(([key, val]) => {
+      if (val !== undefined && val !== null) {
+        result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}|\\$\\{\\s*${key}\\s*\\}`, 'gi'), val);
+      }
     });
+
+    // 2. Intelligent Alias Fallbacks for Name and Phone
+    result = result.replace(/\{\{\s*(?:lead_name|user_full_name|name|full_name|customer_name|guest_name|patient_name|client_name)\s*\}\}/gi, resolvedName || 'Valued Client');
+    result = result.replace(/\{\{\s*(?:lead_phone|user_phone_number|phone|mobile|contact|guest_phone|patient_phone)\s*\}\}/gi, resolvedPhone);
+
+    // 3. Fail-safe Cleanup: Never leak raw {{variable}} syntax to user
+    result = result.replace(/\{\{\s*[\w_]+\s*\}\}/g, '').replace(/\$\{\s*[\w_]+\s*\}/g, '');
     return result;
   };
 

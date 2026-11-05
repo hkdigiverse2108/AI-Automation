@@ -1501,7 +1501,20 @@ async function saveAndEmitMessage(userId, conversation, contact, text, sentBy, i
 }
 
 function interpolate(text, vars) {
-  return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || `{{${key}}}`);
+  if (!text) return '';
+  vars = vars || {};
+  const nameVal = vars.lead_name || vars.user_full_name || vars.name || vars.full_name || '';
+  const phoneVal = vars.lead_phone || vars.user_phone_number || vars.phone || vars.sender_phone || '';
+  let result = text.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    if (vars[key] !== undefined && vars[key] !== null && String(vars[key]).trim() !== '') return vars[key];
+    if (/name/i.test(key) && nameVal) return nameVal;
+    if (/phone|mobile|contact/i.test(key) && phoneVal) return phoneVal;
+    return '';
+  });
+  // Clean up any remaining unreplaced {{...}} braces so raw code never leaks to customer
+  result = result.replace(/\{\{\s*(?:lead_name|user_full_name|name)\s*\}\}/gi, nameVal || 'Valued Customer');
+  result = result.replace(/\{\{\s*[\w_]+\s*\}\}/g, '');
+  return result;
 }
 
 async function runAutomations(userId, conversation, contact, savedMsg, phoneNumberId, token, io) {
