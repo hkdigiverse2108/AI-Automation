@@ -13,11 +13,13 @@ router.get('/', async (req, res) => {
   try {
     const { search, page = 1, limit = 20 } = req.query;
     
-    // Filter contacts that have any bot flow interaction
+    // Filter contacts that have any bot flow interaction or lead status
+    const effectiveUserIds = [req.userId, ...(req.user?.ownerId ? [req.user.ownerId] : [])];
     const query = { 
-      userId: req.userId, 
+      userId: { $in: effectiveUserIds }, 
       isDeleted: { $ne: true },
       $or: [
+        { 'customFields.status': { $exists: true } },
         { 'customFields.currentStep': { $exists: true } },
         { 'customFields.conversationHistory': { $exists: true } },
         { 'customFields.selectedService': { $exists: true } },
@@ -161,7 +163,7 @@ router.get('/', async (req, res) => {
 router.get('/agents', async (req, res) => {
   try {
     const User = require('../models/User');
-    const ownerId = req.userId;
+    const ownerId = req.user?.ownerId || req.userId;
     const orConditions = [
       { _id: ownerId },
       { ownerId: ownerId }
@@ -183,7 +185,8 @@ router.get('/agents', async (req, res) => {
 // GET /leads/:id - get single lead
 router.get('/:id', async (req, res) => {
   try {
-    const contact = await Contact.findOne({ _id: req.params.id, userId: req.userId, isDeleted: { $ne: true } })
+    const effectiveUserIds = [req.userId, ...(req.user?.ownerId ? [req.user.ownerId] : [])];
+    const contact = await Contact.findOne({ _id: req.params.id, userId: { $in: effectiveUserIds }, isDeleted: { $ne: true } })
       .populate('assignedAgent', 'name email role avatar')
       .lean();
     if (!contact) {
@@ -209,7 +212,7 @@ router.get('/:id', async (req, res) => {
     };
 
     // Fetch message history
-    const messages = await Message.find({ userId: req.userId, contactId: contact._id }).sort({ timestamp: 1 }).lean();
+    const messages = await Message.find({ userId: { $in: effectiveUserIds }, contactId: contact._id }).sort({ timestamp: 1 }).lean();
     const decryptedMessages = messages.map(m => decryptMessage(m, rawOek));
 
     res.json({
@@ -230,7 +233,8 @@ router.put('/:id', async (req, res) => {
     const { name, phone, email, notes, status, serviceRequired, budget, timeline, city, specialRequirements, assignedAgent, lossReason, dropReason, winReason, wonReason } = req.body;
     
     // Find the contact
-    const contact = await Contact.findOne({ _id: req.params.id, userId: req.userId, isDeleted: { $ne: true } });
+    const effectiveUserIds = [req.userId, ...(req.user?.ownerId ? [req.user.ownerId] : [])];
+    const contact = await Contact.findOne({ _id: req.params.id, userId: { $in: effectiveUserIds }, isDeleted: { $ne: true } });
     if (!contact) {
       return res.status(404).json({ success: false, error: 'Lead not found', code: 'NOT_FOUND' });
     }
@@ -275,7 +279,7 @@ router.put('/:id', async (req, res) => {
       // Also update conversation assignment if exists
       const Conversation = require('../models/Conversation');
       await Conversation.updateMany(
-        { contactId: contact._id, userId: req.userId },
+        { contactId: contact._id, userId: { $in: effectiveUserIds } },
         { 
           assignedAgent: contact.assignedAgent, 
           assigned_agent_id: contact.assignedAgent 
@@ -317,7 +321,8 @@ router.put('/:id', async (req, res) => {
 // DELETE /leads/:id - permanently delete a lead (contact) and all associated messages/conversations
 router.delete('/:id', async (req, res) => {
   try {
-    const contact = await Contact.findOne({ _id: req.params.id, userId: req.userId });
+    const effectiveUserIds = [req.userId, ...(req.user?.ownerId ? [req.user.ownerId] : [])];
+    const contact = await Contact.findOne({ _id: req.params.id, userId: { $in: effectiveUserIds } });
     if (!contact) {
       return res.status(404).json({ success: false, error: 'Lead not found', code: 'NOT_FOUND' });
     }
@@ -326,14 +331,14 @@ router.delete('/:id', async (req, res) => {
     const Message = require('../models/Message');
 
     // 1. Find conversation to cascade delete its messages and the conversation itself
-    const conversation = await Conversation.findOne({ contactId: contact._id, userId: req.userId });
+    const conversation = await Conversation.findOne({ contactId: contact._id, userId: { $in: effectiveUserIds } });
     if (conversation) {
-      await Message.deleteMany({ conversationId: conversation._id, userId: req.userId });
-      await Conversation.deleteOne({ _id: conversation._id, userId: req.userId });
+      await Message.deleteMany({ conversationId: conversation._id, userId: { $in: effectiveUserIds } });
+      await Conversation.deleteOne({ _id: conversation._id, userId: { $in: effectiveUserIds } });
     }
 
     // 2. Permanently delete the contact from database
-    await Contact.deleteOne({ _id: contact._id, userId: req.userId });
+    await Contact.deleteOne({ _id: contact._id, userId: { $in: effectiveUserIds } });
 
     // 3. Log action
     await AuditLog.log({

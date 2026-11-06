@@ -24,15 +24,12 @@ export default function ChatLogsPage() {
   // Inspector states for details modal
   const [selectedPayload, setSelectedPayload] = useState(null);
 
-  const fetchLogs = async () => {
-    if (logs.length === 0) {
-      setLoading(true);
-    }
+  const fetchLogs = async (targetPage = page) => {
     try {
       const { data } = await api.get('/chat-logs', {
         params: {
           logType: activeTab,
-          page,
+          page: targetPage,
           limit
         }
       });
@@ -43,7 +40,7 @@ export default function ChatLogsPage() {
         setLogs(l);
         setTotalPages(pgs);
         setTotalLogs(tot);
-        if (activeTab === 'text' && page === 1) {
+        if (activeTab === 'text' && targetPage === 1) {
           setFastCache('chat_logs_text_p1', { logs: l, pages: pgs, total: tot });
         }
       }
@@ -56,11 +53,16 @@ export default function ChatLogsPage() {
 
   useEffect(() => {
     setPage(1);
-    fetchLogs();
+    setLogs([]);
+    setLoading(true);
+    fetchLogs(1);
   }, [activeTab, limit]);
 
   useEffect(() => {
-    fetchLogs();
+    if (page > 1) {
+      setLoading(true);
+      fetchLogs(page);
+    }
   }, [page]);
 
   const handleOpenInspector = (log) => {
@@ -193,7 +195,7 @@ export default function ChatLogsPage() {
             <tbody className="divide-y divide-wa-border dark:divide-wa-dark-border text-xs font-mono">
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="px-5 py-12 text-center text-wa-text-secondary">
+                  <td colSpan={activeTab === 'api' ? 7 : activeTab === 'button' ? 5 : 6} className="px-5 py-12 text-center text-wa-text-secondary">
                     <div className="flex items-center justify-center gap-2 font-sans">
                       <Loader2 className="w-5 h-5 animate-spin text-wa-green" />
                       <span>Fetching logs database...</span>
@@ -202,7 +204,7 @@ export default function ChatLogsPage() {
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-5 py-12 text-center text-wa-text-secondary italic font-sans">
+                  <td colSpan={activeTab === 'api' ? 7 : activeTab === 'button' ? 5 : 6} className="px-5 py-12 text-center text-wa-text-secondary italic font-sans">
                     No logs found for this category.
                   </td>
                 </tr>
@@ -224,7 +226,7 @@ export default function ChatLogsPage() {
                         </td>
                         <td className="px-5 py-3.5">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-sans ${
-                            log.direction === 'incoming'
+                            log.direction === 'inbound' || log.direction === 'incoming'
                               ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/20'
                               : 'bg-wa-green/10 text-wa-green'
                           }`}>

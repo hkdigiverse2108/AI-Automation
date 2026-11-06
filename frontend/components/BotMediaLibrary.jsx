@@ -138,12 +138,14 @@ export default function BotMediaLibrary({ botId }) {
         toast.success(`Successfully uploaded asset: ${data.data.asset.assetKey}`);
         setCustomKey('');
         setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
         fetchAssets();
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Upload failed');
     } finally {
       setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 

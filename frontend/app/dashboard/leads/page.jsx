@@ -240,9 +240,13 @@ export default function LeadsPage() {
       if (data.success) {
         const agentName = selectedAgent?.name || (agentId === 'unassigned' ? 'Unassigned' : 'Assigned Member');
         toast.success(`Assigned to ${agentName}`);
-        setFastCache('leads_all_cache', {
-          leads: allLeads.map((l) => (l._id === leadId ? data.data.lead : l)),
-          total: allLeads.length
+        setAllLeads((prev) => {
+          const updated = prev.map((l) => (l._id === leadId ? data.data.lead : l));
+          setFastCache('leads_all_cache', {
+            leads: updated,
+            total: updated.length
+          });
+          return updated;
         });
       } else {
         setAllLeads(previousLeads);
@@ -306,9 +310,13 @@ export default function LeadsPage() {
       const { data } = await api.put(`/leads/${leadId}`, payload);
       if (data.success) {
         toast.success(`Moved to ${getStatusLabel(newStatus)}`);
-        setFastCache('leads_all_cache', {
-          leads: allLeads.map((l) => (l._id === leadId ? data.data.lead : l)),
-          total: allLeads.length
+        setAllLeads((prev) => {
+          const updated = prev.map((l) => (l._id === leadId ? data.data.lead : l));
+          setFastCache('leads_all_cache', {
+            leads: updated,
+            total: updated.length
+          });
+          return updated;
         });
       } else {
         setAllLeads(previousLeads);

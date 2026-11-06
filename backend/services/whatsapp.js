@@ -523,7 +523,7 @@ async function downloadMedia(mediaId, token, destPath) {
 }
 
 async function getTemplates(wabaId, token) {
-  return metaApiCall('get', `${META_API_URL}/${wabaId}/message_templates`, null, token);
+  return metaApiCall('get', `${META_API_URL}/${wabaId}/message_templates?limit=1000`, null, token);
 }
 
 async function createTemplate(wabaId, token, templateData) {

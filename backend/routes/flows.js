@@ -13,7 +13,9 @@ router.use(checkFeatureAccess('bot-builder'));
 // GET /flows
 router.get('/', async (req, res) => {
   try {
-    const flows = await BotFlow.find({ userId: req.userId }).sort('-updatedAt').lean();
+    const flows = await BotFlow.find({
+      userId: { $in: [req.userId, ...(req.user?.ownerId ? [req.user.ownerId] : [])] }
+    }).sort('-updatedAt').lean();
     res.json({ success: true, data: { flows } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch flows', code: 'FETCH_ERROR' });
@@ -642,9 +644,9 @@ router.post('/:id/activate', ...validateObjectId('id'), async (req, res) => {
     if (!flow) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
 
     // Deactivate conflicting triggers
-    if (flow.trigger.type === 'any') {
+    if (flow.trigger?.type === 'any') {
       await BotFlow.updateMany({ userId: req.userId, _id: { $ne: flow._id }, 'trigger.type': 'any' }, { isActive: false });
-    } else if (flow.trigger.type === 'keyword' && flow.trigger.keywords?.length) {
+    } else if (flow.trigger?.type === 'keyword' && flow.trigger.keywords?.length) {
       await BotFlow.updateMany({
         userId: req.userId,
         _id: { $ne: flow._id },
@@ -698,13 +700,13 @@ router.post('/:id/test', ...validateObjectId('id'), async (req, res) => {
 
       switch (currentNode.type) {
         case 'message':
-          step.action = `Send: ${currentNode.data?.message?.text || '[media]'}`;
+          step.action = `Send: ${currentNode.data?.message?.text || currentNode.data?.message?.body || '[media]'}`;
           executionLog.push(step);
           currentNode = flow.nodes.find((n) => n.id === currentNode.edges?.[0]?.targetNodeId);
           break;
 
         case 'question':
-          step.action = `Ask: ${currentNode.data?.message?.text || ''}`;
+          step.action = `Ask: ${currentNode.data?.message?.text || currentNode.data?.message?.body || ''}`;
           const answer = simulatedResponses[responseIdx++] || 'test_answer';
           step.userResponse = answer;
           if (currentNode.data?.variable) variables[currentNode.data.variable] = answer;

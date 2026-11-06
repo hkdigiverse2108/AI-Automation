@@ -89,7 +89,7 @@ router.get('/overview', verifyToken, checkFeatureAccess('analytics'), async (req
         { $limit: 5 }
       ]),
       // Live Templates fallback if no campaign stats
-      Template.find({ userId: userObjectId }).select('name category language status').limit(5).lean(),
+      Template.find({ userId: userObjectId, status: { $in: ['APPROVED', 'approved'] } }).select('name category language status').limit(5).lean(),
     ]);
 
     const totalSent = await Message.countDocuments({ userId, direction: 'outbound' });
@@ -223,15 +223,22 @@ router.get('/overview', verifyToken, checkFeatureAccess('analytics'), async (req
       };
     });
 
-    // 8. Response Time Calculation (Average turnaround)
-    const messagesForResp = await Message.find({
+    // 8. Response Time Calculation (Average turnaround - recent 1000 messages ordered by conversation)
+    const rawMessagesForResp = await Message.find({
       userId: userObjectId,
       createdAt: { $gte: thirtyDaysAgo }
     })
       .select('conversationId direction createdAt')
-      .sort({ conversationId: 1, createdAt: 1 })
+      .sort({ createdAt: -1 })
       .limit(1000)
       .lean();
+
+    const messagesForResp = rawMessagesForResp.sort((a, b) => {
+      const convA = a.conversationId?.toString() || '';
+      const convB = b.conversationId?.toString() || '';
+      if (convA !== convB) return convA.localeCompare(convB);
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
 
     let totalResponseTimeSec = 0;
     let responseCount = 0;
@@ -417,14 +424,21 @@ router.get('/reports', verifyToken, checkFeatureAccess('analytics'), async (req,
     const prevActiveUsers = prevActiveContactIds.length;
 
     // Calculate Response Time (average duration between customer message and agent/bot response)
-    const messagesForResp = await Message.find({
+    const rawMessagesForResp = await Message.find({
       userId: userObjectId,
       createdAt: { $gte: since }
     })
       .select('conversationId direction createdAt')
-      .sort({ conversationId: 1, createdAt: 1 })
+      .sort({ createdAt: -1 })
       .limit(1000)
       .lean();
+
+    const messagesForResp = rawMessagesForResp.sort((a, b) => {
+      const convA = a.conversationId?.toString() || '';
+      const convB = b.conversationId?.toString() || '';
+      if (convA !== convB) return convA.localeCompare(convB);
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
 
     let totalResponseTimeSec = 0;
     let responseCount = 0;

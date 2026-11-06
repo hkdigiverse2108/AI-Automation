@@ -96,9 +96,18 @@ export default function TemplatesPage() {
     }
 
     try {
-      const { data } = await api.post('/campaigns/upload-image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      let uploadRes;
+      try {
+        uploadRes = await api.post('/templates/upload-media', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      } catch (tmplErr) {
+        // Fallback to /campaigns/upload-image if route not available
+        uploadRes = await api.post('/campaigns/upload-image', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      const data = uploadRes.data;
       if (data.success) {
         if (cardIdx !== null) {
           const cardsCopy = [...newTemplate.carouselCards];
@@ -114,6 +123,7 @@ export default function TemplatesPage() {
     } finally {
       setUploadingImage(false);
       setUploadingCardIdx(null);
+      if (e?.target) e.target.value = '';
     }
   };
 
@@ -151,6 +161,11 @@ export default function TemplatesPage() {
 
     if (!newTemplate.isCarousel && newTemplate.category !== 'AUTHENTICATION' && !newTemplate.bodyText) {
       toast.error('Body text is required for standard templates');
+      return;
+    }
+
+    if (!newTemplate.isCustom && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(newTemplate.headerType) && !newTemplate.headerMediaId) {
+      toast.error(`Please upload a ${newTemplate.headerType.toLowerCase()} for the header before submitting.`);
       return;
     }
 
@@ -450,7 +465,8 @@ export default function TemplatesPage() {
     const matchesSearch = !searchLower ||
       t.name?.toLowerCase().includes(searchLower) ||
       t.category?.toLowerCase().includes(searchLower) ||
-      t.components?.some(c => c.text?.toLowerCase().includes(searchLower));
+      t.components?.some(c => c.text?.toLowerCase().includes(searchLower)) ||
+      t.carouselCards?.some(c => c.bodyText?.toLowerCase().includes(searchLower));
 
     const matchesCategory =
       categoryFilter === 'ALL' ||
@@ -781,6 +797,21 @@ export default function TemplatesPage() {
             </span>
           </button>
 
+          {/* Authentication */}
+          <button
+            onClick={() => { setCategoryFilter(categoryFilter === 'AUTHENTICATION' ? 'ALL' : 'AUTHENTICATION'); setCurrentPage(1); }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+              categoryFilter === 'AUTHENTICATION'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+            }`}
+          >
+            <span>Authentication</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${categoryFilter === 'AUTHENTICATION' ? 'bg-amber-700 text-white' : 'bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300'}`}>
+              {categoryCounts.AUTHENTICATION}
+            </span>
+          </button>
+
           <span className="text-wa-border dark:text-wa-dark-border">|</span>
 
           {/* Approved */}
@@ -1038,7 +1069,7 @@ export default function TemplatesPage() {
         </div>
       ) : (
         /* TABLE LIST VIEW */
-        <div className="glass-card overflow-hidden">
+        <div className="glass-card overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-wa-border dark:border-wa-dark-border text-wa-text-secondary uppercase text-[10px] tracking-wider bg-wa-panel-header/50 dark:bg-wa-dark-panel-header/20">
@@ -1107,7 +1138,7 @@ export default function TemplatesPage() {
                                   setActiveCardMenuId(null);
                                 }}
                               />
-                              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-xl z-50 p-1.5 space-y-1 animate-slide-up text-xs text-left">
+                              <div className="absolute right-0 bottom-full mb-1.5 w-48 bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-xl shadow-xl z-50 p-1.5 space-y-1 animate-slide-up text-xs text-left">
                                 <div className="px-2.5 py-1 text-[10px] font-bold text-wa-text-light uppercase tracking-wider border-b border-wa-border/50 dark:border-wa-dark-border/50">
                                   Download Template
                                 </div>
@@ -1249,6 +1280,7 @@ export default function TemplatesPage() {
                       <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Category</label>
                       <select
                         value={newTemplate.category}
+                        disabled={!!editingTemplateId}
                         onChange={(e) => {
                           const val = e.target.value;
                           setNewTemplate(prev => ({
@@ -1257,7 +1289,7 @@ export default function TemplatesPage() {
                             ...(val === 'AUTHENTICATION' ? { isCustom: false, isCarousel: false, headerType: 'NONE' } : {})
                           }));
                         }}
-                        className="input-field py-2 text-xs"
+                        className="input-field py-2 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <option value="MARKETING">Marketing</option>
                         <option value="UTILITY">Utility</option>
@@ -1394,11 +1426,13 @@ export default function TemplatesPage() {
                           <input
                             type="text"
                             required
+                            maxLength={60}
                             placeholder="e.g. Welcome onboard!"
                             value={newTemplate.headerText}
                             onChange={(e) => setNewTemplate({ ...newTemplate, headerText: e.target.value })}
                             className="input-field py-2 text-xs"
                           />
+                          <p className="text-[10px] text-wa-text-light mt-1">Max 60 characters.</p>
                         </div>
                       )}
 
@@ -1448,17 +1482,20 @@ export default function TemplatesPage() {
                         <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Footer text (Optional)</label>
                         <input
                           type="text"
+                          maxLength={60}
                           placeholder="e.g. Reply STOP to opt out"
                           value={newTemplate.footerText}
                           onChange={(e) => setNewTemplate({ ...newTemplate, footerText: e.target.value })}
                           className="input-field py-2 text-xs"
                         />
+                        <p className="text-[10px] text-wa-text-light mt-1">Max 60 characters.</p>
                       </div>
 
                       <div>
                         <label className="block text-xs font-bold text-wa-text-secondary mb-1.5 uppercase">Quick Reply Button Text (Optional)</label>
                         <input
                           type="text"
+                          maxLength={25}
                           placeholder="e.g. Talk to Agent"
                           value={newTemplate.buttonText}
                           onChange={(e) => setNewTemplate({ ...newTemplate, buttonText: e.target.value })}
@@ -1583,7 +1620,7 @@ export default function TemplatesPage() {
 
                   {/* Wallpaper Chat Area */}
                   <div className="flex-1 p-3 overflow-y-auto space-y-2 relative bg-[#efeae2] dark:bg-[#0b141a] min-h-[300px]">
-                    <div className="absolute inset-0 opacity-[0.06] dark:opacity-[0.03] pointer-events-none z-0" style={{ backgroundImage: "url('/uploads/chat-bg.png')", backgroundSize: 'contain' }} />
+                    <div className="absolute inset-0 wa-chat-bg opacity-[0.06] dark:opacity-[0.02] pointer-events-none z-0" />
 
                     <div className="relative z-10 space-y-2">
                       {newTemplate.isCarousel && newTemplate.carouselCards?.length ? (

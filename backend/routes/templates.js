@@ -5,6 +5,8 @@ const { verifyToken } = require('../middleware/auth');
 const { validateObjectId } = require('../middleware/validator');
 const whatsappService = require('../services/whatsapp');
 const { decryptField } = require('../services/encryption');
+const multer = require('multer');
+const upload = multer({ limits: { fileSize: 30 * 1024 * 1024 } }); // 30MB limit
 
 async function preprocessComponents(components, headerMediaId, token) {
   if (!components || !Array.isArray(components)) return components;
@@ -123,10 +125,42 @@ router.use(verifyToken);
 const checkFeatureAccess = require('../middleware/checkFeatureAccess');
 router.use(checkFeatureAccess('templates'));
 
+// POST /templates/upload-media — upload header media to Meta
+router.post('/upload-media', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded', code: 'MISSING_FILE' });
+    }
+    const waAccount = await WhatsAppAccount.findOne({
+      $or: [
+        { userId: req.userId },
+        ...(req.user?.ownerId ? [{ userId: req.user.ownerId }] : [])
+      ],
+      isActive: true
+    });
+    if (!waAccount) {
+      return res.status(400).json({ success: false, error: 'No active WhatsApp account connected', code: 'NO_WA_ACCOUNT' });
+    }
+
+    const token = decryptField(waAccount.accessToken);
+    const result = await whatsappService.uploadMedia(waAccount.phoneNumberId, token, req.file.buffer, req.file.mimetype);
+
+    if (result.success) {
+      res.json({ success: true, mediaId: result.data.id });
+    } else {
+      res.status(500).json({ success: false, error: result.error || 'Upload to Meta failed', code: 'UPLOAD_FAILED' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message, code: 'UPLOAD_ERROR' });
+  }
+});
+
 // GET /templates — list all
 router.get('/', async (req, res) => {
   try {
-    const templates = await Template.find({ userId: req.userId }).sort('-updatedAt').lean();
+    const templates = await Template.find({
+      userId: { $in: [req.userId, ...(req.user?.ownerId ? [req.user.ownerId] : [])] }
+    }).sort('-updatedAt').lean();
     res.json({ success: true, data: { templates } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch templates', code: 'FETCH_ERROR' });
@@ -136,7 +170,13 @@ router.get('/', async (req, res) => {
 // POST /templates/sync — sync templates from Meta
 router.post('/sync', async (req, res) => {
   try {
-    const waAccount = await WhatsAppAccount.findOne({ userId: req.userId, isActive: true });
+    const waAccount = await WhatsAppAccount.findOne({
+      $or: [
+        { userId: req.userId },
+        ...(req.user?.ownerId ? [{ userId: req.user.ownerId }] : [])
+      ],
+      isActive: true
+    });
     if (!waAccount) return res.status(400).json({ success: false, error: 'No active WA account', code: 'NO_WA_ACCOUNT' });
 
     const token = decryptField(waAccount.accessToken);
@@ -168,16 +208,20 @@ router.post('/sync', async (req, res) => {
     }
 
     const metaIds = metaTemplates.map(mt => mt.id);
-    const deleteResult = await Template.deleteMany({
-      userId: req.userId,
-      isCustom: { $ne: true },
-      metaTemplateId: { $exists: true, $nin: metaIds }
-    });
+    let deletedCount = 0;
+    if (metaIds.length > 0) {
+      const deleteResult = await Template.deleteMany({
+        userId: req.userId,
+        isCustom: { $ne: true },
+        metaTemplateId: { $exists: true, $nin: metaIds }
+      });
+      deletedCount = deleteResult.deletedCount;
+    }
 
     res.json({
       success: true,
-      data: { synced, deletedCount: deleteResult.deletedCount },
-      message: `${synced} templates synced, ${deleteResult.deletedCount} stale templates removed`
+      data: { synced, deletedCount },
+      message: `${synced} templates synced, ${deletedCount} stale templates removed`
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Sync failed', code: 'SYNC_ERROR' });
@@ -214,7 +258,13 @@ router.post('/', async (req, res) => {
 
     if (!components) return res.status(400).json({ success: false, error: 'Components required', code: 'MISSING_FIELDS' });
 
-    const waAccount = await WhatsAppAccount.findOne({ userId: req.userId, isActive: true });
+    const waAccount = await WhatsAppAccount.findOne({
+      $or: [
+        { userId: req.userId },
+        ...(req.user?.ownerId ? [{ userId: req.user.ownerId }] : [])
+      ],
+      isActive: true
+    });
     if (!waAccount) return res.status(400).json({ success: false, error: 'No active WA account', code: 'NO_WA_ACCOUNT' });
 
     const token = decryptField(waAccount.accessToken);
@@ -315,7 +365,13 @@ router.put('/:id', ...validateObjectId('id'), async (req, res) => {
     if (components) {
       const targetIsCustom = isCustom !== undefined ? isCustom : template.isCustom;
       if (!targetIsCustom) {
-        const waAccount = await WhatsAppAccount.findOne({ userId, isActive: true });
+        const waAccount = await WhatsAppAccount.findOne({
+        $or: [
+          { userId },
+          ...(req.user?.ownerId ? [{ userId: req.user.ownerId }] : [])
+        ],
+        isActive: true
+      });
         if (!waAccount) return res.status(400).json({ success: false, error: 'No active WA account found to preprocess template components', code: 'NO_WA_ACCOUNT' });
         const token = decryptField(waAccount.accessToken);
         const targetMediaId = headerMediaId !== undefined ? headerMediaId : template.headerMediaId;
@@ -347,7 +403,13 @@ router.delete('/:id', ...validateObjectId('id'), async (req, res) => {
 
     if (!template.isCustom && template.metaTemplateId) {
       // It's a Meta template, let's delete it from Meta first
-      const waAccount = await WhatsAppAccount.findOne({ userId: req.userId, isActive: true });
+      const waAccount = await WhatsAppAccount.findOne({
+      $or: [
+        { userId: req.userId },
+        ...(req.user?.ownerId ? [{ userId: req.user.ownerId }] : [])
+      ],
+      isActive: true
+    });
       if (waAccount) {
         const token = decryptField(waAccount.accessToken);
         const result = await whatsappService.deleteTemplate(waAccount.wabaId, token, template.name);

@@ -184,9 +184,14 @@ export default function BotBuilderPage() {
 
   const fetchFlows = async (selectId = null) => {
     const result = await refreshFlows();
-    if (selectId && result) {
-      const selected = result.find(f => f._id === selectId);
-      if (selected) setCurrentFlow(selected);
+    if (result) {
+      setFlows(result);
+      if (selectId) {
+        const selected = result.find(f => f._id === selectId);
+        if (selected) setCurrentFlow(selected);
+      } else if (!currentFlow && result.length > 0) {
+        setCurrentFlow(result[0]);
+      }
     }
   };
 
@@ -204,6 +209,10 @@ export default function BotBuilderPage() {
 
   const handleSaveFlow = async (canvasData) => {
     if (!currentFlow) return;
+    if (!canvasData?.nodes || canvasData.nodes.length === 0) {
+      toast.error('Please add at least one step/node to the workflow before saving.');
+      return;
+    }
     setSaving(true);
 
     try {
@@ -237,14 +246,28 @@ export default function BotBuilderPage() {
   };
 
   const handleToggleActive = async (flowItem) => {
+    const previousState = flowItem.isActive;
+    // Optimistically update status in UI immediately
+    setFlows(prev => prev.map(f => f._id === flowItem._id ? { ...f, isActive: !previousState } : f));
+    if (currentFlow?._id === flowItem._id) {
+      setCurrentFlow(prev => prev ? { ...prev, isActive: !previousState } : prev);
+    }
+
     try {
-      const url = `/flows/${flowItem._id}/${flowItem.isActive ? 'deactivate' : 'activate'}`;
+      const url = `/flows/${flowItem._id}/${previousState ? 'deactivate' : 'activate'}`;
       const { data } = await api.post(url);
       if (data.success) {
-        toast.success(flowItem.isActive ? 'Flow deactivated' : 'Flow activated successfully!');
+        toast.success(previousState ? 'Flow deactivated' : 'Flow activated successfully!');
         fetchFlows(currentFlow?._id === flowItem._id ? currentFlow._id : null);
+      } else {
+        throw new Error(data.error || 'Failed to update active state');
       }
     } catch (err) {
+      // Revert state on error
+      setFlows(prev => prev.map(f => f._id === flowItem._id ? { ...f, isActive: previousState } : f));
+      if (currentFlow?._id === flowItem._id) {
+        setCurrentFlow(prev => prev ? { ...prev, isActive: previousState } : prev);
+      }
       toast.error(err.response?.data?.error || 'Failed to update active state');
     }
   };
@@ -484,7 +507,7 @@ export default function BotBuilderPage() {
               <span className="block text-[10px] text-wa-text-secondary dark:text-wa-dark-text-secondary font-semibold">Flow Name</span>
               <input 
                 type="text" 
-                value={currentFlow.name}
+                value={currentFlow.name || ''}
                 onChange={(e) => setCurrentFlow({ ...currentFlow, name: e.target.value })}
                 className="bg-transparent font-bold text-sm border-b border-wa-border dark:border-wa-dark-border text-wa-text-primary dark:text-white focus:outline-none w-48 text-left md:text-right focus:border-wa-green transition-colors"
               />

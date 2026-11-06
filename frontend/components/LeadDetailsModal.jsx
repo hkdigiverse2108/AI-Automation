@@ -63,7 +63,7 @@ export default function LeadDetailsModal({ leadId, onClose, onUpdateSuccess, age
     if (leadId) {
       loadLeadDetails();
     }
-  }, [leadId, onClose]);
+  }, [leadId]);
 
   const handleSave = async (e) => {
     e.preventDefault();

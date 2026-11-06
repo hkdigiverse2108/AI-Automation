@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
           contactPhone: contact?.phone || '',
           direction: msg.direction,
           type: msg.type,
-          content: msg.content?.text || msg.content?.caption || '[media]',
+          content: msg.content?.text || msg.content?.caption || (msg.content?.template?.name ? `[Template: ${msg.content.template.name}]` : null) || (msg.content?.interactive?.body?.text ? `[Interactive: ${msg.content.interactive.body.text}]` : null) || '[media]',
           status: msg.status,
           timestamp: msg.timestamp || msg.createdAt,
         };

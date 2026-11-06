@@ -165,7 +165,11 @@ export function usePageData(key, fetcher, options = {}) {
 export function useMultiPageData(fetcherMap, options = {}) {
   const { enabled = true, ttl = CACHE_TTL_MS, deps = [] } = options;
   const keys = Object.keys(fetcherMap);
-  const compositeKey = keys.join('|');
+  const depsSuffix = deps.length ? ':' + deps.join('_') : '';
+  const compositeKey = keys.join('|') + depsSuffix;
+
+  const fetcherMapRef = useRef(fetcherMap);
+  fetcherMapRef.current = fetcherMap;
 
   // Initialize from individual caches
   const initialData = {};
@@ -192,20 +196,26 @@ export function useMultiPageData(fetcherMap, options = {}) {
 
     try {
       const results = await Promise.allSettled(
-        keys.map(k => fetcherMap[k]())
+        keys.map(k => (fetcherMapRef.current[k] || fetcherMap[k])())
       );
 
       if (!mountedRef.current) return;
 
-      const newData = { ...data };
+      setData(prevData => {
+        const newData = { ...prevData };
+        keys.forEach((k, i) => {
+          if (results[i].status === 'fulfilled') {
+            newData[k] = results[i].value;
+          }
+        });
+        return newData;
+      });
+
       keys.forEach((k, i) => {
         if (results[i].status === 'fulfilled') {
-          newData[k] = results[i].value;
           setCache(`multi:${compositeKey}:${k}`, results[i].value);
         }
       });
-
-      setData(newData);
     } catch {} finally {
       if (mountedRef.current) {
         setLoading(false);
@@ -221,11 +231,21 @@ export function useMultiPageData(fetcherMap, options = {}) {
     // Check staleness of any cached entry
     let anyStale = false;
     let allCached = true;
+    const currentData = {};
     keys.forEach(k => {
       const entry = getCache(`multi:${compositeKey}:${k}`);
-      if (!entry?.data) allCached = false;
+      if (entry?.data) {
+        currentData[k] = entry.data;
+      } else {
+        currentData[k] = null;
+        allCached = false;
+      }
       if (!entry || Date.now() - entry.ts > ttl) anyStale = true;
     });
+
+    if (Object.values(currentData).some(Boolean)) {
+      setData(currentData);
+    }
 
     if (allCached && !anyStale) {
       setLoading(false);

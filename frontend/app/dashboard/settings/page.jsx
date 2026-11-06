@@ -14,15 +14,7 @@ import { useAuthStore, useConfirmStore } from '../../../lib/store';
 import { formatDate, formatDateOnly } from '../../../lib/utils';
 import Portal from '../../../components/Portal';
 
-// Pre-defined premium SVG avatars
-const AVATAR_OPTIONS = [
-  { id: 'av1', label: 'Emerald Sage', bg: 'bg-emerald-500' },
-  { id: 'av2', label: 'Teal Ocean', bg: 'bg-teal-500' },
-  { id: 'av3', label: 'Indigo Sky', bg: 'bg-indigo-500' },
-  { id: 'av4', label: 'Violet Dream', bg: 'bg-violet-500' },
-  { id: 'av5', label: 'Rose Blush', bg: 'bg-rose-500' },
-  { id: 'av6', label: 'Amber Sun', bg: 'bg-amber-500' },
-];
+
 
 export default function SettingsPage() {
   const confirm = useConfirmStore(state => state.confirm);
@@ -51,7 +43,6 @@ export default function SettingsPage() {
 
   // Profile states
   const [profileName, setProfileName] = useState('');
-  const [profileAvatar, setProfileAvatar] = useState('');
   const [updatingProfile, setUpdatingProfile] = useState(false);
 
   // Meta configuration and integration states
@@ -339,6 +330,10 @@ export default function SettingsPage() {
         const d = data.data;
         const currentProv = d.provider || 'groq';
         const keyForProv = d.apiKeys?.[currentProv] || '';
+        const presetModels = (PROVIDER_PRESETS[currentProv]?.models || []).map(m => m.id);
+        if (d.model && !presetModels.includes(d.model)) {
+          setCustomModelMode(true);
+        }
         setAiConfig(prev => ({
           ...prev,
           ...d,
@@ -431,7 +426,6 @@ export default function SettingsPage() {
   useEffect(() => {
     if (user) {
       setProfileName(user.name || '');
-      setProfileAvatar(user.avatar || 'av1');
     }
   }, [user]);
 
@@ -526,6 +520,10 @@ export default function SettingsPage() {
 
   const handleRegisterPhone = async (e) => {
     if (e) e.preventDefault();
+    if (!metaConfig.whatsapp.phoneNumberId?.trim()) {
+      toast.error('Please configure and save a Phone Number ID first.');
+      return;
+    }
     if (!regPin.trim() || regPin.trim().length !== 6) {
       toast.error('Please enter a valid 6-digit PIN.');
       return;
@@ -592,8 +590,7 @@ export default function SettingsPage() {
     setUpdatingProfile(true);
     try {
       const { data } = await api.put('/auth/profile', {
-        name: profileName,
-        avatar: profileAvatar
+        name: profileName
       });
       if (data.success) {
         toast.success('Profile details updated successfully');
@@ -799,7 +796,7 @@ export default function SettingsPage() {
         <div className="bg-white dark:bg-wa-dark-panel border border-wa-border dark:border-wa-dark-border rounded-2xl p-6 space-y-6 shadow-sm animate-fade-in">
           <div>
             <h3 className="text-sm font-bold text-wa-text-primary dark:text-white">Profile Preferences</h3>
-            <p className="text-xs text-wa-text-secondary mt-0.5">Update display details and select your personal theme avatar.</p>
+            <p className="text-xs text-wa-text-secondary mt-0.5">Update your display name and view account details.</p>
           </div>
 
           <form onSubmit={handleUpdateProfile} className="space-y-6 max-w-md">
@@ -812,34 +809,6 @@ export default function SettingsPage() {
                 onChange={(e) => setProfileName(e.target.value)}
                 className="w-full px-4 py-2.5 text-xs bg-wa-bg dark:bg-wa-dark-header border border-wa-border dark:border-wa-dark-border rounded-xl text-wa-text-primary dark:text-white focus:outline-none focus:ring-2 focus:ring-wa-green/30"
               />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase text-wa-text-secondary mb-2">Select Avatar Concept</label>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                {AVATAR_OPTIONS.map((av) => {
-                  const isSelected = profileAvatar === av.id;
-                  return (
-                    <button
-                      key={av.id}
-                      type="button"
-                      onClick={() => setProfileAvatar(av.id)}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${
-                        isSelected
-                          ? 'border-wa-green bg-wa-green/5'
-                          : 'border-wa-border dark:border-wa-dark-border hover:bg-wa-bg dark:hover:bg-wa-dark-header/40'
-                      }`}
-                    >
-                      <div className={`w-8 h-8 rounded-full ${av.bg} text-white flex items-center justify-center font-bold text-xs uppercase shadow-sm`}>
-                        {profileName[0] || 'U'}
-                      </div>
-                      <span className="text-[9px] font-semibold text-wa-text-secondary mt-1.5 truncate max-w-full">
-                        {av.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             <div>
@@ -866,7 +835,7 @@ export default function SettingsPage() {
       )}
 
       {/* Tab Contents: META INTEGRATIONS DASHBOARD & FORMS */}
-      {activeTab === 'meta-integrations' && user?.role === 'admin' && (
+      {activeTab === 'meta-integrations' && ['admin', 'owner', 'superadmin'].includes(user?.role) && (
         <div className="space-y-6 animate-fade-in">
           {/* Health Diagnostics / Alerts Banner */}
           {metaConfig.whatsapp?.status === 'error' && (
@@ -1504,7 +1473,13 @@ export default function SettingsPage() {
                     {activeSubTab === 'whatsapp' && (
                       <button
                         type="button"
-                        onClick={() => setShowRegModal(true)}
+                        onClick={() => {
+                          if (!metaConfig.whatsapp.phoneNumberId?.trim()) {
+                            toast.error('Please configure and save a Phone Number ID first.');
+                            return;
+                          }
+                          setShowRegModal(true);
+                        }}
                         className="flex items-center justify-center gap-2 px-5 py-2.5 text-wa-text-primary dark:text-white border border-wa-border dark:border-wa-dark-border hover:bg-wa-bg dark:hover:bg-wa-dark-hover rounded-xl text-xs font-semibold transition-all duration-200 w-full sm:w-auto"
                       >
                         <Smartphone className="w-4 h-4 text-emerald-500" />
@@ -2043,7 +2018,7 @@ export default function SettingsPage() {
                 <span className="font-bold text-wa-text-primary dark:text-white">POST /api/messages/send</span>
                 <p>Send text message or approved Meta WhatsApp templates to customers.</p>
                 <pre className="p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-[10px] overflow-x-auto border border-slate-800">
-{`curl -X POST https://wa.chatbox.biz/api/messages/send \\
+{`curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'https://wa.chatbox.biz'}/api/messages/send \\
   -H "X-API-KEY: your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -2059,7 +2034,7 @@ export default function SettingsPage() {
                 <span className="font-bold text-wa-text-primary dark:text-white">POST /api/contacts</span>
                 <p>Register or update contact entries in your marketing database.</p>
                 <pre className="p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-[10px] overflow-x-auto border border-slate-800">
-{`curl -X POST https://wa.chatbox.biz/api/contacts \\
+{`curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'https://wa.chatbox.biz'}/api/contacts \\
   -H "X-API-KEY: your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -2166,7 +2141,7 @@ export default function SettingsPage() {
                       <input
                         type="text"
                         required
-                        maxLength="6"
+                        maxLength={6}
                         placeholder="123456"
                         value={verificationCode}
                         onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}

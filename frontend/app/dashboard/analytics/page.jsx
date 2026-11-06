@@ -121,14 +121,16 @@ export default function AnalyticsPage() {
       m.readRate || 0,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute('download', `whatsapp_report_${reportPeriod}_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     toast.success('Report downloaded as CSV!');
   };
 
@@ -249,7 +251,7 @@ export default function AnalyticsPage() {
       });
 
       // 5. Detailed Breakdown Table
-      const finalY = doc.lastAutoTable.finalY + 18;
+      const finalY = (doc.lastAutoTable?.finalY || 200) + 18;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10.5);
       doc.setTextColor(15, 23, 42);
@@ -1068,6 +1070,7 @@ export default function AnalyticsPage() {
                 <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={10} tickFormatter={v => v?.slice(5)} />
                 <YAxis stroke="var(--text-secondary)" fontSize={10} />
                 <Tooltip content={<CustomTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px' }} />
                 <Line type="monotone" dataKey="total" name="Total Contacts" stroke="#3b82f6" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
                 <Line type="monotone" dataKey="newContacts" name="New Daily" stroke="#10b981" strokeWidth={1.5} dot={false} />
               </LineChart>
